@@ -1,8 +1,8 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "colors": {
-    "dark": "#15803D",
-    "light": "#07C983",
+    "dark": "#FF5911",
+    "light": "#FF5911",
     "primary": "#FF5911"
   },
   "contextual": {
@@ -19,7 +19,7 @@
   },
   "favicon": "/favicon.svg",
   "logo": {
-    "dark": "/logo/cozmo_dark.png",
+    "dark": "/logo/cozmo_black.png",
     "light": "/logo/cozmo.png"
   },
  "navigation": {

@@ -1,48 +1,48 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Cozmo API",
   "colors": {
-    "primary": "#16A34A",
+    "dark": "#15803D",
     "light": "#07C983",
-    "dark": "#15803D"
-  },
-  "favicon": "/favicon.svg",
-  "navigation": {
-      "tabs": [
-    {
-      "tab": "API Reference",
-      "openapi": "openapi.yaml"
-    }
-  ], 
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hello@cozmox.ai"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dash.prod.czmx.in"
-    }
+    "primary": "#16A34A"
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  }
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "name": "Cozmo API",
+  "navbar": {
+    "links": [
+      {
+        "href": "mailto:hello@cozmox.ai",
+        "label": "Support"
+      }
+    ],
+    "primary": {
+      "href": "https://dash.prod.czmx.in",
+      "label": "Dashboard",
+      "type": "button"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "openapi": "openapi.yaml",
+        "tab": "API Reference"
+      }
+    ]
+  },
+  "theme": "mint"
 }

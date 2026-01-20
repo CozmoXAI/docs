@@ -1,4 +1,6 @@
 openapi: 3.0.0
+servers:
+  - url: https://v2-nova-api.prod.czmx.in/api
 info:
   contact: {}
   title: Cozmo - API

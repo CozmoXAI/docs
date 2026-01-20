@@ -19,8 +19,8 @@
   },
   "favicon": "/favicon.svg",
   "logo": {
-    "dark": "/logo/dark.svg",
-    "light": "/logo/light.svg"
+    "dark": "/logo/cozmo.png",
+    "light": "/logo/cozmo.png"
   },
  "navigation": {
     "tabs": [

@@ -7571,7 +7571,7 @@ paths:
       tags:
         - Organization Members
 servers:
-  - url: /api
+  - url: https://v2-nova-api.prod.czmx.in
 components:
   requestBodies:
     tags.BulkTagProspectsRequest:

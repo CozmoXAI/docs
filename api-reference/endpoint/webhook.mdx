@@ -1,4 +1,163 @@
 ---
-title: 'New Plant'
-openapi: 'WEBHOOK /plant/webhook'
+title: "Webhook Events"
+description: "Receive real-time notifications for call events"
 ---
+
+## Overview
+
+Webhooks allow you to receive real-time notifications when events occur in your CozmoX account. Configure your webhook endpoint in your dashboard to start receiving events.
+
+## Events
+
+| Event            | Description                                                   |
+| ---------------- | ------------------------------------------------------------- |
+| `call.completed` | Fired when a call finishes successfully or is analyzed        |
+| `call.failed`    | Fired when a call fails due to technical or validation issues |
+
+## Call Result Types
+
+| Result              | Description                 |
+| ------------------- | --------------------------- |
+| `FINISHED`          | Successfully completed call |
+| `FAILED`            | Technical failure           |
+| `FAILED_VALIDATION` | Validation error            |
+| `FAILED_SIP`        | SIP/trunk error             |
+| `ANALYSIS_FAILED`   | Post-call analysis failed   |
+| `NO_ANSWER`         | No pickup                   |
+| `BUSY`              | Line was busy               |
+| `CANCELLED`         | Cancelled                   |
+
+## Payload Structure
+
+<ResponseField name="event" type="string" required>
+  The event type. One of `call.completed` or `call.failed`.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="data properties">
+    <ResponseField name="call_id" type="string">
+      Unique identifier for the call.
+    </ResponseField>
+    <ResponseField name="call_result" type="string">
+      The result of the call. See [Call Result Types](#call-result-types) above.
+    </ResponseField>
+    <ResponseField name="campaign_count" type="integer">
+      Number of campaign attempts.
+    </ResponseField>
+    <ResponseField name="dnc_requested" type="boolean">
+      Whether the prospect requested to be added to the Do Not Call list.
+    </ResponseField>
+    <ResponseField name="evaluations" type="array">
+      Post-call evaluation results.
+      <Expandable title="evaluation object">
+        <ResponseField name="key" type="string">
+          Evaluation key (e.g., `SENTIMENT`, `SUMMARY`, `CALLBACK_REQUESTED`).
+        </ResponseField>
+        <ResponseField name="extracted_value" type="string">
+          The extracted value from the evaluation.
+        </ResponseField>
+        <ResponseField name="reasoning" type="string">
+          Reasoning behind the evaluation result.
+        </ResponseField>
+        <ResponseField name="result_boolean" type="boolean">
+          Boolean result of the evaluation.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="extras" type="object | null">
+      Additional metadata.
+    </ResponseField>
+    <ResponseField name="prospect" type="object">
+      Prospect information.
+      <Expandable title="prospect properties">
+        <ResponseField name="ID" type="string">
+          Unique identifier for the prospect.
+        </ResponseField>
+        <ResponseField name="ExternalId" type="string">
+          External identifier for integration purposes.
+        </ResponseField>
+        <ResponseField name="FullName" type="string">
+          Full name of the prospect.
+        </ResponseField>
+        <ResponseField name="Email" type="string">
+          Email address of the prospect.
+        </ResponseField>
+        <ResponseField name="Phone" type="string">
+          Phone number of the prospect.
+        </ResponseField>
+        <ResponseField name="Status" type="string">
+          Current status of the prospect.
+        </ResponseField>
+        <ResponseField name="ExtraMetadata" type="object">
+          Custom metadata fields.
+        </ResponseField>
+        <ResponseField name="CreatedAt" type="string">
+          ISO 8601 timestamp of prospect creation.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="recording_url" type="string">
+      URL to the call recording (if available).
+    </ResponseField>
+    <ResponseField name="sentiment" type="string">
+      Overall sentiment of the call (e.g., `positive`, `neutral`, `negative`).
+    </ResponseField>
+    <ResponseField name="summary" type="string">
+      AI-generated summary of the call.
+    </ResponseField>
+    <ResponseField name="transcript" type="string">
+      Full transcript of the call.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example Payload
+
+```json
+{
+  "event": "call.completed",
+  "data": {
+    "call_id": "17546d2d-4939-4a86-b822-e497c70d5819",
+    "call_result": "FINISHED",
+    "campaign_count": 1,
+    "dnc_requested": false,
+    "evaluations": [
+      {
+        "key": "SENTIMENT",
+        "extracted_value": "neutral",
+        "reasoning": "The prospect maintained a neutral tone throughout the conversation.",
+        "result_boolean": true
+      },
+      {
+        "key": "SUMMARY",
+        "extracted_value": "The call covered product pricing and availability.",
+        "reasoning": "The conversation focused on product information.",
+        "result_boolean": true
+      },
+      {
+        "key": "CALLBACK_REQUESTED",
+        "extracted_value": "",
+        "reasoning": "The prospect did not request a callback.",
+        "result_boolean": false
+      }
+    ],
+    "extras": null,
+    "prospect": {
+      "ID": "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
+      "ExternalId": "ext-123",
+      "FullName": "Test User",
+      "Email": "test.user@test.test",
+      "Phone": "+971555555555",
+      "Status": "new",
+      "ExtraMetadata": {
+        "nickname": "testttt"
+      },
+      "CreatedAt": "2026-01-20T11:33:36.907871Z"
+    },
+    "recording_url": "https://storage.example.com/recordings/17546d2d.mp3",
+    "sentiment": "neutral",
+    "summary": "The call discussed product pricing and the prospect showed interest.",
+    "transcript": "Agent: Hello, this is CozmoX calling...\nProspect: Hi, yes I was expecting your call..."
+  }
+}
+```

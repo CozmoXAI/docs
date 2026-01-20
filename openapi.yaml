@@ -3,6 +3,92 @@ info:
   contact: {}
   title: Cozmo - API
   version: devel
+
+
+tags:
+  - name: Calls
+    description: Manage and inspect voice and API calls, including execution details and results.
+
+  - name: Workflow Batches
+    description: Create and manage batches of workflow executions for large-scale or asynchronous processing.
+
+  - name: Workflow Runs
+    description: Inspect individual workflow executions, statuses, logs, and outputs.
+
+  - name: Workflows
+    description: Define, manage, and orchestrate automated workflows.
+
+  - name: Agents
+    description: Manage AI agents and their configurations.
+
+  - name: Agent Evals
+    description: Evaluate agent performance, quality, and behavior against defined criteria.
+
+  - name: Agent Unit Tests
+    description: Create and run unit tests to validate agent logic and responses.
+
+  - name: Analytics
+    description: Access analytics and metrics related to usage, performance, and outcomes.
+
+  - name: API Keys
+    description: Create, rotate, and manage API keys used for authentication.
+
+  - name: Audit Logs
+    description: View audit logs tracking important actions and system events.
+
+  - name: Auth
+    description: Authentication endpoints for login, tokens, and session management.
+
+  - name: Authentication
+    description: Authentication and authorization flows, including OAuth and credential-based access.
+
+  - name: Billing
+    description: Manage billing information, plans, usage, and invoices.
+
+  - name: Chat
+    description: Send and manage chat-based interactions and conversations.
+
+  - name: Contact
+    description: Manage contact records and associated metadata.
+
+  - name: Email Templates
+    description: Create and manage reusable email templates.
+
+  - name: Integrations
+    description: Configure and manage third-party integrations.
+
+  - name: Invitations
+    description: Invite users to organizations and manage invitation lifecycle.
+
+  - name: OAuth
+    description: OAuth-specific authorization flows and token management.
+
+  - name: Organization Members
+    description: Manage members, roles, and permissions within an organization.
+
+  - name: Outcome Definitions
+    description: Define and manage outcome schemas used for evaluations and reporting.
+
+  - name: Prospect Lists
+    description: Manage collections of prospects for outreach or processing.
+
+  - name: Prospects
+    description: Create and manage individual prospect records.
+
+  - name: Quality Rules
+    description: Define rules and constraints used to evaluate quality and compliance.
+
+  - name: Tags
+    description: Manage tags used to organize and categorize resources.
+
+  - name: Telephony
+    description: Telephony-related endpoints for voice, calls, and communications.
+
+  - name: Tools
+    description: Manage tools and utilities used by agents and workflows.
+
+  - name: Users
+    description: Create and manage user accounts and profiles.
 paths:
   /api/contact:
     post:

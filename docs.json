@@ -3,7 +3,7 @@
   "colors": {
     "dark": "#15803D",
     "light": "#07C983",
-    "primary": "#16A34A"
+    "primary": "#FF5911"
   },
   "contextual": {
     "options": [
@@ -19,7 +19,7 @@
   },
   "favicon": "/favicon.svg",
   "logo": {
-    "dark": "/logo/cozmo.png",
+    "dark": "/logo/cozmo_dark.png",
     "light": "/logo/cozmo.png"
   },
  "navigation": {

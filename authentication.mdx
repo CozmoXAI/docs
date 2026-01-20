@@ -1,0 +1,32 @@
+---
+title: "Authentication"
+description: "Secure API access using API keys"
+---
+
+## Overview
+
+Nova API uses **Auth0** for authentication, providing enterprise-grade security. All API requests must include a valid API key.
+
+<Info>
+  All data is encrypted in transit using TLS 1.3 and at rest using AES-256 encryption.
+</Info>
+
+## API Keys
+
+Create and manage API keys from the [Dashboard](https://dash.prod.czmx.in) in your **Organization Settings**.
+
+When creating an API key, you can select its **scope** to control which parts of the API it can access.
+
+## Using API Keys
+
+Include your API key in the `Authorization` header of all requests:
+
+```bash
+curl --request GET \
+  --url https://<API_ENDPOINT> \
+  --header 'Authorization: Bearer YOUR_API_KEY'
+```
+
+<Note>
+  Keep your API keys secure. Never expose them in client-side code or public repositories.
+</Note>

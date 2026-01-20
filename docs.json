@@ -32,17 +32,17 @@
   },
   "name": "Cozmo API",
   "navbar": {
-    "links": [
-      {
-        "href": "mailto:hello@cozmox.ai",
-        "label": "Support"
-      }
-    ],
     "primary": {
       "href": "https://dash.prod.czmx.in",
       "label": "Dashboard",
       "type": "button"
     }
-  }, 
+  },
+  "sidebar": [
+    {
+      "group": "Getting Started",
+      "pages": ["index", "authentication", "rate-limits", "webhook"]
+    }
+  ], 
   "theme": "mint"
 }

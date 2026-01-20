@@ -22,6 +22,14 @@
     "dark": "/logo/dark.svg",
     "light": "/logo/light.svg"
   },
+ "navigation": {
+    "tabs": [
+      {
+        "openapi": "openapi.yaml",
+        "tab": "API Reference"
+      }
+    ]
+  },
   "name": "Cozmo API",
   "navbar": {
     "links": [
@@ -35,14 +43,6 @@
       "label": "Dashboard",
       "type": "button"
     }
-  },
-  "navigation": {
-    "tabs": [
-      {
-        "openapi": "openapi.yaml",
-        "tab": "API Reference"
-      }
-    ]
-  },
+  }, 
   "theme": "mint"
 }

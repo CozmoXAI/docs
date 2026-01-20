@@ -4,7 +4,6 @@ info:
   title: Cozmo - API
   version: devel
 
-
 tags:
   - name: Calls
     description: Manage and inspect voice and API calls, including execution details and results.
@@ -1695,7 +1694,8 @@ paths:
       tags:
         - Analytics
     post:
-      description: Generate comprehensive AI analysis of call performance for a given
+      description:
+        Generate comprehensive AI analysis of call performance for a given
         time period
       parameters:
         - description: Organization ID
@@ -2114,7 +2114,8 @@ paths:
         - API Keys
   "/org/{org_id}/audit-logs":
     get:
-      description: Returns a paginated list of audit logs for the organization (OWNER
+      description:
+        Returns a paginated list of audit logs for the organization (OWNER
         and ADMIN only)
       parameters:
         - description: Organization ID
@@ -2691,7 +2692,8 @@ paths:
             type: integer
             maximum: 100
             default: 50
-        - description: Filter by status (SCHEDULED, RINGING, IN_PROGRESS, completed,
+        - description:
+            Filter by status (SCHEDULED, RINGING, IN_PROGRESS, completed,
             no-answer, failed, busy)
           in: query
           name: status
@@ -2769,7 +2771,8 @@ paths:
         - Calls
   "/org/{org_id}/calls/{call_id}":
     get:
-      description: Returns full details for a specific call including prospect and
+      description:
+        Returns full details for a specific call including prospect and
         agent info
       parameters:
         - description: Organization ID
@@ -4094,7 +4097,8 @@ paths:
         - Prospect Lists
   "/org/{org_id}/lists/{list_id}":
     delete:
-      description: Soft delete a prospect list and all its prospects (sets deleted_at
+      description:
+        Soft delete a prospect list and all its prospects (sets deleted_at
         timestamp)
       parameters:
         - description: Organization ID
@@ -4232,7 +4236,8 @@ paths:
         - Prospect Lists
   "/org/{org_id}/lists/{list_id}/gdpr":
     delete:
-      description: Permanently delete a prospect list and all its prospects for GDPR
+      description:
+        Permanently delete a prospect list and all its prospects for GDPR
         compliance
       parameters:
         - description: Organization ID
@@ -4321,7 +4326,8 @@ paths:
       tags:
         - Prospect Lists
     post:
-      description: Add multiple prospects to a prospect list (moves if already in
+      description:
+        Add multiple prospects to a prospect list (moves if already in
         another list)
       parameters:
         - description: Organization ID
@@ -4616,7 +4622,8 @@ paths:
       tags:
         - Outcome Definitions
     patch:
-      description: Updates a custom outcome definition (platform definitions cannot be
+      description:
+        Updates a custom outcome definition (platform definitions cannot be
         modified)
       parameters:
         - description: Organization ID
@@ -5085,7 +5092,8 @@ paths:
       tags:
         - Prospects
     post:
-      description: Create a new prospect in the organization. Country and timezone are
+      description:
+        Create a new prospect in the organization. Country and timezone are
         auto-detected from phone if not provided.
       parameters:
         - description: Organization ID
@@ -5535,7 +5543,8 @@ paths:
       tags:
         - Prospects
     patch:
-      description: Update multiple prospects with the same field values. At least one
+      description:
+        Update multiple prospects with the same field values. At least one
         update field must be provided. Phone cannot be bulk updated.
       parameters:
         - description: Organization ID
@@ -5845,7 +5854,8 @@ paths:
         - Quality Rules
   "/org/{org_id}/runs":
     get:
-      description: List all workflow runs within an organization with filtering and
+      description:
+        List all workflow runs within an organization with filtering and
         pagination
       parameters:
         - description: Organization ID
@@ -5902,7 +5912,8 @@ paths:
           name: end_date
           schema:
             type: string
-        - description: Sort order (started_asc, started_desc, status_asc, status_desc,
+        - description:
+            Sort order (started_asc, started_desc, status_asc, status_desc,
             workflow_asc, workflow_desc)
           in: query
           name: sort
@@ -6605,7 +6616,8 @@ paths:
       tags:
         - Tools
     post:
-      description: Create a new tool definition with HTTP endpoint configuration and
+      description:
+        Create a new tool definition with HTTP endpoint configuration and
         parameters
       parameters:
         - description: Organization ID
@@ -6732,7 +6744,8 @@ paths:
       tags:
         - Tools
     patch:
-      description: Update tool definition. Supports partial updates. If parameters are
+      description:
+        Update tool definition. Supports partial updates. If parameters are
         provided, they replace all existing parameters.
       parameters:
         - description: Organization ID
@@ -6797,7 +6810,8 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/workflow-batches.CreateWorkflowRunWithProspectReque\
+              $ref:
+                "#/components/schemas/workflow-batches.CreateWorkflowRunWithProspectReque\
                 st"
         description: Workflow run details
         required: true
@@ -6807,7 +6821,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/workflow-batches.CreateWorkflowRunWithProspectRespo\
+                $ref:
+                  "#/components/schemas/workflow-batches.CreateWorkflowRunWithProspectRespo\
                   nse"
         "400":
           description: Bad Request
@@ -6832,7 +6847,8 @@ paths:
         - Workflow Runs
   "/org/{org_id}/workflow/{node_id}/calls":
     get:
-      description: Returns all calls associated with a specific workflow node across
+      description:
+        Returns all calls associated with a specific workflow node across
         all prospects
       parameters:
         - description: Organization ID
@@ -7067,7 +7083,8 @@ paths:
       tags:
         - Workflows
     patch:
-      description: Update workflow name, description, trigger type, or active status
+      description:
+        Update workflow name, description, trigger type, or active status
         (does not create new version)
       parameters:
         - description: Organization ID
@@ -7308,7 +7325,8 @@ paths:
         - Workflows
   "/org/{org_id}/workflows/{workflow_id}/restore/{version}":
     post:
-      description: Restore a previous version by creating a new version with the old
+      description:
+        Restore a previous version by creating a new version with the old
         definition
       parameters:
         - description: Organization ID
@@ -7359,7 +7377,8 @@ paths:
         - Workflows
   "/org/{org_id}/workflows/{workflow_id}/runs":
     get:
-      description: List all workflow runs for a specific workflow with filtering and
+      description:
+        List all workflow runs for a specific workflow with filtering and
         pagination
       parameters:
         - description: Organization ID
@@ -7658,6 +7677,43 @@ paths:
         - Organization Members
 servers:
   - url: https://v2-nova-api.prod.czmx.in
+webhooks:
+  callCompleted:
+    post:
+      summary: Call Completed
+      description: |
+        Fired when a call finishes successfully or is analyzed.
+        This webhook is sent when the call ends and post-call analysis is complete.
+      operationId: callCompleted
+      tags:
+        - Webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/webhook.CallCompletedPayload"
+      responses:
+        "200":
+          description: Webhook received successfully
+  callFailed:
+    post:
+      summary: Call Failed
+      description: |
+        Fired when a call fails due to technical or validation issues.
+        This includes SIP errors, validation failures, and other error conditions.
+      operationId: callFailed
+      tags:
+        - Webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/webhook.CallFailedPayload"
+      responses:
+        "200":
+          description: Webhook received successfully
 components:
   requestBodies:
     tags.BulkTagProspectsRequest:
@@ -10756,3 +10812,128 @@ components:
         version:
           type: integer
       type: object
+    webhook.CallCompletedPayload:
+      type: object
+      required:
+        - event
+        - data
+      properties:
+        event:
+          type: string
+          enum:
+            - call.completed
+          description: The event type
+        data:
+          $ref: "#/components/schemas/webhook.CallData"
+    webhook.CallFailedPayload:
+      type: object
+      required:
+        - event
+        - data
+      properties:
+        event:
+          type: string
+          enum:
+            - call.failed
+          description: The event type
+        data:
+          $ref: "#/components/schemas/webhook.CallData"
+    webhook.CallData:
+      type: object
+      properties:
+        call_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the call
+        call_result:
+          type: string
+          enum:
+            - FINISHED
+            - FAILED
+            - FAILED_VALIDATION
+            - FAILED_SIP
+            - ANALYSIS_FAILED
+            - NO_ANSWER
+            - BUSY
+            - CANCELLED
+          description: The result of the call
+        campaign_count:
+          type: integer
+          description: Number of campaign attempts
+        dnc_requested:
+          type: boolean
+          description: Whether the prospect requested to be added to the Do Not Call list
+        evaluations:
+          type: array
+          items:
+            $ref: "#/components/schemas/webhook.Evaluation"
+          description: Post-call evaluation results
+        extras:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Additional metadata
+        prospect:
+          $ref: "#/components/schemas/webhook.Prospect"
+        recording_url:
+          type: string
+          description: URL to the call recording (if available)
+        sentiment:
+          type: string
+          enum:
+            - positive
+            - neutral
+            - negative
+          description: Overall sentiment of the call
+        summary:
+          type: string
+          description: AI-generated summary of the call
+        transcript:
+          type: string
+          description: Full transcript of the call
+    webhook.Evaluation:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Evaluation key (e.g., SENTIMENT, SUMMARY, CALLBACK_REQUESTED)
+        extracted_value:
+          type: string
+          description: The extracted value from the evaluation
+        reasoning:
+          type: string
+          description: Reasoning behind the evaluation result
+        result_boolean:
+          type: boolean
+          description: Boolean result of the evaluation
+    webhook.Prospect:
+      type: object
+      properties:
+        ID:
+          type: string
+          format: uuid
+          description: Unique identifier for the prospect
+        ExternalId:
+          type: string
+          description: External identifier for integration purposes
+        FullName:
+          type: string
+          description: Full name of the prospect
+        Email:
+          type: string
+          format: email
+          description: Email address of the prospect
+        Phone:
+          type: string
+          description: Phone number of the prospect
+        Status:
+          type: string
+          description: Current status of the prospect
+        ExtraMetadata:
+          type: object
+          additionalProperties: true
+          description: Custom metadata fields
+        CreatedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of prospect creation

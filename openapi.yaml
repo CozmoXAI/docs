@@ -1,93 +1,8 @@
-openapi: 3.1.0
+openapi: 3.0.0
 info:
   contact: {}
   title: Cozmo - API
   version: devel
-
-tags:
-  - name: Calls
-    description: Manage and inspect voice and API calls, including execution details and results.
-
-  - name: Workflow Batches
-    description: Create and manage batches of workflow executions for large-scale or asynchronous processing.
-
-  - name: Workflow Runs
-    description: Inspect individual workflow executions, statuses, logs, and outputs.
-
-  - name: Workflows
-    description: Define, manage, and orchestrate automated workflows.
-
-  - name: Agents
-    description: Manage AI agents and their configurations.
-
-  - name: Agent Evals
-    description: Evaluate agent performance, quality, and behavior against defined criteria.
-
-  - name: Agent Unit Tests
-    description: Create and run unit tests to validate agent logic and responses.
-
-  - name: Analytics
-    description: Access analytics and metrics related to usage, performance, and outcomes.
-
-  - name: API Keys
-    description: Create, rotate, and manage API keys used for authentication.
-
-  - name: Audit Logs
-    description: View audit logs tracking important actions and system events.
-
-  - name: Auth
-    description: Authentication endpoints for login, tokens, and session management.
-
-  - name: Authentication
-    description: Authentication and authorization flows, including OAuth and credential-based access.
-
-  - name: Billing
-    description: Manage billing information, plans, usage, and invoices.
-
-  - name: Chat
-    description: Send and manage chat-based interactions and conversations.
-
-  - name: Contact
-    description: Manage contact records and associated metadata.
-
-  - name: Email Templates
-    description: Create and manage reusable email templates.
-
-  - name: Integrations
-    description: Configure and manage third-party integrations.
-
-  - name: Invitations
-    description: Invite users to organizations and manage invitation lifecycle.
-
-  - name: OAuth
-    description: OAuth-specific authorization flows and token management.
-
-  - name: Organization Members
-    description: Manage members, roles, and permissions within an organization.
-
-  - name: Outcome Definitions
-    description: Define and manage outcome schemas used for evaluations and reporting.
-
-  - name: Prospect Lists
-    description: Manage collections of prospects for outreach or processing.
-
-  - name: Prospects
-    description: Create and manage individual prospect records.
-
-  - name: Quality Rules
-    description: Define rules and constraints used to evaluate quality and compliance.
-
-  - name: Tags
-    description: Manage tags used to organize and categorize resources.
-
-  - name: Telephony
-    description: Telephony-related endpoints for voice, calls, and communications.
-
-  - name: Tools
-    description: Manage tools and utilities used by agents and workflows.
-
-  - name: Users
-    description: Create and manage user accounts and profiles.
 paths:
   /api/contact:
     post:
@@ -271,6 +186,58 @@ paths:
       summary: Handle webhook
       tags:
         - Billing
+  "/files/{org_id}/{file}":
+    get:
+      description: Returns a presigned S3 URL to download an org-scoped file
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: File name
+          in: path
+          name: file
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/files.FileURLResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      security:
+        - BearerAuth: []
+      summary: Get presigned URL for org file
+      tags:
+        - Files
   "/invitations/{invitation_id}/accept":
     post:
       description: Accept an invitation and join the organization
@@ -669,6 +636,145 @@ paths:
       summary: Run all tests
       tags:
         - Agent Unit Tests
+  "/org/{org_id}/agents/{agent_id}/sip-trunks":
+    get:
+      description: Get all inbound SIP trunks allowed for an agent
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Agent ID
+          in: path
+          name: agent_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/agents.AgentSipTrunkResponse"
+                type: array
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Get agent SIP trunks
+      tags:
+        - Agents
+    post:
+      description: Add an inbound SIP trunk to an agent's allowed list. Only INBOUND
+        trunks can be added.
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Agent ID
+          in: path
+          name: agent_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/agents.AddAgentSipTrunkRequest"
+        description: SIP trunk to add
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Add SIP trunk to agent
+      tags:
+        - Agents
+  "/org/{org_id}/agents/{agent_id}/sip-trunks/{trunk_id}":
+    delete:
+      description: Remove a SIP trunk from an agent's allowed list
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Agent ID
+          in: path
+          name: agent_id
+          required: true
+          schema:
+            type: string
+        - description: SIP Trunk ID
+          in: path
+          name: trunk_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Remove SIP trunk from agent
+      tags:
+        - Agents
   "/org/{org_id}/agents/{agent_id}/tools":
     get:
       description: Get all tools configured for an agent
@@ -1694,8 +1800,7 @@ paths:
       tags:
         - Analytics
     post:
-      description:
-        Generate comprehensive AI analysis of call performance for a given
+      description: Generate comprehensive AI analysis of call performance for a given
         time period
       parameters:
         - description: Organization ID
@@ -2114,8 +2219,7 @@ paths:
         - API Keys
   "/org/{org_id}/audit-logs":
     get:
-      description:
-        Returns a paginated list of audit logs for the organization (OWNER
+      description: Returns a paginated list of audit logs for the organization (OWNER
         and ADMIN only)
       parameters:
         - description: Organization ID
@@ -2692,8 +2796,7 @@ paths:
             type: integer
             maximum: 100
             default: 50
-        - description:
-            Filter by status (SCHEDULED, RINGING, IN_PROGRESS, completed,
+        - description: Filter by status (SCHEDULED, RINGING, IN_PROGRESS, completed,
             no-answer, failed, busy)
           in: query
           name: status
@@ -2717,6 +2820,11 @@ paths:
         - description: Filter by workflow ID
           in: query
           name: workflow_id
+          schema:
+            type: string
+        - description: Filter by prospect external ID
+          in: query
+          name: prospect_external_id
           schema:
             type: string
         - description: Filter by start date (ISO 8601)
@@ -2769,10 +2877,62 @@ paths:
       summary: List calls
       tags:
         - Calls
+    post:
+      description: Creates a call directly from the dashboard, finding or creating a
+        prospect
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/calls.CreateDashboardCallRequest"
+        description: Call data
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/calls.CreateDashboardCallResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      security:
+        - BearerAuth: []
+      summary: Create dashboard call
+      tags:
+        - Calls
   "/org/{org_id}/calls/{call_id}":
     get:
-      description:
-        Returns full details for a specific call including prospect and
+      description: Returns full details for a specific call including prospect and
         agent info
       parameters:
         - description: Organization ID
@@ -3033,6 +3193,147 @@ paths:
       security:
         - BearerAuth: []
       summary: Get call transcript
+      tags:
+        - Calls
+  "/org/{org_id}/calls/export":
+    get:
+      description: Returns a CSV file containing all calls matching the filters (max 10,000)
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Filter by status
+          in: query
+          name: status
+          schema:
+            type: string
+        - description: Filter by direction
+          in: query
+          name: direction
+          schema:
+            type: string
+        - description: Filter by agent ID
+          in: query
+          name: agent_id
+          schema:
+            type: string
+        - description: Filter by prospect ID
+          in: query
+          name: prospect_id
+          schema:
+            type: string
+        - description: Filter by workflow ID
+          in: query
+          name: workflow_id
+          schema:
+            type: string
+        - description: Filter by prospect external ID
+          in: query
+          name: prospect_external_id
+          schema:
+            type: string
+        - description: Filter by start date (ISO 8601)
+          in: query
+          name: start_date
+          schema:
+            type: string
+        - description: Filter by end date (ISO 8601)
+          in: query
+          name: end_date
+          schema:
+            type: string
+        - description: Filter by minimum duration in seconds
+          in: query
+          name: min_duration
+          schema:
+            type: integer
+        - description: Search by phone number
+          in: query
+          name: phone
+          schema:
+            type: string
+      responses:
+        "200":
+          description: CSV File
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+      summary: Export calls to CSV
+      tags:
+        - Calls
+  "/org/{org_id}/calls/export/count":
+    get:
+      description: Returns the total count of calls matching the export filters
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Filter by status
+          in: query
+          name: status
+          schema:
+            type: string
+        - description: Filter by direction
+          in: query
+          name: direction
+          schema:
+            type: string
+        - description: Filter by agent ID
+          in: query
+          name: agent_id
+          schema:
+            type: string
+        - description: Filter by prospect ID
+          in: query
+          name: prospect_id
+          schema:
+            type: string
+        - description: Filter by workflow ID
+          in: query
+          name: workflow_id
+          schema:
+            type: string
+        - description: Filter by prospect external ID
+          in: query
+          name: prospect_external_id
+          schema:
+            type: string
+        - description: Filter by start date (ISO 8601)
+          in: query
+          name: start_date
+          schema:
+            type: string
+        - description: Filter by end date (ISO 8601)
+          in: query
+          name: end_date
+          schema:
+            type: string
+        - description: Filter by minimum duration in seconds
+          in: query
+          name: min_duration
+          schema:
+            type: integer
+        - description: Search by phone number
+          in: query
+          name: phone
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/calls.ExportCountResponse"
+      summary: Export calls count
       tags:
         - Calls
   "/org/{org_id}/chat":
@@ -3489,6 +3790,458 @@ paths:
       summary: Update email template
       tags:
         - Email Templates
+  "/org/{org_id}/faqs":
+    get:
+      description: Get all FAQs for the organization with pagination
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Number of items to return (default 20, max 100)
+          in: query
+          name: limit
+          schema:
+            type: integer
+        - description: Pagination cursor
+          in: query
+          name: cursor
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/faqs.FAQListResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: List FAQs
+      tags:
+        - FAQs
+    post:
+      description: Create a new FAQ for the organization
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/faqs.CreateFAQRequest"
+        description: FAQ details
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/faqs.FAQResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Create FAQ
+      tags:
+        - FAQs
+  "/org/{org_id}/faqs/{faq_id}":
+    delete:
+      description: Delete an FAQ
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: FAQ ID
+          in: path
+          name: faq_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Delete FAQ
+      tags:
+        - FAQs
+    get:
+      description: Get a single FAQ by ID
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: FAQ ID
+          in: path
+          name: faq_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/faqs.FAQResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Get FAQ
+      tags:
+        - FAQs
+    patch:
+      description: Update FAQ properties
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: FAQ ID
+          in: path
+          name: faq_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/faqs.UpdateFAQRequest"
+        description: Fields to update
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/faqs.FAQResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Update FAQ
+      tags:
+        - FAQs
+  "/org/{org_id}/global-webhooks":
+    get:
+      description: Get all global webhooks for the organization
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Page number
+          in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - description: Page size
+          in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/global-webhooks.PaginatedGlobalWebhooksResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: List global webhooks
+      tags:
+        - Global Webhooks
+    post:
+      description: Create a new global webhook for the organization
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/global-webhooks.CreateGlobalWebhookRequest"
+        description: Webhook data
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/global-webhooks.GlobalWebhookResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Create global webhook
+      tags:
+        - Global Webhooks
+  "/org/{org_id}/global-webhooks/{webhook_id}":
+    delete:
+      description: Delete a global webhook by ID
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Webhook ID
+          in: path
+          name: webhook_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Delete global webhook
+      tags:
+        - Global Webhooks
+    get:
+      description: Get a global webhook by ID
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Webhook ID
+          in: path
+          name: webhook_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/global-webhooks.GlobalWebhookResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Get global webhook
+      tags:
+        - Global Webhooks
+    patch:
+      description: Update an existing global webhook
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Webhook ID
+          in: path
+          name: webhook_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/global-webhooks.UpdateGlobalWebhookRequest"
+        description: Webhook data
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/global-webhooks.GlobalWebhookResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Update global webhook
+      tags:
+        - Global Webhooks
   "/org/{org_id}/integrations":
     get:
       description: Get all available integrations with their connection status
@@ -4097,8 +4850,7 @@ paths:
         - Prospect Lists
   "/org/{org_id}/lists/{list_id}":
     delete:
-      description:
-        Soft delete a prospect list and all its prospects (sets deleted_at
+      description: Soft delete a prospect list and all its prospects (sets deleted_at
         timestamp)
       parameters:
         - description: Organization ID
@@ -4236,8 +4988,7 @@ paths:
         - Prospect Lists
   "/org/{org_id}/lists/{list_id}/gdpr":
     delete:
-      description:
-        Permanently delete a prospect list and all its prospects for GDPR
+      description: Permanently delete a prospect list and all its prospects for GDPR
         compliance
       parameters:
         - description: Organization ID
@@ -4326,8 +5077,7 @@ paths:
       tags:
         - Prospect Lists
     post:
-      description:
-        Add multiple prospects to a prospect list (moves if already in
+      description: Add multiple prospects to a prospect list (moves if already in
         another list)
       parameters:
         - description: Organization ID
@@ -4622,8 +5372,7 @@ paths:
       tags:
         - Outcome Definitions
     patch:
-      description:
-        Updates a custom outcome definition (platform definitions cannot be
+      description: Updates a custom outcome definition (platform definitions cannot be
         modified)
       parameters:
         - description: Organization ID
@@ -4720,6 +5469,14 @@ paths:
           name: is_verified
           schema:
             type: boolean
+        - description: Filter by SIP trunk type/direction
+          in: query
+          name: direction
+          schema:
+            type: string
+            enum:
+              - inbound
+              - outbound
         - description: Search by number or label
           in: query
           name: search
@@ -5092,8 +5849,7 @@ paths:
       tags:
         - Prospects
     post:
-      description:
-        Create a new prospect in the organization. Country and timezone are
+      description: Create a new prospect in the organization. Country and timezone are
         auto-detected from phone if not provided.
       parameters:
         - description: Organization ID
@@ -5543,8 +6299,7 @@ paths:
       tags:
         - Prospects
     patch:
-      description:
-        Update multiple prospects with the same field values. At least one
+      description: Update multiple prospects with the same field values. At least one
         update field must be provided. Phone cannot be bulk updated.
       parameters:
         - description: Organization ID
@@ -5854,8 +6609,7 @@ paths:
         - Quality Rules
   "/org/{org_id}/runs":
     get:
-      description:
-        List all workflow runs within an organization with filtering and
+      description: List all workflow runs within an organization with filtering and
         pagination
       parameters:
         - description: Organization ID
@@ -5912,8 +6666,7 @@ paths:
           name: end_date
           schema:
             type: string
-        - description:
-            Sort order (started_asc, started_desc, status_asc, status_desc,
+        - description: Sort order (started_asc, started_desc, status_asc, status_desc,
             workflow_asc, workflow_desc)
           in: query
           name: sort
@@ -6616,8 +7369,7 @@ paths:
       tags:
         - Tools
     post:
-      description:
-        Create a new tool definition with HTTP endpoint configuration and
+      description: Create a new tool definition with HTTP endpoint configuration and
         parameters
       parameters:
         - description: Organization ID
@@ -6744,8 +7496,7 @@ paths:
       tags:
         - Tools
     patch:
-      description:
-        Update tool definition. Supports partial updates. If parameters are
+      description: Update tool definition. Supports partial updates. If parameters are
         provided, they replace all existing parameters.
       parameters:
         - description: Organization ID
@@ -6795,6 +7546,70 @@ paths:
       summary: Update tool
       tags:
         - Tools
+  "/org/{org_id}/voices":
+    get:
+      description: Get a paginated list of available voices from the specified provider
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Voice provider
+          in: query
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum:
+              - elevenlabs
+              - cartesia
+              - openai
+        - description: "Page number (default: 1) - used for offset pagination"
+          in: query
+          name: page
+          schema:
+            type: integer
+        - description: "Page size (default: 50, max: 100)"
+          in: query
+          name: size
+          schema:
+            type: integer
+        - description: Cursor for next page - used for native pagination (cartesia,
+            elevenlabs)
+          in: query
+          name: next_page
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/voices.ListVoicesResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: List voices
+      tags:
+        - Voices
   "/org/{org_id}/workflow-runs":
     post:
       description: Create a new workflow run with prospect creation in a single
@@ -6810,8 +7625,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref:
-                "#/components/schemas/workflow-batches.CreateWorkflowRunWithProspectReque\
+              $ref: "#/components/schemas/workflow-batches.CreateWorkflowRunWithProspectReque\
                 st"
         description: Workflow run details
         required: true
@@ -6821,8 +7635,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref:
-                  "#/components/schemas/workflow-batches.CreateWorkflowRunWithProspectRespo\
+                $ref: "#/components/schemas/workflow-batches.CreateWorkflowRunWithProspectRespo\
                   nse"
         "400":
           description: Bad Request
@@ -6847,8 +7660,7 @@ paths:
         - Workflow Runs
   "/org/{org_id}/workflow/{node_id}/calls":
     get:
-      description:
-        Returns all calls associated with a specific workflow node across
+      description: Returns all calls associated with a specific workflow node across
         all prospects
       parameters:
         - description: Organization ID
@@ -7083,8 +7895,7 @@ paths:
       tags:
         - Workflows
     patch:
-      description:
-        Update workflow name, description, trigger type, or active status
+      description: Update workflow name, description, trigger type, or active status
         (does not create new version)
       parameters:
         - description: Organization ID
@@ -7325,8 +8136,7 @@ paths:
         - Workflows
   "/org/{org_id}/workflows/{workflow_id}/restore/{version}":
     post:
-      description:
-        Restore a previous version by creating a new version with the old
+      description: Restore a previous version by creating a new version with the old
         definition
       parameters:
         - description: Organization ID
@@ -7377,8 +8187,7 @@ paths:
         - Workflows
   "/org/{org_id}/workflows/{workflow_id}/runs":
     get:
-      description:
-        List all workflow runs for a specific workflow with filtering and
+      description: List all workflow runs for a specific workflow with filtering and
         pagination
       parameters:
         - description: Organization ID
@@ -7676,44 +8485,7 @@ paths:
       tags:
         - Organization Members
 servers:
-  - url: https://v2-nova-api.prod.czmx.in
-webhooks:
-  callCompleted:
-    post:
-      summary: Call Completed
-      description: |
-        Fired when a call finishes successfully or is analyzed.
-        This webhook is sent when the call ends and post-call analysis is complete.
-      operationId: callCompleted
-      tags:
-        - Webhooks
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/webhook.CallCompletedPayload"
-      responses:
-        "200":
-          description: Webhook received successfully
-  callFailed:
-    post:
-      summary: Call Failed
-      description: |
-        Fired when a call fails due to technical or validation issues.
-        This includes SIP errors, validation failures, and other error conditions.
-      operationId: callFailed
-      tags:
-        - Webhooks
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/webhook.CallFailedPayload"
-      responses:
-        "200":
-          description: Webhook received successfully
+  - url: /api
 components:
   requestBodies:
     tags.BulkTagProspectsRequest:
@@ -7731,6 +8503,13 @@ components:
       description: Chat message
       required: true
   schemas:
+    agents.AddAgentSipTrunkRequest:
+      properties:
+        sip_trunk_id:
+          type: string
+      required:
+        - sip_trunk_id
+      type: object
     agents.AddAgentToolRequest:
       properties:
         config_override:
@@ -7762,8 +8541,16 @@ components:
           items:
             type: string
           type: array
+        background_sound:
+          items:
+            type: integer
+          type: array
         created_at:
           type: string
+        goodbye_config:
+          items:
+            type: integer
+          type: array
         greeting_config:
           items:
             type: integer
@@ -7779,6 +8566,10 @@ components:
         organization_id:
           type: string
         plugins:
+          items:
+            type: integer
+          type: array
+        precall_webhook:
           items:
             type: integer
           type: array
@@ -7805,6 +8596,19 @@ components:
             type: integer
           type: array
       type: object
+    agents.AgentSipTrunkResponse:
+      properties:
+        id:
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        provider:
+          type: string
+        type:
+          type: string
+      type: object
     agents.AgentToolResponse:
       properties:
         config_override:
@@ -7818,10 +8622,25 @@ components:
           type: string
         name:
           type: string
+        parameters:
+          items:
+            $ref: "#/components/schemas/agents.ToolParameter"
+          type: array
         tool_id:
           type: string
         url:
           type: string
+      type: object
+    agents.BackgroundSoundConfig:
+      properties:
+        file:
+          type: string
+        volume:
+          maximum: 1
+          minimum: 0
+          type: number
+      required:
+        - file
       type: object
     agents.CreateAgentRequest:
       properties:
@@ -7829,6 +8648,10 @@ components:
           items:
             type: string
           type: array
+        background_sound:
+          $ref: "#/components/schemas/agents.BackgroundSoundConfig"
+        goodbye_config:
+          $ref: "#/components/schemas/agents.GoodbyeConfig"
         greeting_config:
           additionalProperties: true
           type: object
@@ -7840,6 +8663,8 @@ components:
         plugins:
           items: {}
           type: array
+        precall_webhook:
+          $ref: "#/components/schemas/agents.PrecallWebhookConfig"
         prompt_template:
           type: string
         transcriber_config:
@@ -7862,6 +8687,14 @@ components:
         - prompt_template
         - type
       type: object
+    agents.GoodbyeConfig:
+      properties:
+        enabled:
+          type: boolean
+        message:
+          maxLength: 500
+          type: string
+      type: object
     agents.PaginatedResponse:
       properties:
         data:
@@ -7882,12 +8715,53 @@ components:
         total_pages:
           type: integer
       type: object
+    agents.PrecallWebhookConfig:
+      properties:
+        body_template:
+          additionalProperties: true
+          type: object
+        headers:
+          additionalProperties:
+            type: string
+          type: object
+        method:
+          enum:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+          type: string
+        timeout_seconds:
+          maximum: 60
+          minimum: 1
+          type: integer
+        url:
+          type: string
+      required:
+        - method
+        - url
+      type: object
+    agents.ToolParameter:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        required:
+          type: boolean
+        type:
+          type: string
+      type: object
     agents.UpdateAgentRequest:
       properties:
         allowed_sip_trunks:
           items:
             type: string
           type: array
+        background_sound:
+          $ref: "#/components/schemas/agents.BackgroundSoundConfig"
+        goodbye_config:
+          $ref: "#/components/schemas/agents.GoodbyeConfig"
         greeting_config:
           additionalProperties: true
           type: object
@@ -7899,6 +8773,8 @@ components:
         plugins:
           items: {}
           type: array
+        precall_webhook:
+          $ref: "#/components/schemas/agents.PrecallWebhookConfig"
         prompt_template:
           type: string
         transcriber_config:
@@ -8000,7 +8876,7 @@ components:
           $ref: "#/components/schemas/analytics.CallDurationStats"
         outcomes:
           items:
-            $ref: "#/components/schemas/analytics.CallOutcomeStat"
+            $ref: "#/components/schemas/analytics.OutcomeAggregatorResult"
           type: array
         period:
           $ref: "#/components/schemas/analytics.AnalyticsPeriod"
@@ -8040,19 +8916,6 @@ components:
         total_calls:
           type: integer
         total_duration_seconds:
-          type: integer
-      type: object
-    analytics.CallOutcomeStat:
-      properties:
-        negative:
-          type: integer
-        outcome_key:
-          type: string
-        positive:
-          type: integer
-        positive_rate_pct:
-          type: number
-        total:
           type: integer
       type: object
     analytics.CallVolumeDataPoint:
@@ -8095,6 +8958,15 @@ components:
           type: integer
         hour_utc:
           type: integer
+      type: object
+    analytics.OutcomeAggregatorResult:
+      properties:
+        outcome_count:
+          type: integer
+        outcome_key:
+          type: string
+        outcome_value:
+          type: string
       type: object
     analytics.ProspectAnalyticsResponse:
       properties:
@@ -8435,13 +9307,13 @@ components:
     billing.InvoiceResponse:
       properties:
         amount:
-          $ref: "#/components/schemas/pgtype.Numeric"
+          type: string
         amount_due:
-          $ref: "#/components/schemas/pgtype.Numeric"
+          type: string
         amount_paid:
-          $ref: "#/components/schemas/pgtype.Numeric"
+          type: string
         amount_remaining:
-          $ref: "#/components/schemas/pgtype.Numeric"
+          type: string
         billing_period:
           type: string
         billing_reason:
@@ -8480,13 +9352,13 @@ components:
         subscription_id:
           type: string
         subtotal:
-          $ref: "#/components/schemas/pgtype.Numeric"
+          type: string
         total:
-          $ref: "#/components/schemas/pgtype.Numeric"
+          type: string
         total_discount:
-          $ref: "#/components/schemas/pgtype.Numeric"
+          type: string
         total_tax:
-          $ref: "#/components/schemas/pgtype.Numeric"
+          type: string
         type:
           type: string
       type: object
@@ -8673,6 +9545,8 @@ components:
           type: array
         prospect_email:
           type: string
+        prospect_external_id:
+          type: string
         prospect_first_name:
           type: string
         prospect_id:
@@ -8680,6 +9554,12 @@ components:
         prospect_last_name:
           type: string
         prospect_phone:
+          type: string
+        recording_analysis:
+          items:
+            type: integer
+          type: array
+        recording_slug:
           type: string
         recording_url:
           type: string
@@ -8751,6 +9631,8 @@ components:
         id:
           type: string
         initial_agent_id:
+          type: string
+        prospect_external_id:
           type: string
         prospect_first_name:
           type: string
@@ -8828,6 +9710,39 @@ components:
         tts_characters:
           type: integer
       type: object
+    calls.CreateDashboardCallRequest:
+      properties:
+        agent_id:
+          type: string
+        extras:
+          additionalProperties:
+            type: string
+          description: first_name, last_name, email, etc.
+          type: object
+        from_number:
+          type: string
+        phone_number:
+          type: string
+      required:
+        - agent_id
+        - from_number
+        - phone_number
+      type: object
+    calls.CreateDashboardCallResponse:
+      properties:
+        call_id:
+          type: string
+        created_at:
+          type: string
+        from_number:
+          type: string
+        prospect_id:
+          type: string
+        status:
+          type: string
+        to_number:
+          type: string
+      type: object
     calls.CreateOutcomeDefinitionRequest:
       properties:
         description:
@@ -8850,6 +9765,16 @@ components:
         - display_name
         - key
         - value_type
+      type: object
+    calls.ExportCountResponse:
+      properties:
+        count:
+          type: integer
+        limited:
+          description: true if count > 10000
+          type: boolean
+        message:
+          type: string
       type: object
     calls.OutcomeDefinitionResponse:
       properties:
@@ -9385,6 +10310,189 @@ components:
         title:
           type: string
         yaml_config:
+          type: string
+      type: object
+    faqs.CreateFAQRequest:
+      properties:
+        answer:
+          maxLength: 5000
+          minLength: 1
+          type: string
+        instruction:
+          maxLength: 2000
+          type: string
+        logic:
+          maxLength: 2000
+          type: string
+        question:
+          maxLength: 1000
+          minLength: 1
+          type: string
+      required:
+        - answer
+        - question
+      type: object
+    faqs.FAQListResponse:
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/faqs.FAQResponse"
+          type: array
+        pagination:
+          $ref: "#/components/schemas/faqs.PaginationResponse"
+      type: object
+    faqs.FAQResponse:
+      properties:
+        answer:
+          type: string
+        created_at:
+          type: string
+        id:
+          type: string
+        instruction:
+          type: string
+        logic:
+          type: string
+        question:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    faqs.PaginationResponse:
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+      type: object
+    faqs.UpdateFAQRequest:
+      properties:
+        answer:
+          maxLength: 5000
+          minLength: 1
+          type: string
+        instruction:
+          maxLength: 2000
+          type: string
+        logic:
+          maxLength: 2000
+          type: string
+        question:
+          maxLength: 1000
+          minLength: 1
+          type: string
+      type: object
+    files.FileURLResponse:
+      properties:
+        expires_in:
+          type: string
+        url:
+          type: string
+      type: object
+    global-webhooks.CreateGlobalWebhookRequest:
+      properties:
+        event_types:
+          items:
+            type: string
+          minItems: 1
+          type: array
+        headers:
+          items:
+            type: integer
+          type: array
+        is_active:
+          type: boolean
+        method:
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        signing_key:
+          type: string
+        timeout_seconds:
+          type: integer
+        url:
+          type: string
+      required:
+        - event_types
+        - name
+        - url
+      type: object
+    global-webhooks.GlobalWebhookResponse:
+      properties:
+        created_at:
+          type: string
+        event_types:
+          items:
+            type: string
+          type: array
+        headers:
+          items:
+            type: integer
+          type: array
+        id:
+          type: string
+        is_active:
+          type: boolean
+        method:
+          type: string
+        name:
+          type: string
+        organization_id:
+          type: string
+        signing_key:
+          type: string
+        timeout_seconds:
+          type: integer
+        updated_at:
+          type: string
+        url:
+          type: string
+      type: object
+    global-webhooks.PaginatedGlobalWebhooksResponse:
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/global-webhooks.GlobalWebhookResponse"
+          type: array
+        meta:
+          $ref: "#/components/schemas/global-webhooks.PaginationMeta"
+      type: object
+    global-webhooks.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    global-webhooks.UpdateGlobalWebhookRequest:
+      properties:
+        event_types:
+          items:
+            type: string
+          type: array
+        headers:
+          items:
+            type: integer
+          type: array
+        is_active:
+          type: boolean
+        method:
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        signing_key:
+          type: string
+        timeout_seconds:
+          type: integer
+        url:
           type: string
       type: object
     helper.Response:
@@ -10452,6 +11560,59 @@ components:
             $ref: "#/components/schemas/users.OrganizationResponse"
           type: array
       type: object
+    voices.ListVoicesResponse:
+      properties:
+        meta:
+          $ref: "#/components/schemas/voices.PaginationMeta"
+        voices:
+          items:
+            $ref: "#/components/schemas/voices.Voice"
+          type: array
+      type: object
+    voices.PaginationMeta:
+      properties:
+        has_more:
+          type: boolean
+        next_page:
+          description: Cursor for next page (cartesia, elevenlabs)
+          type: string
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          description: May not be available with cursor pagination
+          type: integer
+        total_pages:
+          description: May not be available with cursor pagination
+          type: integer
+      type: object
+    voices.Voice:
+      properties:
+        accent:
+          type: string
+        age:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        gender:
+          type: string
+        id:
+          type: string
+        language:
+          type: string
+        name:
+          type: string
+        preview_url:
+          type: string
+        provider:
+          description: '"elevenlabs", "cartesia", "openai"'
+          type: string
+        use_case:
+          type: string
+      type: object
     workflow-batches.BatchResponse:
       properties:
         created_at:
@@ -10812,128 +11973,3 @@ components:
         version:
           type: integer
       type: object
-    webhook.CallCompletedPayload:
-      type: object
-      required:
-        - event
-        - data
-      properties:
-        event:
-          type: string
-          enum:
-            - call.completed
-          description: The event type
-        data:
-          $ref: "#/components/schemas/webhook.CallData"
-    webhook.CallFailedPayload:
-      type: object
-      required:
-        - event
-        - data
-      properties:
-        event:
-          type: string
-          enum:
-            - call.failed
-          description: The event type
-        data:
-          $ref: "#/components/schemas/webhook.CallData"
-    webhook.CallData:
-      type: object
-      properties:
-        call_id:
-          type: string
-          format: uuid
-          description: Unique identifier for the call
-        call_result:
-          type: string
-          enum:
-            - FINISHED
-            - FAILED
-            - FAILED_VALIDATION
-            - FAILED_SIP
-            - ANALYSIS_FAILED
-            - NO_ANSWER
-            - BUSY
-            - CANCELLED
-          description: The result of the call
-        campaign_count:
-          type: integer
-          description: Number of campaign attempts
-        dnc_requested:
-          type: boolean
-          description: Whether the prospect requested to be added to the Do Not Call list
-        evaluations:
-          type: array
-          items:
-            $ref: "#/components/schemas/webhook.Evaluation"
-          description: Post-call evaluation results
-        extras:
-          type: object
-          nullable: true
-          additionalProperties: true
-          description: Additional metadata
-        prospect:
-          $ref: "#/components/schemas/webhook.Prospect"
-        recording_url:
-          type: string
-          description: URL to the call recording (if available)
-        sentiment:
-          type: string
-          enum:
-            - positive
-            - neutral
-            - negative
-          description: Overall sentiment of the call
-        summary:
-          type: string
-          description: AI-generated summary of the call
-        transcript:
-          type: string
-          description: Full transcript of the call
-    webhook.Evaluation:
-      type: object
-      properties:
-        key:
-          type: string
-          description: Evaluation key (e.g., SENTIMENT, SUMMARY, CALLBACK_REQUESTED)
-        extracted_value:
-          type: string
-          description: The extracted value from the evaluation
-        reasoning:
-          type: string
-          description: Reasoning behind the evaluation result
-        result_boolean:
-          type: boolean
-          description: Boolean result of the evaluation
-    webhook.Prospect:
-      type: object
-      properties:
-        ID:
-          type: string
-          format: uuid
-          description: Unique identifier for the prospect
-        ExternalId:
-          type: string
-          description: External identifier for integration purposes
-        FullName:
-          type: string
-          description: Full name of the prospect
-        Email:
-          type: string
-          format: email
-          description: Email address of the prospect
-        Phone:
-          type: string
-          description: Phone number of the prospect
-        Status:
-          type: string
-          description: Current status of the prospect
-        ExtraMetadata:
-          type: object
-          additionalProperties: true
-          description: Custom metadata fields
-        CreatedAt:
-          type: string
-          format: date-time
-          description: ISO 8601 timestamp of prospect creation

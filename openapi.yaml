@@ -4,53 +4,6 @@ info:
   title: Cozmo - API
   version: devel
 paths:
-  /billing/webhook:
-    post:
-      description: Handle payment provider webhook (FlexPrice via Svix)
-      parameters:
-      - description: Svix message ID
-        in: header
-        name: svix-id
-        required: true
-        schema:
-          type: string
-      - description: Svix timestamp
-        in: header
-        name: svix-timestamp
-        required: true
-        schema:
-          type: string
-      - description: Svix signature
-        in: header
-        name: svix-signature
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                additionalProperties:
-                  type: string
-                type: object
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/helper.ResponseError"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/helper.ResponseError"
-      summary: Handle webhook
-      tags:
-      - Billing
-      operationId: handleBillingWebhook
   /me/organizations:
     get:
       description: Returns all organizations the authenticated user is a member of
@@ -4162,6 +4115,131 @@ paths:
       tags:
       - Integrations
       operationId: getIntegrationBySlug
+  "/org/{org_id}/invitations":
+    get:
+      description: List all pending invitations for the organization
+      parameters:
+      - description: Organization ID
+        in: path
+        name: org_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/invitations.InvitationResponse"
+                type: array
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: List invitations
+      tags:
+      - Invitations
+      operationId: listInvitations
+    post:
+      description: Create and send an invitation to join the organization
+      parameters:
+      - description: Organization ID
+        in: path
+        name: org_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/invitations.CreateInvitationRequest"
+        description: Invitation details
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/invitations.InvitationResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Create invitation
+      tags:
+      - Invitations
+      operationId: createInvitation
+  "/org/{org_id}/invitations/{invitation_id}":
+    delete:
+      description: Cancel a pending invitation by expiring it
+      parameters:
+      - description: Organization ID
+        in: path
+        name: org_id
+        required: true
+        schema:
+          type: string
+      - description: Invitation ID
+        in: path
+        name: invitation_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.Response"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/helper.ResponseError"
+      summary: Cancel invitation
+      tags:
+      - Invitations
+      operationId: cancelInvitation
   "/org/{org_id}/lists":
     get:
       description: Get a paginated list of prospect lists with filtering and sorting

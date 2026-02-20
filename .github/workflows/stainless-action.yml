@@ -1,28 +1,26 @@
 name: Build SDKs for pull request
 
 env:
-  OAS_PATH: ./openapi.json
+  OAS_PATH: ./path/to/my/openapi.json
   STAINLESS_ORG: cozmo-ai
   STAINLESS_PROJECT: cozmoai
 
 on:
   pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - closed
+    types: [opened, synchronize, reopened, closed]
   push:
     branches:
-      - main
+      - main # Triggers when you push directly to main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  # Adjusted to handle both PR numbers and branch names (for direct pushes)
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # 1. Preview: Only runs on OPEN pull requests
   preview:
-    if: github.event.action != 'closed'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -41,8 +39,11 @@ jobs:
           project: ${{ env.STAINLESS_PROJECT }}
           oas_path: ${{ env.OAS_PATH }}
 
+  # 2. Merge/Deploy: Runs when a PR is merged OR a direct push hits main
   merge:
-    if: github.event.action == 'closed' && github.event.pull_request.merged == true
+    if: |
+      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: read

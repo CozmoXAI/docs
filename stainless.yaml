@@ -1,0 +1,259 @@
+version: "1.0"
+
+openapi: openapi.yaml
+
+targets:
+  node:
+    package_name: cozmoai
+  python:
+    package_name: cozmoai
+
+resources:
+  # --- Core ---
+  me:
+    methods:
+      retrieve: getCurrentUser
+      list_organizations: listMyOrganizations
+
+  organizations:
+    methods:
+      leave: leaveOrganization
+      list_members: listOrganizationMembers
+      remove_member: removeOrganizationMember
+      update_member_role: updateOrganizationMemberRole
+
+  invitations:
+    methods:
+      accept: acceptInvitation
+      list: listInvitations
+      create: createInvitation
+      cancel: cancelInvitation
+
+  api_keys:
+    methods:
+      list: listApiKeys
+      create: createApiKey
+      revoke: revokeApiKey
+      update_scopes: updateApiKeyScopes
+
+  # --- Agents ---
+  agents:
+    methods:
+      list: listAgents
+      create: createAgent
+      retrieve: getAgent
+      update: updateAgent
+      delete: deleteAgent
+    subresources:
+      tools:
+        methods:
+          list: listAgentTools
+          add: addAgentTool
+          remove: removeAgentTool
+          update_config: updateAgentToolConfig
+
+  # --- Calls ---
+  calls:
+    methods:
+      list: listCalls
+      create: createCall
+      retrieve: getCall
+      export: exportCalls
+      export_count: getCallExportCount
+    subresources:
+      evaluations:
+        methods:
+          list: listCallEvaluations
+      recording:
+        methods:
+          retrieve: getCallRecording
+      tool_logs:
+        methods:
+          list: listCallToolLogs
+      transcript:
+        methods:
+          retrieve: getCallTranscript
+
+  # --- Chat ---
+  chat:
+    methods:
+      send: sendChatMessage
+      stream: streamChatMessage
+      list_conversations: listChatConversations
+      delete_conversation: deleteChatConversation
+      get_conversation: getChatConversation
+
+  # --- Prospects ---
+  prospects:
+    methods:
+      list: listProspects
+      create: createProspect
+      retrieve: getProspect
+      update: updateProspect
+      delete: deleteProspect
+      list_calls: listProspectCalls
+      bulk_delete: bulkDeleteProspects
+      bulk_update: bulkUpdateProspects
+      bulk_import: bulkImportProspects
+    subresources:
+      tags:
+        methods:
+          add: addProspectTags
+          remove: removeProspectTag
+          remove_all: removeAllProspectTags
+
+  prospect_lists:
+    methods:
+      list: listProspectLists
+      create: createProspectList
+      retrieve: getProspectList
+      update: updateProspectList
+      delete: deleteProspectList
+    subresources:
+      prospects:
+        methods:
+          add: addProspectsToList
+          add_one: addProspectToList
+          remove: removeProspectsFromList
+          remove_one: removeProspectFromList
+
+  # --- Workflows ---
+  workflows:
+    methods:
+      list: listWorkflows
+      create: createWorkflow
+      retrieve: getWorkflow
+      update: updateWorkflow
+      delete: deleteWorkflow
+      run: createWorkflowRun
+      duplicate: duplicateWorkflow
+      restore_version: restoreWorkflowVersion
+      update_definition: updateWorkflowDefinition
+    subresources:
+      batches:
+        methods:
+          list: listWorkflowBatches
+          create: createWorkflowBatch
+      runs:
+        methods:
+          list: listWorkflowRuns
+      versions:
+        methods:
+          list: listWorkflowVersions
+          retrieve: getWorkflowVersion
+
+  workflow_runs:
+    methods:
+      list: listRuns
+      retrieve: getRun
+      list_node_calls: listWorkflowNodeCalls
+
+  # --- Phone Numbers ---
+  phone_numbers:
+    methods:
+      list: listPhoneNumbers
+      create: createPhoneNumber
+      retrieve: getPhoneNumber
+      update: updatePhoneNumber
+      delete: deletePhoneNumber
+      bulk_create: bulkCreatePhoneNumbers
+
+  # --- Tags ---
+  tags:
+    methods:
+      list: listTags
+      create: createTag
+      retrieve: getTag
+      update: updateTag
+      delete: deleteTag
+      add_to_prospects: addTagToProspects
+      remove_from_prospects: removeTagFromProspects
+
+  # --- Tools ---
+  tools:
+    methods:
+      list: listTools
+      create: createTool
+      retrieve: getTool
+      update: updateTool
+      delete: deleteTool
+
+  # --- Voices ---
+  voices:
+    methods:
+      list: listVoices
+
+  # --- Integrations ---
+  integrations:
+    methods:
+      list: listIntegrations
+      list_connected: listConnectedIntegrations
+      retrieve: getIntegration
+      retrieve_by_slug: getIntegrationBySlug
+      connect: connectIntegration
+      disconnect: disconnectIntegration
+      update_settings: updateIntegrationSettings
+      toggle: toggleIntegration
+
+  # --- Analytics ---
+  analytics:
+    methods:
+      dashboard: getDashboardAnalytics
+      agents: getAgentAnalytics
+      calls: getCallAnalytics
+      calls_by_hour: getCallsByHourAnalytics
+      call_costs: getCallCostsAnalytics
+      batches: getBatchAnalytics
+      prospects: getProspectAnalytics
+      workflows: getWorkflowAnalytics
+      workflow_by_id: getWorkflowAnalyticsById
+      insights: listInsights
+
+  # --- Billing ---
+  billing:
+    methods:
+      balance: getBillingBalance
+      list_invoices: listBillingInvoices
+      invoice_pdf: getBillingInvoicePdf
+      summary: getBillingSummary
+      topup: initiateBillingTopup
+      usage: getBillingUsage
+
+  # --- Knowledge / FAQs / Templates ---
+  faqs:
+    methods:
+      list: listFaqs
+      create: createFaq
+      retrieve: getFaq
+      update: updateFaq
+      delete: deleteFaq
+
+  email_templates:
+    methods:
+      list: listEmailTemplates
+      create: createEmailTemplate
+      retrieve: getEmailTemplate
+      update: updateEmailTemplate
+      delete: deleteEmailTemplate
+
+  # --- Quality & Outcomes ---
+  quality_rules:
+    methods:
+      list: listQualityRules
+      create: createQualityRule
+      retrieve: getQualityRule
+      update: updateQualityRule
+      delete: deleteQualityRule
+
+  outcome_definitions:
+    methods:
+      list: listOutcomeDefinitions
+      create: createOutcomeDefinition
+      update: updateOutcomeDefinition
+      delete: deleteOutcomeDefinition
+
+  # --- Batches ---
+  batches:
+    methods:
+      retrieve: getBatch
+      list_runs: listBatchRuns

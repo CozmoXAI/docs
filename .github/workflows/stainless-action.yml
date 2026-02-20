@@ -40,7 +40,28 @@ jobs:
           oas_path: ${{ env.OAS_PATH }}
 
   # 2. Merge/Deploy: Runs when a PR is merged OR a direct push hits main
-  merge:
+merge:
+    if: |
+      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Run merge build
+        uses: stainless-api/upload-openapi-spec-action/merge@v1
+        with:
+          org: ${{ env.STAINLESS_ORG }}
+          project: ${{ env.STAINLESS_PROJECT }}
+          oas_path: ${{ env.OAS_PATH }}
+          commit_message: ${{ github.event.head_commit.message || github.event.pull_request.title }}
     if: |
       (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true) ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')

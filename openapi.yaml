@@ -9,6 +9,7 @@ paths:
   /org/{org_id}/agents:
     get:
       description: Get a paginated list of agents for the organization
+      operationId: listAgents
       parameters:
         - description: Organization ID
           in: path
@@ -62,6 +63,7 @@ paths:
         - Agents
     post:
       description: Create a new AI agent in the organization
+      operationId: createAgent
       parameters:
         - description: Organization ID
           in: path
@@ -107,6 +109,7 @@ paths:
   /org/{org_id}/agents/{agent_id}:
     delete:
       description: Delete an agent by ID
+      operationId: deleteAgent
       parameters:
         - description: Organization ID
           in: path
@@ -152,6 +155,7 @@ paths:
         - Agents
     get:
       description: Get agent details by ID
+      operationId: getAgent
       parameters:
         - description: Organization ID
           in: path
@@ -195,6 +199,7 @@ paths:
         - Agents
     patch:
       description: Update agent details (partial update)
+      operationId: updateAgent
       parameters:
         - description: Organization ID
           in: path
@@ -246,6 +251,7 @@ paths:
   /org/{org_id}/calls:
     get:
       description: Returns a paginated list of calls for the organization with optional filters
+      operationId: listCalls
       parameters:
         - description: Organization ID
           in: path
@@ -354,6 +360,7 @@ paths:
   /org/{org_id}/calls/{call_id}:
     get:
       description: Returns full details for a specific call including prospect and agent info
+      operationId: getCallDetails
       parameters:
         - description: Organization ID
           in: path
@@ -406,6 +413,7 @@ paths:
   /org/{org_id}/voices:
     get:
       description: Get a paginated list of available voices from the specified provider
+      operationId: listVoices
       parameters:
         - description: Organization ID
           in: path
@@ -478,6 +486,7 @@ paths:
   /org/{org_id}/workflows:
     get:
       description: Get a paginated list of workflows with filtering
+      operationId: listWorkflows
       parameters:
         - description: Organization ID
           in: path
@@ -537,6 +546,7 @@ paths:
   /org/{org_id}/workflows/{workflow_id}:
     get:
       description: Get a single workflow by ID with its latest definition
+      operationId: getWorkflow
       parameters:
         - description: Organization ID
           in: path

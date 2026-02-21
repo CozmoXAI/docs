@@ -7,7 +7,6 @@ servers:
   - url: /api/org/{org_id}
     variables:
       org_id:
-        default: ''
         description: Organization ID
 paths:
   /agents:

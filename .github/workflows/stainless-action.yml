@@ -12,9 +12,6 @@ on:
       - synchronize
       - reopened
       - closed
-  push:
-    branches:
-      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -60,4 +57,3 @@ jobs:
           org: ${{ env.STAINLESS_ORG }}
           project: ${{ env.STAINLESS_PROJECT }}
           oas_path: ${{ env.OAS_PATH }}
-          commit_message: ${{ github.event.head_commit.message || github.event.pull_request.title }}

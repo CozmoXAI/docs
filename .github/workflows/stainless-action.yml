@@ -1,7 +1,7 @@
 name: Build SDKs for pull request
 
 env:
-  OAS_PATH: ./openapi.yaml
+  OAS_PATH: ./openapi.sdk.yaml
   STAINLESS_ORG: cozmo-ai
   STAINLESS_PROJECT: cozmoai
 

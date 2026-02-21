@@ -32,7 +32,7 @@ targets:
     package_name: cozmoai
     production_repo: null
     publish:
-      npm: false
+      npm: true
   go:
     edition: go.2026-2-3
     package_name: cozmoai
@@ -62,22 +62,22 @@ resources:
       vad_config: '#/components/schemas/agents.VadConfig'
       voice_config: '#/components/schemas/agents.VoiceConfig'
     methods:
-      list: get /org/{org_id}/agents
-      create: post /org/{org_id}/agents
-      delete: delete /org/{org_id}/agents/{agent_id}
-      retrieve: get /org/{org_id}/agents/{agent_id}
-      update: patch /org/{org_id}/agents/{agent_id}
+      list: get /agents
+      create: post /agents
+      delete: delete /agents/{agent_id}
+      retrieve: get /agents/{agent_id}
+      update: patch /agents/{agent_id}
   calls:
     methods:
-      list: get /org/{org_id}/calls
-      retrieve: get /org/{org_id}/calls/{call_id}
+      list: get /calls
+      retrieve: get /calls/{call_id}
   workflows:
     methods:
-      list: get /org/{org_id}/workflows
-      retrieve: get /org/{org_id}/workflows/{workflow_id}
+      list: get /workflows
+      retrieve: get /workflows/{workflow_id}
   voices:
     methods:
-      list: get /org/{org_id}/voices
+      list: get /voices
 
 settings:
   # All generated integration tests that hit the prism mock http server are marked
@@ -113,9 +113,9 @@ readme:
   example_requests:
     default:
       type: request
-      endpoint: get /org/{org_id}/agents
+      endpoint: get /agents
       params: {}
     headline:
       type: request
-      endpoint: get /org/{org_id}/agents
+      endpoint: get /agents
       params: {}

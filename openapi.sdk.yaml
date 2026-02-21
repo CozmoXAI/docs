@@ -1,0 +1,5036 @@
+openapi: 3.0.0
+info:
+  contact: {}
+  title: Cozmo - API
+  version: devel
+servers:
+  - url: /api/org/{org_id}
+    variables:
+      org_id:
+        default: ''
+        description: Organization ID
+paths:
+  /agents:
+    get:
+      description: Get a paginated list of agents for the organization
+      operationId: listAgents
+      parameters:
+        - description: Page number
+          in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - description: Page size
+          in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+        - description: Filter by agent type (voice or chat)
+          in: query
+          name: type
+          schema:
+            type: string
+        - description: Search by agent name
+          in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/agents.PaginatedResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: List agents
+      tags:
+        - Agents
+    post:
+      description: Create a new AI agent in the organization
+      operationId: createAgent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/agents.CreateAgentRequest'
+        description: Agent details
+        required: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/agents.AgentResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '409':
+          description: Duplicate agent name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Create agent
+      tags:
+        - Agents
+  /agents/{agent_id}:
+    delete:
+      description: Delete an agent by ID
+      operationId: deleteAgent
+      parameters:
+        - description: Agent ID
+          in: path
+          name: agent_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Delete agent
+      tags:
+        - Agents
+    get:
+      description: Get agent details by ID
+      operationId: getAgent
+      parameters:
+        - description: Agent ID
+          in: path
+          name: agent_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/agents.AgentResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Get agent
+      tags:
+        - Agents
+    patch:
+      description: Update agent details (partial update)
+      operationId: updateAgent
+      parameters:
+        - description: Agent ID
+          in: path
+          name: agent_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/agents.UpdateAgentRequest'
+        description: Agent update details
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/agents.AgentResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Update agent
+      tags:
+        - Agents
+  /calls:
+    get:
+      description: Returns a paginated list of calls for the organization with optional filters
+      operationId: listCalls
+      parameters:
+        - description: Page number
+          in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - description: Page size
+          in: query
+          name: size
+          schema:
+            type: integer
+            maximum: 100
+            default: 50
+        - description: Filter by status (SCHEDULED, RINGING, IN_PROGRESS, completed, no-answer, failed, busy)
+          in: query
+          name: status
+          schema:
+            type: string
+        - description: Filter by direction (INBOUND, OUTBOUND)
+          in: query
+          name: direction
+          schema:
+            type: string
+        - description: Filter by agent ID
+          in: query
+          name: agent_id
+          schema:
+            type: string
+        - description: Filter by prospect ID
+          in: query
+          name: prospect_id
+          schema:
+            type: string
+        - description: Filter by workflow ID
+          in: query
+          name: workflow_id
+          schema:
+            type: string
+        - description: Filter by prospect external ID
+          in: query
+          name: prospect_external_id
+          schema:
+            type: string
+        - description: Filter by prospect name (first or last)
+          in: query
+          name: prospect_name
+          schema:
+            type: string
+        - description: Filter by start date (ISO 8601)
+          in: query
+          name: start_date
+          schema:
+            type: string
+        - description: Filter by end date (ISO 8601)
+          in: query
+          name: end_date
+          schema:
+            type: string
+        - description: Filter by minimum duration in seconds
+          in: query
+          name: min_duration
+          schema:
+            type: integer
+        - description: Search by phone number
+          in: query
+          name: phone
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/calls.PaginatedCallsResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: List calls
+      tags:
+        - Calls
+  /calls/{call_id}:
+    get:
+      description: Returns full details for a specific call including prospect and agent info
+      operationId: getCallDetails
+      parameters:
+        - description: Call ID
+          in: path
+          name: call_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/calls.CallDetailResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Get call details
+      tags:
+        - Calls
+  /voices:
+    get:
+      description: Get a paginated list of available voices from the specified provider
+      operationId: listVoices
+      parameters:
+        - description: Voice provider
+          in: query
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum:
+              - elevenlabs
+              - cartesia
+              - openai
+              - cambai
+              - sarvam
+              - inworld
+              - minimax
+        - description: 'Page number (default: 1) - used for offset pagination'
+          in: query
+          name: page
+          schema:
+            type: integer
+        - description: 'Page size (default: 50, max: 100)'
+          in: query
+          name: size
+          schema:
+            type: integer
+        - description: Cursor for next page - used for native pagination (cartesia, elevenlabs)
+          in: query
+          name: next_page
+          schema:
+            type: string
+        - description: Filter by model (e.g., bulbul:v2, bulbul:v3-beta) - only for sarvam provider
+          in: query
+          name: model
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/voices.ListVoicesResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: List voices
+      tags:
+        - Voices
+  /workflows:
+    get:
+      description: Get a paginated list of workflows with filtering
+      operationId: listWorkflows
+      parameters:
+        - description: Page number
+          in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - description: Page size
+          in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+        - description: Filter by active status
+          in: query
+          name: is_active
+          schema:
+            type: boolean
+        - description: Filter by trigger type
+          in: query
+          name: trigger_type
+          schema:
+            type: string
+        - description: Search in workflow name and description
+          in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/workflows.PaginatedWorkflowsResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: List workflows
+      tags:
+        - Workflows
+  /workflows/{workflow_id}:
+    get:
+      description: Get a single workflow by ID with its latest definition
+      operationId: getWorkflow
+      parameters:
+        - description: Workflow ID
+          in: path
+          name: workflow_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/workflows.WorkflowResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Get workflow
+      tags:
+        - Workflows
+components:
+  requestBodies:
+    tags.BulkTagProspectsRequest:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/tags.BulkTagProspectsRequest'
+      description: Prospect IDs
+      required: true
+    chat.SendMessageRequest:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/chat.SendMessageRequest'
+      description: Chat message
+      required: true
+  securitySchemes:
+    BearerAuth:
+      in: header
+      name: Authorization
+      type: apiKey
+  schemas:
+    admin.LivenessResponse:
+      properties:
+        status:
+          example: ok
+          type: string
+      type: object
+    admin.ReadinessResponse:
+      properties:
+        database:
+          example: ok
+          type: string
+        status:
+          example: ok
+          type: string
+      type: object
+    agents.AddAgentSipTrunkRequest:
+      properties:
+        sip_trunk_id:
+          type: string
+      required:
+        - sip_trunk_id
+      type: object
+    agents.AddAgentToolRequest:
+      properties:
+        config_override:
+          additionalProperties: true
+          type: object
+        is_enabled:
+          type: boolean
+        tool_id:
+          type: string
+      required:
+        - tool_id
+      type: object
+    agents.AgentListItemResponse:
+      properties:
+        created_at:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    agents.AgentResponse:
+      properties:
+        allowed_sip_trunks:
+          items:
+            type: string
+          type: array
+        background_sound:
+          items:
+            type: integer
+          type: array
+        created_at:
+          type: string
+        extra_config:
+          items:
+            type: integer
+          type: array
+        goodbye_config:
+          items:
+            type: integer
+          type: array
+        greeting_config:
+          items:
+            type: integer
+          type: array
+        id:
+          type: string
+        llm_config:
+          items:
+            type: integer
+          type: array
+        name:
+          type: string
+        organization_id:
+          type: string
+        plugins:
+          items:
+            type: integer
+          type: array
+        precall_webhook:
+          items:
+            type: integer
+          type: array
+        prompt_template:
+          type: string
+        public_quota:
+          type: integer
+        room_duration_config:
+          items:
+            type: integer
+          type: array
+        tools:
+          items:
+            $ref: '#/components/schemas/agents.AgentToolResponse'
+          type: array
+        transcriber_config:
+          items:
+            type: integer
+          type: array
+        type:
+          type: string
+        updated_at:
+          type: string
+        vad_config:
+          items:
+            type: integer
+          type: array
+        voice_config:
+          items:
+            type: integer
+          type: array
+      type: object
+    agents.AgentScenariosResponse:
+      properties:
+        agent_id:
+          type: string
+        count:
+          type: integer
+        scenarios:
+          items:
+            $ref: '#/components/schemas/agents.ScenarioSummaryResponse'
+          type: array
+      type: object
+    agents.AgentSipTrunkResponse:
+      properties:
+        id:
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        provider:
+          type: string
+        type:
+          type: string
+      type: object
+    agents.AgentToolResponse:
+      properties:
+        config_override:
+          additionalProperties: true
+          type: object
+        description:
+          type: string
+        is_enabled:
+          type: boolean
+        method:
+          type: string
+        name:
+          type: string
+        parameters:
+          items:
+            $ref: '#/components/schemas/agents.ToolParameter'
+          type: array
+        tool_id:
+          type: string
+        url:
+          type: string
+      type: object
+    agents.AttachScenariosResponse:
+      properties:
+        attached:
+          items:
+            type: string
+          type: array
+        skipped:
+          items:
+            type: string
+          type: array
+      type: object
+    agents.AttachScenariosToAgentRequest:
+      properties:
+        scenario_ids:
+          items:
+            type: string
+          minItems: 1
+          type: array
+      required:
+        - scenario_ids
+      type: object
+    agents.BackgroundSoundConfig:
+      properties:
+        enabled:
+          type: boolean
+        file:
+          type: string
+        initial_volume:
+          maximum: 1
+          minimum: 0
+          type: number
+        thinking_sound:
+          items:
+            $ref: '#/components/schemas/agents.ThinkingSound'
+          type: array
+        volume:
+          maximum: 1
+          minimum: 0
+          type: number
+      required:
+        - file
+      type: object
+    agents.CreateAgentRequest:
+      properties:
+        allowed_sip_trunks:
+          items:
+            type: string
+          type: array
+        background_sound:
+          $ref: '#/components/schemas/agents.BackgroundSoundConfig'
+        extra_config:
+          $ref: '#/components/schemas/agents.ExtraConfig'
+        goodbye_config:
+          $ref: '#/components/schemas/agents.GoodbyeConfig'
+        greeting_config:
+          $ref: '#/components/schemas/agents.GreetingConfig'
+        llm_config:
+          $ref: '#/components/schemas/agents.LLMConfig'
+        name:
+          type: string
+        plugins:
+          items: {}
+          type: array
+        precall_webhook:
+          $ref: '#/components/schemas/agents.PrecallWebhookConfig'
+        prompt_template:
+          type: string
+        room_duration_config:
+          $ref: '#/components/schemas/agents.RoomDurationConfig'
+        transcriber_config:
+          $ref: '#/components/schemas/agents.TranscriberConfig'
+        type:
+          enum:
+            - voice
+            - chat
+            - video
+          type: string
+        vad_config:
+          $ref: '#/components/schemas/agents.VadConfig'
+        voice_config:
+          $ref: '#/components/schemas/agents.VoiceConfig'
+      required:
+        - name
+        - prompt_template
+        - type
+      type: object
+    agents.ExtraConfig:
+      properties:
+        allow_interruptions:
+          type: boolean
+        interruption_sensitivity:
+          maximum: 1
+          minimum: 0
+          type: number
+        min_words:
+          minimum: 0
+          type: integer
+        turn_detector_enabled:
+          type: boolean
+        turn_detector_is_multilingual:
+          type: boolean
+        turn_detector_model_type:
+          type: string
+      type: object
+    agents.GoodbyeConfig:
+      properties:
+        enabled:
+          type: boolean
+        message:
+          maxLength: 500
+          type: string
+      type: object
+    agents.GreetingConfig:
+      properties:
+        agent_speaks_first:
+          type: boolean
+        greeting:
+          type: string
+        pause_before_first_message:
+          minimum: 0
+          type: integer
+        voice_mail_message:
+          type: string
+        welcome_message_is_generated:
+          type: boolean
+      type: object
+    agents.LLMConfig:
+      properties:
+        frequency_penalty:
+          maximum: 2
+          minimum: -2
+          type: number
+        max_tokens:
+          minimum: 1
+          type: integer
+        model:
+          type: string
+        parallel_tool_calls:
+          type: boolean
+        presence_penalty:
+          description: OpenAI Only
+          maximum: 2
+          minimum: -2
+          type: number
+        provider:
+          description: Core (All Providers)
+          enum:
+            - openai
+            - anthropic
+          type: string
+        system_prompt:
+          type: string
+        temperature:
+          description: Sampling Parameters (All Providers)
+          maximum: 2
+          minimum: 0
+          type: number
+        top_k:
+          description: Anthropic Only
+          minimum: 1
+          type: integer
+        top_p:
+          maximum: 1
+          minimum: 0
+          type: number
+      required:
+        - model
+        - provider
+      type: object
+    agents.PaginatedResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/agents.AgentListItemResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/agents.PaginationMeta'
+      type: object
+    agents.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    agents.PrecallWebhookConfig:
+      properties:
+        body_template:
+          additionalProperties: true
+          type: object
+        headers:
+          additionalProperties:
+            type: string
+          type: object
+        method:
+          enum:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+          type: string
+        timeout_seconds:
+          maximum: 60
+          minimum: 1
+          type: integer
+        url:
+          type: string
+      required:
+        - method
+        - url
+      type: object
+    agents.ReplenishQuotaRequest:
+      properties:
+        quota:
+          minimum: 0
+          type: integer
+      required:
+        - quota
+      type: object
+    agents.RoomDurationConfig:
+      properties:
+        close_room_message:
+          type: string
+        duration_warning_message:
+          type: string
+        max_duration_min:
+          minimum: 1
+          type: integer
+        max_silence_sec:
+          minimum: 0
+          type: integer
+        silence_message:
+          type: string
+        wait_for_message_sec:
+          minimum: 0
+          type: integer
+      type: object
+    agents.ScenarioSummaryResponse:
+      properties:
+        created_at:
+          type: string
+        extra_fields:
+          items:
+            type: integer
+          type: array
+        id:
+          type: string
+        input_prompt:
+          type: string
+        provider:
+          type: string
+        required_tools:
+          items:
+            type: string
+          type: array
+        type:
+          type: string
+      type: object
+    agents.ThinkingSound:
+      properties:
+        probability:
+          maximum: 1
+          minimum: 0
+          type: number
+        sound:
+          type: string
+        volume:
+          maximum: 1
+          minimum: 0
+          type: number
+      required:
+        - sound
+      type: object
+    agents.ToolParameter:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        required:
+          type: boolean
+        type:
+          type: string
+      type: object
+    agents.TranscriberConfig:
+      properties:
+        commit_strategy:
+          description: ElevenLabs Only
+          enum:
+            - manual
+            - vad
+          type: string
+        detect_language:
+          type: boolean
+        eager_eot_threshold:
+          description: Unified EOT/VAD Fields
+          maximum: 1
+          minimum: 0
+          type: number
+        enable_logging:
+          type: boolean
+        endpointing:
+          minimum: 0
+          type: integer
+        endpointing_ms:
+          minimum: 0
+          type: integer
+        energy_filter:
+          type: boolean
+        eot_threshold:
+          maximum: 1
+          minimum: 0
+          type: number
+        eot_timeout_ms:
+          minimum: 0
+          type: integer
+        filler_words:
+          type: boolean
+        include_language_detection:
+          type: boolean
+        include_timestamps:
+          type: boolean
+        interim_results:
+          description: Deepgram V1 Only
+          type: boolean
+        keyterms:
+          description: Deepgram Flux Only
+          items:
+            type: string
+          type: array
+        keywords:
+          items:
+            type: string
+          type: array
+        language:
+          description: Legacy fields (backward compatibility)
+          type: string
+        language_code:
+          type: string
+        min_speech_duration_ms:
+          minimum: 0
+          type: integer
+        model:
+          type: string
+        no_delay:
+          type: boolean
+        num_channels:
+          minimum: 1
+          type: integer
+        preemptive_generation:
+          description: Preemptive Generation (All Providers)
+          type: boolean
+        preemptive_min_confidence:
+          maximum: 1
+          minimum: 0
+          type: number
+        profanity_filter:
+          type: boolean
+        provider:
+          description: Core fields (All Providers)
+          enum:
+            - deepgram
+            - elevenlabs
+            - speechmatics
+          type: string
+        punctuate:
+          type: boolean
+        sample_rate:
+          maximum: 48000
+          minimum: 8000
+          type: integer
+        smart_format:
+          type: boolean
+        vad_events:
+          type: boolean
+      required:
+        - provider
+      type: object
+    agents.UpdateAgentRequest:
+      properties:
+        allowed_sip_trunks:
+          items:
+            type: string
+          type: array
+        background_sound:
+          $ref: '#/components/schemas/agents.BackgroundSoundConfig'
+        extra_config:
+          $ref: '#/components/schemas/agents.ExtraConfig'
+        goodbye_config:
+          $ref: '#/components/schemas/agents.GoodbyeConfig'
+        greeting_config:
+          $ref: '#/components/schemas/agents.GreetingConfig'
+        llm_config:
+          $ref: '#/components/schemas/agents.LLMConfig'
+        name:
+          type: string
+        plugins:
+          items: {}
+          type: array
+        precall_webhook:
+          $ref: '#/components/schemas/agents.PrecallWebhookConfig'
+        prompt_template:
+          type: string
+        room_duration_config:
+          $ref: '#/components/schemas/agents.RoomDurationConfig'
+        transcriber_config:
+          $ref: '#/components/schemas/agents.TranscriberConfig'
+        type:
+          enum:
+            - voice
+            - chat
+            - video
+          type: string
+        vad_config:
+          $ref: '#/components/schemas/agents.VadConfig'
+        voice_config:
+          $ref: '#/components/schemas/agents.VoiceConfig'
+      type: object
+    agents.UpdateAgentToolConfigRequest:
+      properties:
+        config_override:
+          additionalProperties: true
+          type: object
+        is_enabled:
+          type: boolean
+      type: object
+    agents.VadConfig:
+      properties:
+        activation_threshold:
+          maximum: 1
+          minimum: 0
+          type: number
+        max_buffered_speech:
+          minimum: 1
+          type: integer
+        min_silence_duration:
+          minimum: 0
+          type: number
+        min_speech_duration:
+          minimum: 0
+          type: number
+        prefix_padding_duration:
+          minimum: 0
+          type: number
+        sample_rate:
+          maximum: 48000
+          minimum: 8000
+          type: integer
+      type: object
+    agents.VoiceConfig:
+      properties:
+        language:
+          type: string
+        model:
+          type: string
+        provider:
+          type: string
+        sample_rate:
+          maximum: 48000
+          minimum: 8000
+          type: integer
+        similarity_boost:
+          maximum: 1
+          minimum: 0
+          type: number
+        speed:
+          maximum: 5
+          minimum: 0.1
+          type: number
+        stability:
+          maximum: 1
+          minimum: 0
+          type: number
+        style:
+          minimum: 0
+          type: number
+        use_speaker_boost:
+          type: boolean
+        voice_id:
+          type: string
+      required:
+        - model
+        - provider
+      type: object
+    analytics.AgentAnalyticsResponse:
+      properties:
+        agents:
+          items:
+            $ref: '#/components/schemas/analytics.AgentPerformance'
+          type: array
+        outcome_rates:
+          items:
+            $ref: '#/components/schemas/analytics.AgentOutcomeRate'
+          type: array
+        period:
+          $ref: '#/components/schemas/analytics.AnalyticsPeriod'
+      type: object
+    analytics.AgentOutcomeRate:
+      properties:
+        agent_id:
+          type: string
+        agent_name:
+          type: string
+        outcome_key:
+          type: string
+        positive:
+          type: integer
+        positive_rate_pct:
+          type: number
+        total:
+          type: integer
+      type: object
+    analytics.AgentPerformance:
+      properties:
+        agent_id:
+          type: string
+        agent_name:
+          type: string
+        avg_duration_seconds:
+          type: number
+        completed_calls:
+          type: integer
+        total_calls:
+          type: integer
+        total_cost_usd:
+          type: number
+      type: object
+    analytics.AnalyticsPeriod:
+      properties:
+        end:
+          type: string
+        start:
+          type: string
+      type: object
+    analytics.BatchPerformance:
+      properties:
+        batch_id:
+          type: string
+        batch_name:
+          type: string
+        completed:
+          type: integer
+        completion_rate_pct:
+          type: number
+        created_at:
+          type: string
+        failed:
+          type: integer
+        total_prospects:
+          type: integer
+        workflow_name:
+          type: string
+      type: object
+    analytics.CallAnalyticsResponse:
+      properties:
+        duration:
+          $ref: '#/components/schemas/analytics.CallDurationStats'
+        outcomes:
+          items:
+            $ref: '#/components/schemas/analytics.OutcomeAggregatorResult'
+          type: array
+        period:
+          $ref: '#/components/schemas/analytics.AnalyticsPeriod'
+        time_series:
+          items:
+            $ref: '#/components/schemas/analytics.CallVolumeDataPoint'
+          type: array
+      type: object
+    analytics.CallCostDataPoint:
+      properties:
+        avg_cost_per_call:
+          type: number
+        date:
+          type: string
+        total_calls:
+          type: integer
+        total_cost_usd:
+          type: number
+        total_tokens:
+          type: integer
+      type: object
+    analytics.CallCostsResponse:
+      properties:
+        period:
+          $ref: '#/components/schemas/analytics.AnalyticsPeriod'
+        time_series:
+          items:
+            $ref: '#/components/schemas/analytics.CallCostDataPoint'
+          type: array
+      type: object
+    analytics.CallDurationStats:
+      properties:
+        avg_duration_seconds:
+          type: number
+        inbound_calls:
+          type: integer
+        max_duration_seconds:
+          type: integer
+        outbound_calls:
+          type: integer
+        total_calls:
+          type: integer
+        total_duration_seconds:
+          type: integer
+      type: object
+    analytics.CallVolumeDataPoint:
+      properties:
+        busy:
+          type: integer
+        completed:
+          type: integer
+        date:
+          type: string
+        failed:
+          type: integer
+        no_answer:
+          type: integer
+        total:
+          type: integer
+      type: object
+    analytics.DashboardSummaryResponse:
+      properties:
+        active_workflows:
+          type: integer
+        calls_in_period:
+          type: integer
+        current_balance:
+          type: string
+        period:
+          $ref: '#/components/schemas/analytics.AnalyticsPeriod'
+        total_agents:
+          type: integer
+        total_call_minutes:
+          type: integer
+        total_prospects:
+          type: integer
+      type: object
+    analytics.HourlyCallData:
+      properties:
+        avg_duration:
+          type: number
+        call_count:
+          type: integer
+        hour_utc:
+          type: integer
+      type: object
+    analytics.OutcomeAggregatorResult:
+      properties:
+        outcome_count:
+          type: integer
+        outcome_key:
+          type: string
+        outcome_value:
+          type: string
+      type: object
+    analytics.ProspectAnalyticsResponse:
+      properties:
+        by_country:
+          items:
+            $ref: '#/components/schemas/analytics.ProspectCountryCount'
+          type: array
+        growth:
+          items:
+            $ref: '#/components/schemas/analytics.ProspectGrowthDataPoint'
+          type: array
+        period:
+          $ref: '#/components/schemas/analytics.AnalyticsPeriod'
+        status_distribution:
+          items:
+            $ref: '#/components/schemas/analytics.ProspectStatusCount'
+          type: array
+      type: object
+    analytics.ProspectCountryCount:
+      properties:
+        count:
+          type: integer
+        country:
+          type: string
+      type: object
+    analytics.ProspectGrowthDataPoint:
+      properties:
+        date:
+          type: string
+        new_prospects:
+          type: integer
+      type: object
+    analytics.ProspectStatusCount:
+      properties:
+        count:
+          type: integer
+        percentage:
+          type: number
+        status:
+          type: string
+      type: object
+    analytics.SingleWorkflowAnalytics:
+      properties:
+        avg_duration_seconds:
+          type: number
+        completed:
+          type: integer
+        completion_rate_pct:
+          type: number
+        failed:
+          type: integer
+        pending:
+          type: integer
+        period:
+          $ref: '#/components/schemas/analytics.AnalyticsPeriod'
+        running:
+          type: integer
+        total_runs:
+          type: integer
+        workflow_id:
+          type: string
+        workflow_name:
+          type: string
+      type: object
+    analytics.WorkflowAnalyticsResponse:
+      properties:
+        period:
+          $ref: '#/components/schemas/analytics.AnalyticsPeriod'
+        workflows:
+          items:
+            $ref: '#/components/schemas/analytics.WorkflowRunStats'
+          type: array
+      type: object
+    analytics.WorkflowRunStats:
+      properties:
+        completed:
+          type: integer
+        completion_rate_pct:
+          type: number
+        failed:
+          type: integer
+        pending:
+          type: integer
+        running:
+          type: integer
+        total_runs:
+          type: integer
+        workflow_id:
+          type: string
+        workflow_name:
+          type: string
+      type: object
+    analytics_insights.CustomerExample:
+      properties:
+        customer_name:
+          type: string
+        incident_cause:
+          type: string
+        quote:
+          type: string
+        recommendation:
+          type: string
+        reference_id:
+          type: string
+      type: object
+    analytics_insights.GetInsightsResponse:
+      properties:
+        cached:
+          type: boolean
+        executive_summary:
+          type: string
+        generated_at:
+          type: string
+        issue_rate:
+          type: number
+        issues:
+          items:
+            $ref: '#/components/schemas/analytics_insights.IssueCategory'
+          type: array
+        issues_identified:
+          type: integer
+        organization_id:
+          type: string
+        organization_name:
+          type: string
+        period:
+          type: string
+        recommendations:
+          items:
+            $ref: '#/components/schemas/analytics_insights.Recommendation'
+          type: array
+        routine_rate:
+          type: number
+        success_factors:
+          items:
+            type: string
+          type: array
+        total_calls:
+          type: integer
+      type: object
+    analytics_insights.InsightSummary:
+      properties:
+        created_at:
+          type: string
+        executive_summary:
+          type: string
+        id:
+          type: string
+        issue_rate:
+          type: number
+        issues_identified:
+          type: integer
+        period_end:
+          type: string
+        period_start:
+          type: string
+        total_calls:
+          type: integer
+      type: object
+    analytics_insights.IssueCategory:
+      properties:
+        count:
+          type: integer
+        description:
+          type: string
+        examples:
+          items:
+            $ref: '#/components/schemas/analytics_insights.CustomerExample'
+          type: array
+        name:
+          type: string
+        percentage:
+          type: number
+        rank:
+          type: integer
+        recommendation:
+          type: string
+      type: object
+    analytics_insights.ListInsightsResponse:
+      properties:
+        insights:
+          items:
+            $ref: '#/components/schemas/analytics_insights.InsightSummary'
+          type: array
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      type: object
+    analytics_insights.Recommendation:
+      properties:
+        description:
+          type: string
+        priority:
+          description: HIGH, MEDIUM, LOW
+          type: string
+        title:
+          type: string
+      type: object
+    apikeys.CreateAPIKeyRequest:
+      properties:
+        expires_at:
+          type: string
+        name:
+          type: string
+        scopes:
+          items:
+            type: string
+          type: array
+      required:
+        - name
+        - scopes
+      type: object
+    apikeys.CreateAPIKeyResponse:
+      properties:
+        created_at:
+          type: string
+        expires_at:
+          type: string
+        id:
+          type: string
+        key:
+          description: Only returned once on creation
+          type: string
+        name:
+          type: string
+        scopes:
+          items:
+            type: string
+          type: array
+      type: object
+    apikeys.ListAPIKeyResponse:
+      properties:
+        created_at:
+          type: string
+        expires_at:
+          type: string
+        id:
+          type: string
+        key_prefix:
+          description: e.g., "cozmo_live_****"
+          type: string
+        last_used_at:
+          type: string
+        name:
+          type: string
+        scopes:
+          items:
+            type: string
+          type: array
+      type: object
+    apikeys.UpdateAPIKeyScopesRequest:
+      properties:
+        scopes:
+          items:
+            type: string
+          type: array
+      required:
+        - scopes
+      type: object
+    audit-logs.AuditLogResponse:
+      properties:
+        action:
+          type: string
+        created_at:
+          type: string
+        organization_id:
+          type: string
+        resource_id:
+          type: string
+        resource_type:
+          type: string
+        user_id:
+          type: string
+      type: object
+    audit-logs.PaginatedAuditLogsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/audit-logs.AuditLogResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/audit-logs.PaginationMeta'
+      type: object
+    audit-logs.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    big.Int:
+      type: object
+    billing.BalanceResponse:
+      properties:
+        billing_tier_id:
+          type: string
+        credits_balance:
+          $ref: '#/components/schemas/pgtype.Numeric'
+      type: object
+    billing.BillingPortalSessionResponse:
+      properties:
+        portal_url:
+          type: string
+      type: object
+    billing.BillingSummaryResponse:
+      properties:
+        credits_this_month:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        current_balance:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        daily_report:
+          items:
+            $ref: '#/components/schemas/billing.DailySpendReport'
+          type: array
+        usage_this_month:
+          $ref: '#/components/schemas/pgtype.Numeric'
+      type: object
+    billing.DailySpendReport:
+      properties:
+        call_count:
+          type: integer
+        charges:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        credits:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        date:
+          type: string
+      type: object
+    billing.InvoiceLineItemResponse:
+      properties:
+        amount:
+          type: string
+        currency:
+          type: string
+        display_name:
+          type: string
+        id:
+          type: string
+        meter_display_name:
+          type: string
+        period_end:
+          type: string
+        period_start:
+          type: string
+        plan_display_name:
+          type: string
+        price_type:
+          type: string
+        quantity:
+          type: string
+      type: object
+    billing.InvoicePDFResponse:
+      properties:
+        invoice_id:
+          type: string
+        pdf_url:
+          type: string
+      type: object
+    billing.InvoiceResponse:
+      properties:
+        amount:
+          type: string
+        amount_due:
+          type: string
+        amount_paid:
+          type: string
+        amount_remaining:
+          type: string
+        billing_period:
+          type: string
+        billing_reason:
+          type: string
+        created_at:
+          type: string
+        currency:
+          type: string
+        customer_id:
+          type: string
+        description:
+          type: string
+        due_date:
+          type: string
+        finalized_at:
+          type: string
+        id:
+          type: string
+        invoice_number:
+          type: string
+        invoice_pdf_url:
+          type: string
+        line_items:
+          description: Line items
+          items:
+            $ref: '#/components/schemas/billing.InvoiceLineItemResponse'
+          type: array
+        line_items_count:
+          description: Summary fields
+          type: integer
+        paid_at:
+          type: string
+        payment_status:
+          type: string
+        period_end:
+          type: string
+        period_start:
+          type: string
+        status:
+          type: string
+        subscription_id:
+          type: string
+        subtotal:
+          type: string
+        total:
+          type: string
+        total_discount:
+          type: string
+        total_tax:
+          type: string
+        type:
+          type: string
+      type: object
+    billing.LedgerDetailResponse:
+      properties:
+        amount:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        balance_after:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        call_id:
+          type: string
+        created_at:
+          type: string
+        description:
+          type: string
+        event_type:
+          type: string
+        external_provider:
+          type: string
+        external_transaction_id:
+          type: string
+        id:
+          type: string
+        idempotency_key:
+          type: string
+        is_reversal:
+          type: boolean
+        last_sync_error:
+          type: string
+        payment_provider_id:
+          type: string
+        reversal_of_id:
+          type: string
+        sync_status:
+          type: string
+        synced_at:
+          type: string
+        usage_breakdown:
+          items:
+            $ref: '#/components/schemas/billing.UsageBreakdownItem'
+          type: array
+      type: object
+    billing.LedgerEntryResponse:
+      properties:
+        amount:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        balance_after:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        call_id:
+          type: string
+        created_at:
+          type: string
+        description:
+          type: string
+        event_type:
+          type: string
+        external_provider:
+          type: string
+        id:
+          type: string
+        is_reversal:
+          type: boolean
+        reversal_of_id:
+          type: string
+        sync_status:
+          type: string
+      type: object
+    billing.PaginatedInvoiceResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/billing.InvoiceResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/billing.PaginationMeta'
+      type: object
+    billing.PaginatedLedgerResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/billing.LedgerEntryResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/billing.PaginationMeta'
+      type: object
+    billing.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    billing.TopupRequest:
+      properties:
+        amount:
+          description: amount in USD (e.g. 200 = $200)
+          type: number
+        invoice_id:
+          description: 'optional: pay a specific invoice'
+          type: string
+      required:
+        - amount
+      type: object
+    billing.TopupResponse:
+      properties:
+        redirect_url:
+          type: string
+      type: object
+    billing.UsageBreakdownItem:
+      properties:
+        applied_unit_price:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        created_at:
+          type: string
+        id:
+          type: string
+        product_name:
+          type: string
+        product_type:
+          type: string
+        quantity:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        total_cost:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        unit_type:
+          type: string
+      type: object
+    billing.UsageSummaryItem:
+      properties:
+        product_name:
+          type: string
+        product_type:
+          type: string
+        total_cost:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        total_quantity:
+          $ref: '#/components/schemas/pgtype.Numeric'
+        unit_type:
+          type: string
+      type: object
+    billing.UsageSummaryResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/billing.UsageSummaryItem'
+          type: array
+        end_date:
+          type: string
+        start_date:
+          type: string
+      type: object
+    calls.CallDetailResponse:
+      properties:
+        agent_name:
+          type: string
+        call_type:
+          type: string
+        callback_for:
+          type: string
+        cost_usd:
+          type: string
+        detected_intents:
+          items:
+            type: string
+          type: array
+        direction:
+          type: string
+        duration_seconds:
+          type: integer
+        ended_at:
+          type: string
+        evaluations:
+          description: Related data
+          items:
+            $ref: '#/components/schemas/calls.CallEvaluationResponse'
+          type: array
+        from_number:
+          type: string
+        id:
+          type: string
+        initial_agent_id:
+          type: string
+        organization_id:
+          type: string
+        participating_agent_ids:
+          items:
+            type: string
+          type: array
+        prospect_email:
+          type: string
+        prospect_external_id:
+          type: string
+        prospect_first_name:
+          type: string
+        prospect_id:
+          type: string
+        prospect_last_name:
+          type: string
+        prospect_phone:
+          type: string
+        recording_analysis:
+          items:
+            type: integer
+          type: array
+        recording_slug:
+          type: string
+        recording_url:
+          type: string
+        scheduled_at:
+          type: string
+        selected_outbound_number_id:
+          type: string
+        sip_trunk_id:
+          type: string
+        started_at:
+          type: string
+        status:
+          type: string
+        stt_duration_seconds:
+          type: integer
+        summary:
+          description: Call summary (AI-generated summary of the call)
+          type: string
+        telephony_code:
+          type: integer
+        to_number:
+          type: string
+        tokens_input:
+          type: integer
+        tokens_output:
+          type: integer
+        tool_logs:
+          items:
+            $ref: '#/components/schemas/calls.CallToolLogResponse'
+          type: array
+        transcript_text:
+          description: Transcript summary (null if call has no transcript yet)
+          type: string
+        tts_characters:
+          type: integer
+        workflow_node_id:
+          type: string
+        workflow_run_id:
+          type: string
+        workflow_version_id:
+          type: string
+      type: object
+    calls.CallEvaluationResponse:
+      properties:
+        created_at:
+          type: string
+        extracted_value:
+          type: string
+        id:
+          type: string
+        outcome_definition_id:
+          type: string
+        outcome_key:
+          type: string
+        reasoning:
+          type: string
+        result_boolean:
+          type: boolean
+      type: object
+    calls.CallHistoryResponse:
+      properties:
+        history:
+          items:
+            $ref: '#/components/schemas/calls.CallDetailResponse'
+          type: array
+      type: object
+    calls.CallListItemResponse:
+      properties:
+        agent_name:
+          type: string
+        call_type:
+          type: string
+        callback_for:
+          type: string
+        direction:
+          type: string
+        duration_seconds:
+          type: integer
+        ended_at:
+          type: string
+        from_number:
+          type: string
+        id:
+          type: string
+        initial_agent_id:
+          type: string
+        prospect_external_id:
+          type: string
+        prospect_first_name:
+          type: string
+        prospect_id:
+          type: string
+        prospect_last_name:
+          type: string
+        prospect_phone:
+          type: string
+        scheduled_at:
+          type: string
+        started_at:
+          type: string
+        status:
+          type: string
+        to_number:
+          type: string
+      type: object
+    calls.CallRecordingResponse:
+      properties:
+        duration_seconds:
+          type: integer
+        id:
+          type: string
+        recording_url:
+          type: string
+      type: object
+    calls.CallToolLogResponse:
+      properties:
+        arguments:
+          items:
+            type: integer
+          type: array
+        created_at:
+          type: string
+        error_message:
+          type: string
+        id:
+          type: string
+        result:
+          items:
+            type: integer
+          type: array
+        status:
+          type: string
+        tool_name:
+          type: string
+      type: object
+    calls.CallTranscriptResponse:
+      properties:
+        cost_usd:
+          type: string
+        duration_seconds:
+          type: integer
+        ended_at:
+          type: string
+        id:
+          type: string
+        messages:
+          items:
+            type: integer
+          type: array
+        started_at:
+          type: string
+        status:
+          type: string
+        stt_duration_seconds:
+          type: integer
+        tokens_input:
+          type: integer
+        tokens_output:
+          type: integer
+        transcript_text:
+          type: string
+        tts_characters:
+          type: integer
+      type: object
+    calls.CreateDashboardCallRequest:
+      properties:
+        agent_id:
+          type: string
+        extras:
+          additionalProperties:
+            type: string
+          description: first_name, last_name, email, etc.
+          type: object
+        from_number:
+          type: string
+        phone_number:
+          type: string
+      required:
+        - agent_id
+        - from_number
+        - phone_number
+      type: object
+    calls.CreateDashboardCallResponse:
+      properties:
+        call_id:
+          type: string
+        created_at:
+          type: string
+        from_number:
+          type: string
+        prospect_id:
+          type: string
+        status:
+          type: string
+        to_number:
+          type: string
+      type: object
+    calls.CreateOutcomeDefinitionRequest:
+      properties:
+        description:
+          type: string
+        display_name:
+          type: string
+        is_unique_per_call:
+          type: boolean
+        key:
+          type: string
+        value_type:
+          enum:
+            - BOOLEAN
+            - TEXT
+            - NUMBER
+            - DATE
+            - JSON
+          type: string
+      required:
+        - display_name
+        - key
+        - value_type
+      type: object
+    calls.ExportCountResponse:
+      properties:
+        count:
+          type: integer
+        limited:
+          description: true if count > 10000
+          type: boolean
+        message:
+          type: string
+      type: object
+    calls.OutcomeDefinitionResponse:
+      properties:
+        created_at:
+          type: string
+        description:
+          type: string
+        display_name:
+          type: string
+        id:
+          type: string
+        is_unique_per_call:
+          type: boolean
+        key:
+          type: string
+        organization_id:
+          type: string
+        value_type:
+          type: string
+      type: object
+    calls.PaginatedCallsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/calls.CallListItemResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/calls.PaginationMeta'
+      type: object
+    calls.PaginatedProspectCallsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/calls.ProspectCallListItemResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/calls.PaginationMeta'
+      type: object
+    calls.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    calls.ProspectCallListItemResponse:
+      properties:
+        agent_name:
+          type: string
+        direction:
+          type: string
+        duration_seconds:
+          type: integer
+        ended_at:
+          type: string
+        from_number:
+          type: string
+        id:
+          type: string
+        started_at:
+          type: string
+        status:
+          type: string
+        to_number:
+          type: string
+      type: object
+    calls.UpdateOutcomeDefinitionRequest:
+      properties:
+        description:
+          type: string
+        display_name:
+          type: string
+        is_unique_per_call:
+          type: boolean
+      type: object
+    calls.WorkflowNodeCallResponse:
+      properties:
+        duration_seconds:
+          type: integer
+        ended_at:
+          type: string
+        id:
+          type: string
+        prospect_id:
+          type: string
+        started_at:
+          type: string
+        status:
+          type: string
+        workflow_run_id:
+          type: string
+      type: object
+    chat.ConversationDetail:
+      properties:
+        created_at:
+          type: string
+        id:
+          type: string
+        messages:
+          items:
+            $ref: '#/components/schemas/chat.MessageDetail'
+          type: array
+        title:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    chat.ConversationListResponse:
+      properties:
+        conversations:
+          items:
+            $ref: '#/components/schemas/chat.ConversationSummary'
+          type: array
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      type: object
+    chat.ConversationSummary:
+      properties:
+        created_at:
+          type: string
+        id:
+          type: string
+        title:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    chat.MessageDetail:
+      properties:
+        content:
+          type: string
+        created_at:
+          type: string
+        id:
+          type: string
+        role:
+          type: string
+      type: object
+    chat.SendMessageRequest:
+      properties:
+        conversation_id:
+          type: string
+        message:
+          maxLength: 2000
+          minLength: 1
+          type: string
+      required:
+        - message
+      type: object
+    chat.SendMessageResponse:
+      properties:
+        conversation_id:
+          type: string
+        message_id:
+          type: string
+        response:
+          type: string
+        tools_used:
+          items:
+            type: string
+          type: array
+      type: object
+    chat.StreamEvent:
+      properties:
+        data: {}
+        event:
+          type: string
+      type: object
+    contact.ContactFormRequest:
+      properties:
+        companyName:
+          type: string
+        countryCode:
+          type: string
+        message:
+          maxLength: 250
+          type: string
+        name:
+          minLength: 2
+          type: string
+        phoneNumber:
+          type: string
+        token:
+          type: string
+        workEmail:
+          type: string
+      required:
+        - companyName
+        - countryCode
+        - message
+        - name
+        - phoneNumber
+        - token
+        - workEmail
+      type: object
+    contact.ContactFormResponse:
+      properties:
+        message:
+          type: string
+        success:
+          type: boolean
+      type: object
+    e2e_runs.BatchRunResponse:
+      properties:
+        batch_id:
+          type: string
+        count:
+          type: integer
+        runs:
+          items:
+            $ref: '#/components/schemas/e2e_runs.ScenarioRunResponse'
+          type: array
+      type: object
+    e2e_runs.CekuraRunStatusResponse:
+      properties:
+        duration:
+          type: string
+        evaluation:
+          additionalProperties: true
+          type: object
+        evaluation_status:
+          type: string
+        expected_outcome:
+          additionalProperties: true
+          type: object
+        recording_url:
+          type: string
+        run_id:
+          type: integer
+        status:
+          type: string
+        transcript:
+          type: string
+      type: object
+    e2e_runs.CekuraTranscriptEntry:
+      properties:
+        content:
+          type: string
+        end_time:
+          type: number
+        role:
+          type: string
+        start_time:
+          type: number
+        time:
+          type: string
+      type: object
+    e2e_runs.CekuraWebhookData:
+      properties:
+        agent:
+          type: integer
+        created_at:
+          type: string
+        id:
+          type: integer
+        is_cronjob:
+          type: boolean
+        met_expected_outcome_count:
+          type: integer
+        name:
+          type: string
+        run_as_text:
+          type: boolean
+        runs:
+          additionalProperties:
+            $ref: '#/components/schemas/e2e_runs.CekuraWebhookRun'
+          type: object
+        status:
+          type: string
+        success_rate:
+          type: number
+        total_expected_outcome_count:
+          type: integer
+      type: object
+    e2e_runs.CekuraWebhookEvaluation:
+      properties:
+        metrics:
+          items:
+            $ref: '#/components/schemas/e2e_runs.CekuraWebhookMetric'
+          type: array
+      type: object
+    e2e_runs.CekuraWebhookMetric:
+      properties:
+        explanation:
+          items:
+            type: string
+          type: array
+        id:
+          type: integer
+        name:
+          type: string
+        score:
+          type: integer
+        type:
+          type: string
+        vocera_defined_metric_code:
+          type: string
+      type: object
+    e2e_runs.CekuraWebhookPayload:
+      properties:
+        data:
+          $ref: '#/components/schemas/e2e_runs.CekuraWebhookData'
+        event_type:
+          type: string
+      type: object
+    e2e_runs.CekuraWebhookResponse:
+      properties:
+        errors:
+          type: integer
+        message:
+          type: string
+        processed:
+          type: integer
+        success:
+          type: boolean
+      type: object
+    e2e_runs.CekuraWebhookRun:
+      properties:
+        error_message:
+          type: string
+        evaluation:
+          $ref: '#/components/schemas/e2e_runs.CekuraWebhookEvaluation'
+        executed_at:
+          type: string
+        expected_outcome:
+          additionalProperties: true
+          type: object
+        id:
+          type: integer
+        scenario:
+          $ref: '#/components/schemas/e2e_runs.CekuraWebhookScenario'
+        success:
+          type: boolean
+        timestamp:
+          type: string
+        transcript_object:
+          items:
+            $ref: '#/components/schemas/e2e_runs.CekuraTranscriptEntry'
+          type: array
+        voice_recording:
+          type: string
+      type: object
+    e2e_runs.CekuraWebhookScenario:
+      properties:
+        expected_outcome_prompt:
+          type: string
+        id:
+          type: integer
+        name:
+          type: string
+        personality_name:
+          type: string
+      type: object
+    e2e_runs.CreateBatchScenarioRunsRequest:
+      properties:
+        agent_ids:
+          items:
+            type: string
+          minItems: 1
+          type: array
+        llm_model:
+          type: string
+        llm_provider:
+          type: string
+        org_id:
+          type: string
+        scenario_id:
+          type: string
+      required:
+        - agent_ids
+        - org_id
+        - scenario_id
+      type: object
+    e2e_runs.CreateScenarioRunRequest:
+      properties:
+        agent_id:
+          type: string
+        batch_id:
+          type: string
+        call_id:
+          type: string
+        extra_fields:
+          items:
+            type: integer
+          type: array
+        llm_model:
+          type: string
+        llm_provider:
+          type: string
+        org_id:
+          type: string
+        prompt:
+          type: string
+        result:
+          type: string
+        scenario_id:
+          type: string
+        status:
+          enum:
+            - PENDING
+            - FAIL
+            - SUCCESS
+            - ERROR
+          type: string
+        type:
+          type: string
+      required:
+        - org_id
+        - scenario_id
+        - status
+      type: object
+    e2e_runs.GetCekuraRunStatusRequest:
+      properties:
+        cekura_run_ids:
+          items:
+            type: integer
+          minItems: 1
+          type: array
+        org_id:
+          type: string
+      required:
+        - cekura_run_ids
+        - org_id
+      type: object
+    e2e_runs.GetCekuraRunStatusResponse:
+      properties:
+        runs:
+          items:
+            $ref: '#/components/schemas/e2e_runs.CekuraRunStatusResponse'
+          type: array
+      type: object
+    e2e_runs.RunAllScenariosForAgentRequest:
+      properties:
+        agent_id:
+          type: string
+        llm_model:
+          type: string
+        llm_provider:
+          type: string
+        org_id:
+          type: string
+      required:
+        - agent_id
+        - org_id
+      type: object
+    e2e_runs.RunMapping:
+      properties:
+        cekura_run_id:
+          type: integer
+        scenario_run_id:
+          type: string
+      required:
+        - cekura_run_id
+        - scenario_run_id
+      type: object
+    e2e_runs.RunScenarioLiveKitRequest:
+      properties:
+        access_token:
+          type: string
+        cekura_agent:
+          type: integer
+        livekit_room_url:
+          type: string
+        organization_id:
+          type: string
+        scenario_id:
+          type: string
+      required:
+        - access_token
+        - livekit_room_url
+        - organization_id
+        - scenario_id
+      type: object
+    e2e_runs.RunScenarioLiveKitResponse:
+      properties:
+        cekura_run_id:
+          type: integer
+        message:
+          type: string
+        scenario_run_id:
+          type: string
+        status:
+          type: string
+      type: object
+    e2e_runs.ScenarioRunListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/e2e_runs.ScenarioRunResponse'
+          type: array
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total_count:
+          type: integer
+      type: object
+    e2e_runs.ScenarioRunResponse:
+      properties:
+        agent_id:
+          type: string
+        batch_id:
+          type: string
+        call_id:
+          type: string
+        created_at:
+          type: string
+        extra_fields:
+          items:
+            type: integer
+          type: array
+        id:
+          type: string
+        llm_model:
+          type: string
+        llm_provider:
+          type: string
+        prompt:
+          type: string
+        provider:
+          type: string
+        result:
+          type: string
+        result_json:
+          items:
+            type: integer
+          type: array
+        scenario_id:
+          type: string
+        scenario_input_prompt:
+          type: string
+        scenario_type:
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    e2e_runs.ScenarioRunResultResponse:
+      properties:
+        id:
+          type: string
+        result:
+          type: string
+        result_json:
+          items:
+            type: integer
+          type: array
+        status:
+          type: string
+      type: object
+    e2e_runs.SyncCekuraRunsRequest:
+      properties:
+        org_id:
+          type: string
+        run_mappings:
+          description: Mapping of scenario run ID to Cekura run ID
+          items:
+            $ref: '#/components/schemas/e2e_runs.RunMapping'
+          minItems: 1
+          type: array
+      required:
+        - org_id
+        - run_mappings
+      type: object
+    e2e_runs.SyncCekuraRunsResponse:
+      properties:
+        errors:
+          items:
+            $ref: '#/components/schemas/e2e_runs.SyncError'
+          type: array
+        updated:
+          items:
+            $ref: '#/components/schemas/e2e_runs.SyncedRun'
+          type: array
+      type: object
+    e2e_runs.SyncError:
+      properties:
+        cekura_run_id:
+          type: integer
+        error:
+          type: string
+        scenario_run_id:
+          type: string
+      type: object
+    e2e_runs.SyncedRun:
+      properties:
+        cekura_run_id:
+          type: integer
+        result:
+          type: string
+        scenario_run_id:
+          type: string
+        status:
+          type: string
+      type: object
+    e2e_runs.UpdateScenarioRunStatusRequest:
+      properties:
+        call_id:
+          type: string
+        result:
+          type: string
+        status:
+          enum:
+            - PENDING
+            - FAIL
+            - SUCCESS
+            - ERROR
+          type: string
+      required:
+        - status
+      type: object
+    e2e_scenarios.CreateScenarioRequest:
+      properties:
+        default_prospect_fields:
+          additionalProperties:
+            type: string
+          type: object
+        evaluation_prompt:
+          type: string
+        input_prompt:
+          type: string
+        max_turns:
+          type: integer
+        provider:
+          type: string
+        required_tools:
+          items:
+            type: string
+          type: array
+        type:
+          enum:
+            - PROMPT_ONLY
+            - E2E
+            - VOICE_ONLY
+          type: string
+      required:
+        - input_prompt
+        - type
+      type: object
+    e2e_scenarios.ScenarioListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/e2e_scenarios.ScenarioResponse'
+          type: array
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total_count:
+          type: integer
+      type: object
+    e2e_scenarios.ScenarioResponse:
+      properties:
+        created_at:
+          type: string
+        default_prospect_fields:
+          additionalProperties:
+            type: string
+          type: object
+        evaluation_prompt:
+          type: string
+        external_id:
+          type: string
+        id:
+          type: string
+        input_prompt:
+          type: string
+        max_turns:
+          type: integer
+        provider:
+          type: string
+        required_tools:
+          items:
+            type: string
+          type: array
+        run_count:
+          type: integer
+        type:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    e2e_scenarios.UpdateScenarioRequest:
+      properties:
+        default_prospect_fields:
+          additionalProperties:
+            type: string
+          type: object
+        evaluation_prompt:
+          type: string
+        input_prompt:
+          type: string
+        max_turns:
+          type: integer
+        provider:
+          type: string
+        required_tools:
+          items:
+            type: string
+          type: array
+        type:
+          enum:
+            - PROMPT_ONLY
+            - E2E
+            - VOICE_ONLY
+          type: string
+      type: object
+    email-templates.CreateTemplateRequest:
+      properties:
+        body_html:
+          type: string
+        body_text:
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        subject:
+          maxLength: 500
+          minLength: 1
+          type: string
+      required:
+        - body_html
+        - name
+        - subject
+      type: object
+    email-templates.PaginatedTemplatesResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/email-templates.TemplateResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/email-templates.PaginationMeta'
+      type: object
+    email-templates.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    email-templates.TemplateResponse:
+      properties:
+        body_html:
+          type: string
+        body_text:
+          type: string
+        created_at:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        subject:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    email-templates.UpdateTemplateRequest:
+      properties:
+        body_html:
+          type: string
+        body_text:
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        subject:
+          maxLength: 500
+          minLength: 1
+          type: string
+      type: object
+    evals_postcall.CreateEvalRequest:
+      properties:
+        agent_id:
+          type: string
+        category:
+          type: string
+        prompt:
+          type: string
+        score:
+          type: integer
+        title:
+          type: string
+      required:
+        - agent_id
+        - category
+        - prompt
+        - score
+        - title
+      type: object
+    evals_postcall.EvalResponse:
+      properties:
+        agent_id:
+          type: string
+        category:
+          type: string
+        created_at:
+          type: string
+        id:
+          type: integer
+        org_id:
+          type: string
+        prompt:
+          type: string
+        score:
+          type: integer
+        title:
+          type: string
+      type: object
+    evals_postcall.EvalRunResponse:
+      properties:
+        agent_id:
+          type: string
+        call_id:
+          type: string
+        created_at:
+          type: string
+        eval_id:
+          type: integer
+        eval_title:
+          type: string
+        has_passed:
+          type: boolean
+        id:
+          type: integer
+        org_id:
+          type: string
+        reasoning:
+          type: string
+      type: object
+    evals_postcall.PaginatedEvalRunsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/evals_postcall.EvalRunResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/evals_postcall.PaginationMeta'
+      type: object
+    evals_postcall.PaginatedEvalsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/evals_postcall.EvalResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/evals_postcall.PaginationMeta'
+      type: object
+    evals_postcall.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    evals_postcall.UpdateEvalRequest:
+      properties:
+        category:
+          type: string
+        prompt:
+          type: string
+        score:
+          type: integer
+        title:
+          type: string
+      type: object
+    evals_unit-tests.CreateUnitTestRequest:
+      properties:
+        answer_prompt:
+          type: string
+        function_tool_assertion:
+          type: string
+        question_prompt:
+          type: string
+        question_variance:
+          enum:
+            - low
+            - med
+            - high
+          type: string
+        title:
+          type: string
+        yaml_config:
+          type: string
+      required:
+        - answer_prompt
+        - question_prompt
+        - question_variance
+      type: object
+    evals_unit-tests.DeleteUnitTestsRequest:
+      properties:
+        ids:
+          items:
+            type: string
+          minItems: 1
+          type: array
+      required:
+        - ids
+      type: object
+    evals_unit-tests.GenerateUnitTestsRequest:
+      properties:
+        count:
+          maximum: 50
+          minimum: 1
+          type: integer
+      type: object
+    evals_unit-tests.PaginatedTestRunsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/evals_unit-tests.TestRunResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/evals_unit-tests.PaginationMeta'
+      type: object
+    evals_unit-tests.PaginatedUnitTestsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/evals_unit-tests.UnitTestResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/evals_unit-tests.PaginationMeta'
+      type: object
+    evals_unit-tests.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    evals_unit-tests.RunSpecificTestsRequest:
+      properties:
+        unit_test_ids:
+          items:
+            type: string
+          minItems: 1
+          type: array
+      required:
+        - unit_test_ids
+      type: object
+    evals_unit-tests.RunTestsResponse:
+      properties:
+        message:
+          type: string
+        workflow_id:
+          type: string
+      type: object
+    evals_unit-tests.TestRunResponse:
+      properties:
+        agent_id:
+          type: string
+        answer_prompt:
+          type: string
+        batch_id:
+          type: string
+        created_at:
+          type: string
+        details:
+          type: string
+        id:
+          type: string
+        is_success:
+          type: boolean
+        organization_id:
+          type: string
+        question_prompt:
+          type: string
+        run_at:
+          type: string
+        test_title:
+          type: string
+        title:
+          type: string
+        unit_test_id:
+          type: string
+      type: object
+    evals_unit-tests.UnitTestResponse:
+      properties:
+        agent_id:
+          type: string
+        answer_prompt:
+          type: string
+        created_at:
+          type: string
+        function_tool_assertion:
+          type: string
+        id:
+          type: string
+        organization_id:
+          type: string
+        question_prompt:
+          type: string
+        question_variance:
+          type: string
+        title:
+          type: string
+        updated_at:
+          type: string
+        yaml_config:
+          type: string
+      type: object
+    evals_unit-tests.UpdateUnitTestRequest:
+      properties:
+        answer_prompt:
+          type: string
+        function_tool_assertion:
+          type: string
+        question_prompt:
+          type: string
+        question_variance:
+          enum:
+            - low
+            - med
+            - high
+          type: string
+        title:
+          type: string
+        yaml_config:
+          type: string
+      type: object
+    faqs.CreateFAQRequest:
+      properties:
+        answer:
+          maxLength: 5000
+          minLength: 1
+          type: string
+        instruction:
+          maxLength: 2000
+          type: string
+        logic:
+          maxLength: 2000
+          type: string
+        question:
+          maxLength: 1000
+          minLength: 1
+          type: string
+      required:
+        - answer
+        - question
+      type: object
+    faqs.FAQListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/faqs.FAQResponse'
+          type: array
+        pagination:
+          $ref: '#/components/schemas/faqs.PaginationResponse'
+      type: object
+    faqs.FAQResponse:
+      properties:
+        answer:
+          type: string
+        created_at:
+          type: string
+        id:
+          type: string
+        instruction:
+          type: string
+        logic:
+          type: string
+        question:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    faqs.PaginationResponse:
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+      type: object
+    faqs.UpdateFAQRequest:
+      properties:
+        answer:
+          maxLength: 5000
+          minLength: 1
+          type: string
+        instruction:
+          maxLength: 2000
+          type: string
+        logic:
+          maxLength: 2000
+          type: string
+        question:
+          maxLength: 1000
+          minLength: 1
+          type: string
+      type: object
+    files.FileURLResponse:
+      properties:
+        expires_in:
+          type: string
+        url:
+          type: string
+      type: object
+    global-webhooks.CreateGlobalWebhookRequest:
+      properties:
+        event_types:
+          items:
+            type: string
+          minItems: 1
+          type: array
+        headers:
+          items:
+            type: integer
+          type: array
+        is_active:
+          type: boolean
+        method:
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        signing_key:
+          type: string
+        timeout_seconds:
+          type: integer
+        url:
+          type: string
+      required:
+        - event_types
+        - name
+        - url
+      type: object
+    global-webhooks.GlobalWebhookResponse:
+      properties:
+        created_at:
+          type: string
+        event_types:
+          items:
+            type: string
+          type: array
+        headers:
+          items:
+            type: integer
+          type: array
+        id:
+          type: string
+        is_active:
+          type: boolean
+        method:
+          type: string
+        name:
+          type: string
+        organization_id:
+          type: string
+        signing_key:
+          type: string
+        timeout_seconds:
+          type: integer
+        updated_at:
+          type: string
+        url:
+          type: string
+      type: object
+    global-webhooks.PaginatedGlobalWebhooksResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/global-webhooks.GlobalWebhookResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/global-webhooks.PaginationMeta'
+      type: object
+    global-webhooks.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    global-webhooks.UpdateGlobalWebhookRequest:
+      properties:
+        event_types:
+          items:
+            type: string
+          type: array
+        headers:
+          items:
+            type: integer
+          type: array
+        is_active:
+          type: boolean
+        method:
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        signing_key:
+          type: string
+        timeout_seconds:
+          type: integer
+        url:
+          type: string
+      type: object
+    helper.Response:
+      properties:
+        data: {}
+      type: object
+    helper.ResponseError:
+      properties:
+        data: {}
+        error: {}
+        message:
+          type: string
+        status:
+          type: boolean
+      type: object
+    integrations.ConnectIntegrationRequest:
+      properties:
+        credentials:
+          items:
+            type: integer
+          type: array
+        settings:
+          items:
+            type: integer
+          type: array
+        slug:
+          type: string
+      required:
+        - slug
+      type: object
+    integrations.ConnectedIntegrationListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/integrations.ConnectedIntegrationResponse'
+          type: array
+      type: object
+    integrations.ConnectedIntegrationResponse:
+      properties:
+        created_at:
+          type: string
+        id:
+          type: string
+        is_active:
+          type: boolean
+        last_sync_at:
+          type: string
+        last_sync_error:
+          type: string
+        last_sync_status:
+          type: string
+        name:
+          type: string
+        schema_config:
+          items:
+            type: integer
+          type: array
+        settings:
+          items:
+            type: integer
+          type: array
+        slug:
+          type: string
+      type: object
+    integrations.IntegrationDefinitionListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/integrations.IntegrationDefinitionResponse'
+          type: array
+      type: object
+    integrations.IntegrationDefinitionResponse:
+      properties:
+        connected_at:
+          type: string
+        id:
+          type: string
+        is_active:
+          type: boolean
+        is_connected:
+          type: boolean
+        name:
+          type: string
+        organization_integration_id:
+          type: string
+        schema_config:
+          items:
+            type: integer
+          type: array
+        slug:
+          type: string
+      type: object
+    integrations.ToggleRequest:
+      properties:
+        is_active:
+          type: boolean
+      type: object
+    integrations.UpdateSettingsRequest:
+      properties:
+        settings:
+          items:
+            type: integer
+          type: array
+      required:
+        - settings
+      type: object
+    invitations.AcceptInvitationResponse:
+      properties:
+        message:
+          type: string
+        organization_id:
+          type: string
+        organization_name:
+          type: string
+        role:
+          type: string
+      type: object
+    invitations.CreateInvitationRequest:
+      properties:
+        email:
+          type: string
+      required:
+        - email
+      type: object
+    invitations.InvitationResponse:
+      properties:
+        created_at:
+          type: string
+        email:
+          type: string
+        expires_at:
+          type: string
+        id:
+          type: string
+        invited_by:
+          type: string
+        inviter_email:
+          type: string
+        role:
+          type: string
+      type: object
+    org-members.MemberListResponse:
+      properties:
+        members:
+          items:
+            $ref: '#/components/schemas/org-members.MemberResponse'
+          type: array
+      type: object
+    org-members.MemberResponse:
+      properties:
+        email:
+          type: string
+        joined_at:
+          type: string
+        organization_id:
+          type: string
+        role:
+          type: string
+        user_id:
+          type: string
+      type: object
+    org-members.UpdateMemberRoleRequest:
+      properties:
+        role:
+          enum:
+            - OWNER
+            - ADMIN
+            - MANAGER
+            - MEMBER
+          type: string
+      required:
+        - role
+      type: object
+    pgtype.InfinityModifier:
+      enum:
+        - 1
+        - 0
+        - -1
+      format: int32
+      type: integer
+      x-enum-varnames:
+        - Infinity
+        - Finite
+        - NegativeInfinity
+    pgtype.Numeric:
+      properties:
+        exp:
+          format: int32
+          type: integer
+        infinityModifier:
+          $ref: '#/components/schemas/pgtype.InfinityModifier'
+        int:
+          $ref: '#/components/schemas/big.Int'
+        naN:
+          type: boolean
+        valid:
+          type: boolean
+      type: object
+    prospect-lists.AddProspectsToListRequest:
+      properties:
+        prospect_ids:
+          items:
+            type: string
+          maxItems: 1000
+          minItems: 1
+          type: array
+      required:
+        - prospect_ids
+      type: object
+    prospect-lists.CreateListRequest:
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        source:
+          enum:
+            - CSV
+            - API
+            - MANUAL
+            - INTEGRATION
+          type: string
+      required:
+        - name
+      type: object
+    prospect-lists.DeleteListResponse:
+      properties:
+        message:
+          type: string
+        prospects_deleted_count:
+          type: integer
+        status:
+          type: string
+      type: object
+    prospect-lists.ListProspectOperationResponse:
+      properties:
+        affected_count:
+          type: integer
+        message:
+          type: string
+        status:
+          type: string
+      type: object
+    prospect-lists.ListResponse:
+      properties:
+        created_at:
+          type: string
+        deleted_at:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        prospect_count:
+          type: integer
+        source:
+          type: string
+      type: object
+    prospect-lists.PaginatedListsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/prospect-lists.ListResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/prospect-lists.PaginationMeta'
+      type: object
+    prospect-lists.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    prospect-lists.RemoveProspectsFromListRequest:
+      properties:
+        prospect_ids:
+          items:
+            type: string
+          maxItems: 1000
+          minItems: 1
+          type: array
+      required:
+        - prospect_ids
+      type: object
+    prospect-lists.UpdateListRequest:
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+      type: object
+    prospects.AddTagsRequest:
+      properties:
+        tag_ids:
+          items:
+            type: string
+          minItems: 1
+          type: array
+      required:
+        - tag_ids
+      type: object
+    prospects.BulkDeleteRequest:
+      properties:
+        prospect_ids:
+          items:
+            type: string
+          minItems: 1
+          type: array
+      required:
+        - prospect_ids
+      type: object
+    prospects.BulkImportResponse:
+      properties:
+        list_id:
+          type: string
+        list_name:
+          type: string
+        prospect_ids:
+          items:
+            type: string
+          type: array
+        skipped_rows:
+          items:
+            $ref: '#/components/schemas/prospects.SkippedRow'
+          type: array
+        total_imported:
+          type: integer
+        total_rows:
+          type: integer
+        total_skipped:
+          type: integer
+        total_updated:
+          type: integer
+      type: object
+    prospects.BulkOperationResponse:
+      properties:
+        affected_ids:
+          items:
+            type: string
+          type: array
+        count:
+          type: integer
+      type: object
+    prospects.BulkUpdateCustomDataItem:
+      properties:
+        custom_data:
+          additionalProperties: true
+          type: object
+        prospect_id:
+          type: string
+      required:
+        - custom_data
+        - prospect_id
+      type: object
+    prospects.BulkUpdateCustomDataRequest:
+      properties:
+        updates:
+          items:
+            $ref: '#/components/schemas/prospects.BulkUpdateCustomDataItem'
+          maxItems: 100
+          minItems: 1
+          type: array
+      required:
+        - updates
+      type: object
+    prospects.BulkUpdateCustomDataResponse:
+      properties:
+        count:
+          type: integer
+        updated_ids:
+          items:
+            type: string
+          type: array
+      type: object
+    prospects.BulkUpdateFields:
+      properties:
+        country:
+          type: string
+        custom_data:
+          additionalProperties: true
+          type: object
+        email:
+          type: string
+        external_id:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        list_id:
+          type: string
+        remove_from_list:
+          description: Explicit flag to set list_id to NULL
+          type: boolean
+        status:
+          type: string
+        timezone:
+          type: string
+      type: object
+    prospects.BulkUpdateRequest:
+      properties:
+        prospect_ids:
+          items:
+            type: string
+          minItems: 1
+          type: array
+        updates:
+          $ref: '#/components/schemas/prospects.BulkUpdateFields'
+      required:
+        - prospect_ids
+        - updates
+      type: object
+    prospects.CreateProspectRequest:
+      properties:
+        country:
+          type: string
+        custom_data:
+          additionalProperties: true
+          type: object
+        email:
+          type: string
+        external_id:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+        timezone:
+          type: string
+      required:
+        - phone
+      type: object
+    prospects.PaginatedResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/prospects.ProspectListItemResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/prospects.PaginationMeta'
+      type: object
+    prospects.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    prospects.ProspectListItemResponse:
+      properties:
+        country:
+          type: string
+        created_at:
+          type: string
+        email:
+          type: string
+        external_id:
+          type: string
+        first_name:
+          type: string
+        id:
+          type: string
+        last_name:
+          type: string
+        list_id:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+        tags:
+          items:
+            $ref: '#/components/schemas/prospects.TagResponse'
+          type: array
+        timezone:
+          type: string
+      type: object
+    prospects.ProspectResponse:
+      properties:
+        country:
+          type: string
+        created_at:
+          type: string
+        custom_data:
+          additionalProperties: true
+          type: object
+        email:
+          type: string
+        external_id:
+          type: string
+        first_name:
+          type: string
+        id:
+          type: string
+        last_name:
+          type: string
+        list_id:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+        tags:
+          items:
+            $ref: '#/components/schemas/prospects.TagResponse'
+          type: array
+        timezone:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    prospects.SkippedRow:
+      properties:
+        phone:
+          type: string
+        reason:
+          type: string
+        row:
+          type: integer
+      type: object
+    prospects.TagResponse:
+      properties:
+        color:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+      type: object
+    prospects.UpdateProspectRequest:
+      properties:
+        country:
+          type: string
+        custom_data:
+          additionalProperties: true
+          type: object
+        email:
+          type: string
+        external_id:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        list_id:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+        timezone:
+          type: string
+      type: object
+    quality-rules.CreateQualityRuleRequest:
+      properties:
+        is_active:
+          type: boolean
+        key:
+          maxLength: 100
+          minLength: 1
+          type: string
+        penalty:
+          maximum: 100
+          minimum: 0
+          type: integer
+        prompt:
+          type: string
+      required:
+        - key
+        - penalty
+        - prompt
+      type: object
+    quality-rules.PaginatedQualityRulesResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/quality-rules.QualityRuleResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/quality-rules.PaginationMeta'
+      type: object
+    quality-rules.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    quality-rules.QualityRuleResponse:
+      properties:
+        created_at:
+          type: string
+        id:
+          type: string
+        is_active:
+          type: boolean
+        is_global:
+          type: boolean
+        key:
+          type: string
+        organization_id:
+          type: string
+        penalty:
+          type: integer
+        prompt:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    quality-rules.UpdateQualityRuleRequest:
+      properties:
+        is_active:
+          type: boolean
+        key:
+          maxLength: 100
+          minLength: 1
+          type: string
+        penalty:
+          maximum: 100
+          minimum: 0
+          type: integer
+        prompt:
+          type: string
+      type: object
+    tags.BulkOperationResponse:
+      properties:
+        count:
+          type: integer
+        message:
+          type: string
+        status:
+          type: string
+      type: object
+    tags.BulkTagProspectsRequest:
+      properties:
+        prospect_ids:
+          items:
+            type: string
+          maxItems: 1000
+          minItems: 1
+          type: array
+      required:
+        - prospect_ids
+      type: object
+    tags.CreateTagRequest:
+      properties:
+        color:
+          type: string
+        description:
+          maxLength: 500
+          type: string
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+      required:
+        - color
+        - name
+      type: object
+    tags.TagListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/tags.TagResponse'
+          type: array
+      type: object
+    tags.TagResponse:
+      properties:
+        color:
+          type: string
+        created_at:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        prospect_count:
+          type: integer
+      type: object
+    tags.UpdateTagRequest:
+      properties:
+        color:
+          type: string
+        description:
+          maxLength: 500
+          type: string
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+      type: object
+    telephony.BulkCreatePhoneNumbersRequest:
+      properties:
+        numbers:
+          items:
+            $ref: '#/components/schemas/telephony.PhoneNumberInput'
+          minItems: 1
+          type: array
+        sip_trunk_id:
+          type: string
+      required:
+        - numbers
+        - sip_trunk_id
+      type: object
+    telephony.BulkCreatePhoneNumbersResponse:
+      properties:
+        count:
+          type: integer
+        created:
+          items:
+            $ref: '#/components/schemas/telephony.PhoneNumberResponse'
+          type: array
+      type: object
+    telephony.CreatePhoneNumberRequest:
+      properties:
+        label:
+          type: string
+        number:
+          type: string
+        sip_trunk_id:
+          type: string
+      required:
+        - number
+        - sip_trunk_id
+      type: object
+    telephony.CreateSipTrunkRequest:
+      properties:
+        address:
+          type: string
+        auth_password:
+          type: string
+        auth_username:
+          type: string
+        max_concurrency:
+          type: integer
+        name:
+          type: string
+        phone_numbers:
+          items:
+            type: string
+          minItems: 1
+          type: array
+        provider:
+          enum:
+            - twilio
+            - telnyx
+            - custom
+            - did-logic
+            - vonage
+            - other
+          type: string
+      required:
+        - address
+        - name
+        - phone_numbers
+        - provider
+      type: object
+    telephony.CreateSipTrunkResponse:
+      properties:
+        inbound_trunk:
+          $ref: '#/components/schemas/telephony.SipTrunkResponse'
+        outbound_trunk:
+          $ref: '#/components/schemas/telephony.SipTrunkResponse'
+        phone_numbers:
+          items:
+            $ref: '#/components/schemas/telephony.PhoneNumberResponse'
+          type: array
+      type: object
+    telephony.PaginatedPhoneNumbersResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/telephony.PhoneNumberResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/telephony.PaginationMeta'
+      type: object
+    telephony.PaginatedSipTrunksResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/telephony.SipTrunkResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/telephony.PaginationMeta'
+      type: object
+    telephony.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    telephony.PhoneNumberInput:
+      properties:
+        label:
+          type: string
+        number:
+          type: string
+      required:
+        - number
+      type: object
+    telephony.PhoneNumberResponse:
+      properties:
+        id:
+          type: string
+        is_verified:
+          type: boolean
+        label:
+          type: string
+        number:
+          type: string
+        provider:
+          type: string
+        sip_trunk_id:
+          type: string
+        trunk_name:
+          type: string
+      type: object
+    telephony.SipTrunkDetailResponse:
+      properties:
+        id:
+          type: string
+        is_active:
+          type: boolean
+        max_concurrency:
+          type: integer
+        name:
+          type: string
+        phone_numbers:
+          items:
+            $ref: '#/components/schemas/telephony.PhoneNumberResponse'
+          type: array
+        provider:
+          type: string
+        type:
+          type: string
+      type: object
+    telephony.SipTrunkResponse:
+      properties:
+        id:
+          type: string
+        is_active:
+          type: boolean
+        max_concurrency:
+          type: integer
+        name:
+          type: string
+        phone_count:
+          type: integer
+        provider:
+          type: string
+        type:
+          type: string
+      type: object
+    telephony.UpdatePhoneNumberRequest:
+      properties:
+        is_verified:
+          type: boolean
+        label:
+          type: string
+        sip_trunk_id:
+          type: string
+      type: object
+    telephony.UpdateSipTrunkRequest:
+      properties:
+        is_active:
+          type: boolean
+        max_concurrency:
+          type: integer
+        name:
+          type: string
+      type: object
+    tools.CreateToolRequest:
+      properties:
+        body:
+          description: Request body template
+          type: string
+        description:
+          type: string
+        filler_phrases:
+          description: Phrases to say while tool is executing
+          items:
+            type: string
+          type: array
+        headers:
+          description: JSON object of headers
+          items:
+            type: integer
+          type: array
+        method:
+          enum:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        parameters:
+          description: Tool parameters
+          items:
+            $ref: '#/components/schemas/tools.ParameterProp'
+          type: array
+        url:
+          type: string
+      required:
+        - description
+        - method
+        - name
+        - url
+      type: object
+    tools.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    tools.ParameterProp:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        required:
+          type: boolean
+        type:
+          description: string, number, boolean, object, array
+          type: string
+      required:
+        - name
+        - type
+      type: object
+    tools.ParameterPropResponse:
+      properties:
+        created_at:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        position:
+          type: integer
+        required:
+          type: boolean
+        type:
+          type: string
+      type: object
+    tools.ToolListItem:
+      properties:
+        created_at:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        method:
+          type: string
+        name:
+          type: string
+        updated_at:
+          type: string
+        url:
+          type: string
+      type: object
+    tools.ToolListPaginatedResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/tools.ToolListItem'
+          type: array
+        meta:
+          $ref: '#/components/schemas/tools.PaginationMeta'
+      type: object
+    tools.ToolResponse:
+      properties:
+        body:
+          type: string
+        created_at:
+          type: string
+        description:
+          type: string
+        filler_phrases:
+          items:
+            type: string
+          type: array
+        headers:
+          items:
+            type: integer
+          type: array
+        id:
+          type: string
+        method:
+          type: string
+        name:
+          type: string
+        parameters:
+          items:
+            $ref: '#/components/schemas/tools.ParameterPropResponse'
+          type: array
+        updated_at:
+          type: string
+        url:
+          type: string
+      type: object
+    tools.ToolSearchItem:
+      properties:
+        description:
+          type: string
+        id:
+          type: string
+        method:
+          type: string
+        name:
+          type: string
+      type: object
+    tools.ToolSearchPaginatedResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/tools.ToolSearchItem'
+          type: array
+        meta:
+          $ref: '#/components/schemas/tools.PaginationMeta'
+      type: object
+    tools.UpdateToolRequest:
+      properties:
+        body:
+          type: string
+        description:
+          type: string
+        filler_phrases:
+          items:
+            type: string
+          type: array
+        headers:
+          items:
+            type: integer
+          type: array
+        method:
+          enum:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        parameters:
+          description: If provided, replaces all existing parameters
+          items:
+            $ref: '#/components/schemas/tools.ParameterProp'
+          type: array
+        url:
+          type: string
+      type: object
+    users.OrganizationResponse:
+      properties:
+        id:
+          type: string
+        joined_at:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        slug:
+          type: string
+      type: object
+    users.UserResponse:
+      properties:
+        created_at:
+          type: string
+        email:
+          type: string
+        id:
+          type: string
+        organizations:
+          items:
+            $ref: '#/components/schemas/users.OrganizationResponse'
+          type: array
+      type: object
+    voices.ListVoicesResponse:
+      properties:
+        meta:
+          $ref: '#/components/schemas/voices.PaginationMeta'
+        voices:
+          items:
+            $ref: '#/components/schemas/voices.Voice'
+          type: array
+      type: object
+    voices.PaginationMeta:
+      properties:
+        has_more:
+          type: boolean
+        next_page:
+          description: Cursor for next page (cartesia, elevenlabs)
+          type: string
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          description: May not be available with cursor pagination
+          type: integer
+        total_pages:
+          description: May not be available with cursor pagination
+          type: integer
+      type: object
+    voices.Voice:
+      properties:
+        accent:
+          type: string
+        age:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        gender:
+          type: string
+        id:
+          type: string
+        language:
+          type: string
+        model:
+          type: string
+        name:
+          type: string
+        preview_url:
+          type: string
+        provider:
+          description: '"elevenlabs", "cartesia", "openai", "cambai", "sarvam", "inworld", "minimax"'
+          type: string
+        use_case:
+          type: string
+      type: object
+    webcall.CreateWebCallRequest:
+      properties:
+        agent_id:
+          type: string
+        call_type:
+          enum:
+            - WEB
+            - TEXT_ONLY
+          type: string
+        extras:
+          additionalProperties:
+            type: string
+          type: object
+      required:
+        - agent_id
+      type: object
+    webcall.CreateWebCallResponse:
+      properties:
+        agent_name:
+          description: Name of the agent
+          type: string
+        call_id:
+          description: The call ID
+          type: string
+        livekit_url:
+          description: LiveKit server URL for client connection
+          type: string
+        logo:
+          description: Optional logo URL
+          type: string
+        token:
+          description: LiveKit access token
+          type: string
+      type: object
+    workflow-batches.BatchResponse:
+      properties:
+        created_at:
+          type: string
+        created_by:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        organization_id:
+          type: string
+        scheduled_at:
+          type: string
+        source_type:
+          type: string
+        stats:
+          $ref: '#/components/schemas/workflow-batches.BatchStats'
+        status:
+          type: string
+        total_prospects:
+          type: integer
+        updated_at:
+          type: string
+        workflow_id:
+          type: string
+        workflow_version_id:
+          type: string
+        workflow_version_number:
+          type: integer
+      type: object
+    workflow-batches.BatchStats:
+      properties:
+        cancelled_count:
+          type: integer
+        failed_count:
+          type: integer
+        finished_count:
+          type: integer
+        in_progress_count:
+          type: integer
+        paused_count:
+          type: integer
+        pending_count:
+          type: integer
+        total_count:
+          type: integer
+      type: object
+    workflow-batches.CreateBatchRequest:
+      properties:
+        name:
+          type: string
+        prospect_ids:
+          items:
+            type: string
+          type: array
+        prospect_list_id:
+          type: string
+        scheduled_at:
+          type: string
+      required:
+        - name
+      type: object
+    workflow-batches.CreateWorkflowRunWithProspectRequest:
+      properties:
+        prospect:
+          $ref: '#/components/schemas/workflow-batches.ProspectDataForWorkflow'
+        scheduled_at:
+          type: string
+        workflow_id:
+          type: string
+      required:
+        - prospect
+        - workflow_id
+      type: object
+    workflow-batches.CreateWorkflowRunWithProspectResponse:
+      properties:
+        external_id:
+          type: string
+        workflow_run_id:
+          type: string
+      type: object
+    workflow-batches.PaginatedBatchesResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/workflow-batches.BatchResponse'
+          type: array
+        pagination:
+          $ref: '#/components/schemas/workflow-batches.PaginationMeta'
+      type: object
+    workflow-batches.PaginatedRunsExtendedResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/workflow-batches.RunResponseExtended'
+          type: array
+        pagination:
+          $ref: '#/components/schemas/workflow-batches.PaginationMeta'
+      type: object
+    workflow-batches.PaginatedRunsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/workflow-batches.RunResponse'
+          type: array
+        pagination:
+          $ref: '#/components/schemas/workflow-batches.PaginationMeta'
+      type: object
+    workflow-batches.PaginationMeta:
+      properties:
+        limit:
+          type: integer
+        page:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    workflow-batches.ProspectDataForWorkflow:
+      properties:
+        country:
+          type: string
+        custom_data:
+          additionalProperties: true
+          type: object
+        email:
+          type: string
+        external_id:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        timezone:
+          type: string
+      required:
+        - phone
+      type: object
+    workflow-batches.ProspectInfo:
+      properties:
+        email:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+      type: object
+    workflow-batches.RunResponse:
+      properties:
+        batch_id:
+          type: string
+        current_step_id:
+          type: string
+        ended_at:
+          type: string
+        id:
+          type: string
+        prospect:
+          $ref: '#/components/schemas/workflow-batches.ProspectInfo'
+        prospect_id:
+          type: string
+        started_at:
+          type: string
+        status:
+          type: string
+        workflow_id:
+          type: string
+        workflow_version_id:
+          type: string
+      type: object
+    workflow-batches.RunResponseExtended:
+      properties:
+        batch_id:
+          type: string
+        batch_name:
+          type: string
+        current_step_id:
+          type: string
+        ended_at:
+          type: string
+        id:
+          type: string
+        prospect:
+          $ref: '#/components/schemas/workflow-batches.ProspectInfo'
+        prospect_id:
+          type: string
+        started_at:
+          type: string
+        status:
+          type: string
+        workflow_id:
+          type: string
+        workflow_name:
+          type: string
+        workflow_version_id:
+          type: string
+      type: object
+    workflow-batches.UpdateBatchStatusRequest:
+      properties:
+        status:
+          enum:
+            - PENDING
+            - PAUSED
+            - CANCELLED
+          type: string
+      required:
+        - status
+      type: object
+    workflows.CreateWorkflowRequest:
+      properties:
+        definition:
+          items:
+            type: integer
+          type: array
+        description:
+          type: string
+        is_active:
+          type: boolean
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        trigger_type:
+          type: string
+      required:
+        - definition
+        - name
+        - trigger_type
+      type: object
+    workflows.PaginatedVersionsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/workflows.WorkflowVersionResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/workflows.PaginationMeta'
+      type: object
+    workflows.PaginatedWorkflowsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/workflows.WorkflowListItemResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/workflows.PaginationMeta'
+      type: object
+    workflows.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    workflows.UpdateDefinitionRequest:
+      properties:
+        definition:
+          items:
+            type: integer
+          type: array
+      required:
+        - definition
+      type: object
+    workflows.UpdateWorkflowRequest:
+      properties:
+        description:
+          type: string
+        is_active:
+          type: boolean
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        trigger_type:
+          type: string
+      type: object
+    workflows.WorkflowListItemResponse:
+      properties:
+        created_at:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        published_at:
+          type: string
+        trigger_type:
+          type: string
+        updated_at:
+          type: string
+        version:
+          type: integer
+      type: object
+    workflows.WorkflowResponse:
+      properties:
+        created_at:
+          type: string
+        definition:
+          items:
+            type: integer
+          type: array
+        description:
+          type: string
+        id:
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        published_at:
+          type: string
+        trigger_type:
+          type: string
+        updated_at:
+          type: string
+        version:
+          type: integer
+      type: object
+    workflows.WorkflowVersionDetailResponse:
+      properties:
+        created_at:
+          type: string
+        created_by:
+          type: string
+        definition:
+          items:
+            type: integer
+          type: array
+        id:
+          type: string
+        version:
+          type: integer
+        workflow_id:
+          type: string
+      type: object
+    workflows.WorkflowVersionResponse:
+      properties:
+        created_at:
+          type: string
+        created_by:
+          type: string
+        id:
+          type: string
+        version:
+          type: integer
+      type: object

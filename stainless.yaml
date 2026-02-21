@@ -10,19 +10,12 @@ organization:
   # and headings.
   name: cozmoai
   # Link to your API documentation.
-  docs: 'https://docs.cozmox.ai'
+  docs: 'https://docs.cozmox.ai/'
   # Contact email for bug reports, questions, and support requests.
   contact: ''
 
 # `targets` define the output targets and their customization options, such as
 # whether to emit the Node SDK and what its package name should be.
-settings:
-  client_settings:
-    org_id:
-      type: string
-      env: COZMO_ORG_ID
-      required: true
-
 targets:
   python:
     # The edition for this target, see the [docs] for more information.
@@ -33,11 +26,22 @@ targets:
     production_repo: null
     publish:
       pypi: false
+  openapi: {}
+  typescript:
+    edition: typescript.2025-10-10
+    package_name: cozmoai
+    production_repo: null
+    publish:
+      npm: false
+  go:
+    edition: go.2026-2-3
+    package_name: cozmoai
+    production_repo: null
 
 # `environments` are a map of the name of the environment (e.g. "sandbox",
 # "production") to the corresponding url to use.
 environments:
-  production: /api
+  production: https://nova.prod.czmx.in/api
 
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
@@ -45,52 +49,35 @@ environments:
 #
 # [configuration guide]: https://www.stainless.com/docs/guides/configure#resources
 resources:
-  org:
-    # Subresources define resources that are nested within another for more powerful
-    # logical groupings, e.g. `cards.payments`.
-    methods:
-      list_voices: get /org/{org_id}/voices
-    subresources:
-      agents:
-        # Configure the methods defined in this resource. Each key in the object is the
-        # name of the method and the value is either an endpoint (for example, `get /foo`)
-        # or an object with more detail.
-        #
-        # [reference]: https://www.stainless.com/docs/reference/config#method
-        # Configure the models--named types--defined in the resource. Each key in the
-        # object is the name of the model and the value is either the name of a schema in
-        # `#/components/schemas` or an object with more detail.
-        #
-        # [reference]: https://www.stainless.com/docs/reference/config#model
-        models:
-          agent_response: '#/components/schemas/agents.AgentResponse'
-          background_sound_config: '#/components/schemas/agents.BackgroundSoundConfig'
-          extra_config: '#/components/schemas/agents.ExtraConfig'
-          goodbye_config: '#/components/schemas/agents.GoodbyeConfig'
-          greeting_config: '#/components/schemas/agents.GreetingConfig'
-          llm_config: '#/components/schemas/agents.LLMConfig'
-          room_duration_config: '#/components/schemas/agents.RoomDurationConfig'
-          transcriber_config: '#/components/schemas/agents.TranscriberConfig'
-          vad_config: '#/components/schemas/agents.VadConfig'
-          voice_config: '#/components/schemas/agents.VoiceConfig'
-        methods:
-          list: get /org/{org_id}/agents
-          create: post /org/{org_id}/agents
-          delete: delete /org/{org_id}/agents/{agent_id}
-          retrieve: get /org/{org_id}/agents/{agent_id}
-          update: patch /org/{org_id}/agents/{agent_id}
-      calls:
-        methods:
-          list: get /org/{org_id}/calls
-          retrieve: get /org/{org_id}/calls/{call_id}
-      workflows:
-        methods:
-          list: get /org/{org_id}/workflows
-          retrieve: get /org/{org_id}/workflows/{workflow_id}
-
-  '':
+  agents:
     models:
-      recall_webhook_config: '#/components/schemas/agents.RecallWebhookConfig'
+      agent_response: '#/components/schemas/agents.AgentResponse'
+      background_sound_config: '#/components/schemas/agents.BackgroundSoundConfig'
+      extra_config: '#/components/schemas/agents.ExtraConfig'
+      goodbye_config: '#/components/schemas/agents.GoodbyeConfig'
+      greeting_config: '#/components/schemas/agents.GreetingConfig'
+      llm_config: '#/components/schemas/agents.LLMConfig'
+      room_duration_config: '#/components/schemas/agents.RoomDurationConfig'
+      transcriber_config: '#/components/schemas/agents.TranscriberConfig'
+      vad_config: '#/components/schemas/agents.VadConfig'
+      voice_config: '#/components/schemas/agents.VoiceConfig'
+    methods:
+      list: get /org/{org_id}/agents
+      create: post /org/{org_id}/agents
+      delete: delete /org/{org_id}/agents/{agent_id}
+      retrieve: get /org/{org_id}/agents/{agent_id}
+      update: patch /org/{org_id}/agents/{agent_id}
+  calls:
+    methods:
+      list: get /org/{org_id}/calls
+      retrieve: get /org/{org_id}/calls/{call_id}
+  workflows:
+    methods:
+      list: get /org/{org_id}/workflows
+      retrieve: get /org/{org_id}/workflows/{workflow_id}
+  voices:
+    methods:
+      list: get /org/{org_id}/voices
 
 settings:
   # All generated integration tests that hit the prism mock http server are marked
@@ -111,6 +98,10 @@ client_settings:
       auth:
         security_scheme: BearerAuth
       read_env: COZMOAI_API_KEY
+    org_id:
+      type: string
+      nullable: false
+      read_env: COZMO_ORG_ID
 
 security:
   - BearerAuth: []
@@ -123,10 +114,8 @@ readme:
     default:
       type: request
       endpoint: get /org/{org_id}/agents
-      params:
-        org_id: REPLACE_ME
+      params: {}
     headline:
       type: request
       endpoint: get /org/{org_id}/agents
-      params:
-        org_id: REPLACE_ME
+      params: {}

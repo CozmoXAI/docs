@@ -10,12 +10,19 @@ organization:
   # and headings.
   name: cozmoai
   # Link to your API documentation.
-  docs: ''
+  docs: 'https://docs.cozmox.ai'
   # Contact email for bug reports, questions, and support requests.
   contact: ''
 
 # `targets` define the output targets and their customization options, such as
 # whether to emit the Node SDK and what its package name should be.
+settings:
+  client_settings:
+    org_id:
+      type: string
+      env: COZMO_ORG_ID
+      required: true
+
 targets:
   python:
     # The edition for this target, see the [docs] for more information.

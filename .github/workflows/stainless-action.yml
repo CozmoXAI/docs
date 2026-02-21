@@ -12,6 +12,9 @@ on:
       - synchronize
       - reopened
       - closed
+  push:
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}

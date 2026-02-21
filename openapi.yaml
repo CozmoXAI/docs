@@ -5,6 +5,8 @@ info:
   version: devel
 servers:
   - url: /api
+security:
+  - BearerAuth: []
 paths:
   /org/{org_id}/agents:
     get:
@@ -606,9 +608,8 @@ components:
       required: true
   securitySchemes:
     BearerAuth:
-      in: header
-      name: Authorization
-      type: apiKey
+      type: http
+      scheme: bearer
   schemas:
     admin.LivenessResponse:
       properties:

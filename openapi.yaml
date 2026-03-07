@@ -4,7 +4,7 @@ info:
   title: Cozmo - API
   version: devel
 servers:
-  - url: /api
+  - url: https://v2-nova-api.prod.czmx.in/api
 security:
   - BearerAuth: []
 paths:

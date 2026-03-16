@@ -5,6 +5,8 @@ info:
   version: devel
 servers:
   - url: https://v2-nova-api.prod.czmx.in/api
+security:
+  - BearerAuth: []
 paths:
   /org/{org_id}/agents:
     get:
@@ -728,9 +730,9 @@ components:
       required: true
   securitySchemes:
     BearerAuth:
-      in: header
-      name: Authorization
       type: apiKey
+      in: header
+      name: X-API-Key
   schemas:
     admin.LivenessResponse:
       properties:

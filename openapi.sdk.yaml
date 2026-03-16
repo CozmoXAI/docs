@@ -8,6 +8,8 @@ servers:
     variables:
       org_id:
         description: Organization ID
+security:
+  - BearerAuth: []
 paths:
   /agents:
     get:
@@ -665,9 +667,9 @@ components:
       required: true
   securitySchemes:
     BearerAuth:
-      in: header
-      name: Authorization
       type: apiKey
+      in: header
+      name: X-API-Key
   schemas:
     admin.LivenessResponse:
       properties:

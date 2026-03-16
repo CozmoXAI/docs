@@ -4,10 +4,154 @@ info:
   title: Cozmo - API
   version: devel
 servers:
-  - url: https://v2-nova-api.prod.czmx.in/api
-security:
-  - BearerAuth: []
+  - url: /api
 paths:
+  /external/ragie/webhook:
+    post:
+      description: Process document status update webhooks from Ragie
+      parameters:
+        - description: HMAC-SHA256 signature of the request body
+          in: header
+          name: X-Signature
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Handle Ragie webhook
+      tags:
+        - Knowledge
+  /internal/org/{org_id}/features:
+    put:
+      description: Enable or configure a feature for an organization (platform admin only)
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/features.UpsertFeatureRequest'
+        description: Feature details
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/features.FeatureDefinitionResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Upsert organization feature
+      tags:
+        - Features
+  /internal/org/{org_id}/features/{id}:
+    delete:
+      description: Remove a feature override from an organization (platform admin only)
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Organization Feature ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Delete organization feature
+      tags:
+        - Features
+  /internal/org/{org_id}/features/{id}/toggle:
+    patch:
+      description: Enable or disable an organization feature (platform admin only)
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Organization Feature ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/features.ToggleFeatureRequest'
+        description: Toggle state
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/features.OrganizationFeatureResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Toggle feature
+      tags:
+        - Features
   /org/{org_id}/agents:
     get:
       description: Get a paginated list of agents for the organization
@@ -60,6 +204,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
       summary: List agents
       tags:
         - Agents
@@ -101,6 +251,12 @@ paths:
                 $ref: '#/components/schemas/helper.ResponseError'
         '409':
           description: Duplicate agent name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
           content:
             application/json:
               schema:
@@ -152,6 +308,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
       summary: Delete agent
       tags:
         - Agents
@@ -192,6 +354,12 @@ paths:
                 $ref: '#/components/schemas/helper.ResponseError'
         '404':
           description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
           content:
             application/json:
               schema:
@@ -243,6 +411,12 @@ paths:
                 $ref: '#/components/schemas/helper.ResponseError'
         '404':
           description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
           content:
             application/json:
               schema:
@@ -329,6 +503,16 @@ paths:
           name: phone
           schema:
             type: string
+        - description: Filter by evaluation outcome key (e.g. is_interested)
+          in: query
+          name: evaluation_key
+          schema:
+            type: string
+        - description: Filter by evaluation value (e.g. true, false, or extracted text)
+          in: query
+          name: evaluation_value
+          schema:
+            type: string
       responses:
         '200':
           description: OK
@@ -344,6 +528,12 @@ paths:
                 $ref: '#/components/schemas/helper.ResponseError'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
           content:
             application/json:
               schema:
@@ -401,6 +591,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
         '500':
           description: Internal Server Error
           content:
@@ -412,6 +608,1366 @@ paths:
       summary: Get call details
       tags:
         - Calls
+  /org/{org_id}/features:
+    get:
+      description: Get all feature definitions with effective enabled status for the organization
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/features.FeatureDefinitionListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: List feature definitions
+      tags:
+        - Features
+  /org/{org_id}/features/{id}:
+    get:
+      description: Get a single organization feature by ID
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Feature ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/features.OrganizationFeatureResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Get feature
+      tags:
+        - Features
+  /org/{org_id}/features/enabled:
+    get:
+      description: Get all feature overrides for the organization
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/features.OrganizationFeatureListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: List organization features
+      tags:
+        - Features
+  /org/{org_id}/features/slug/{slug}:
+    get:
+      description: Get a feature by its slug identifier
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Feature Slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/features.FeatureDefinitionResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Get feature by slug
+      tags:
+        - Features
+  /org/{org_id}/features/slug/{slug}/check:
+    get:
+      description: Quick check if a feature is enabled (considers org overrides and tier defaults)
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Feature Slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/features.FeatureEnabledResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Check if feature is enabled
+      tags:
+        - Features
+  /org/{org_id}/knowledge/agents/{agent_id}/library:
+    delete:
+      description: Remove the knowledge library assignment from an agent
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Agent ID
+          in: path
+          name: agent_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Remove library from agent
+      tags:
+        - Knowledge
+    get:
+      description: Get the knowledge library assigned to an agent, including its documents
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Agent ID
+          in: path
+          name: agent_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.LibraryResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Get agent's library
+      tags:
+        - Knowledge
+    post:
+      description: Assign a knowledge library to an agent as its knowledge source
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Agent ID
+          in: path
+          name: agent_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/knowledge.AssignLibraryRequest'
+        description: Library ID
+        required: true
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Assign library to agent
+      tags:
+        - Knowledge
+  /org/{org_id}/knowledge/crawl:
+    post:
+      description: Crawl a website up to a given depth and return all discovered pages
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/knowledge.CrawlWebsiteRequest'
+        description: Crawl parameters
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.CrawlWebsiteResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Crawl website
+      tags:
+        - Knowledge
+  /org/{org_id}/knowledge/documents:
+    get:
+      description: Get all knowledge documents scoped to the organization
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.ListDocumentsResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: List knowledge documents
+      tags:
+        - Knowledge
+    post:
+      description: Upload a document via URL or direct file upload to the knowledge base
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.DocumentResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Upload knowledge document
+      tags:
+        - Knowledge
+  /org/{org_id}/knowledge/documents/{document_id}:
+    delete:
+      description: Delete a knowledge document from both the provider and local records
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Document ID
+          in: path
+          name: document_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Delete knowledge document
+      tags:
+        - Knowledge
+    get:
+      description: Get details of a knowledge document by ID
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Document ID
+          in: path
+          name: document_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.DocumentResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Get knowledge document
+      tags:
+        - Knowledge
+  /org/{org_id}/knowledge/libraries:
+    get:
+      description: Get all knowledge libraries for the organization
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.ListLibrariesResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: List libraries
+      tags:
+        - Knowledge
+    post:
+      description: Create a named collection of knowledge documents
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/knowledge.CreateLibraryRequest'
+        description: Library details
+        required: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.LibraryResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Create library
+      tags:
+        - Knowledge
+  /org/{org_id}/knowledge/libraries/{library_id}:
+    delete:
+      description: Delete a knowledge library (documents are not deleted, only unlinked)
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Library ID
+          in: path
+          name: library_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Delete library
+      tags:
+        - Knowledge
+    get:
+      description: Get a knowledge library including its documents
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Library ID
+          in: path
+          name: library_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.LibraryResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Get library
+      tags:
+        - Knowledge
+    put:
+      description: Update a knowledge library's name and description
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Library ID
+          in: path
+          name: library_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/knowledge.UpdateLibraryRequest'
+        description: Library updates
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.LibraryResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Update library
+      tags:
+        - Knowledge
+  /org/{org_id}/knowledge/libraries/{library_id}/documents:
+    post:
+      description: Add one or more knowledge documents to a library
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Library ID
+          in: path
+          name: library_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/knowledge.AddDocumentsToLibraryRequest'
+        description: Document IDs
+        required: true
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Add documents to library
+      tags:
+        - Knowledge
+  /org/{org_id}/knowledge/libraries/{library_id}/documents/{document_id}:
+    delete:
+      description: Remove a knowledge document from a library (document is not deleted)
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Library ID
+          in: path
+          name: library_id
+          required: true
+          schema:
+            type: string
+        - description: Document ID
+          in: path
+          name: document_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Remove document from library
+      tags:
+        - Knowledge
+  /org/{org_id}/knowledge/webpages:
+    post:
+      description: Scrape a webpage and upload it as a knowledge document
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/knowledge.UploadWebpageRequest'
+        description: Webpage source
+        required: true
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.DocumentResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Upload webpage knowledge
+      tags:
+        - Knowledge
+  /org/{org_id}/knowledge/webpages/batch:
+    post:
+      description: Upload multiple webpage URLs to the knowledge base, returning successes and failures
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/knowledge.BatchUploadWebpagesRequest'
+        description: Batch upload payload
+        required: true
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledge.BatchUploadWebpagesResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Batch upload webpages
+      tags:
+        - Knowledge
+  /org/{org_id}/number-marketplace/available:
+    get:
+      description: Search for phone numbers available for purchase from supported providers
+      operationId: searchAvailableNumbers
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: ISO country code (e.g., US, GB, AE)
+          in: query
+          name: country
+          required: true
+          schema:
+            type: string
+        - description: Number type
+          in: query
+          name: type
+          schema:
+            type: string
+            enum:
+              - local
+              - toll_free
+              - mobile
+        - description: Pattern to match in the number
+          in: query
+          name: contains
+          schema:
+            type: string
+        - description: Area code filter
+          in: query
+          name: area_code
+          schema:
+            type: string
+        - description: Max results
+          in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - description: Provider
+          in: query
+          name: provider
+          schema:
+            type: string
+            enum:
+              - twilio
+            default: twilio
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/number-marketplace.AvailableNumberResponse'
+                type: array
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Search available phone numbers
+      tags:
+        - Number Marketplace
+  /org/{org_id}/number-marketplace/purchase:
+    post:
+      description: Purchase a phone number from a supported provider. Deducts credits and auto-configures SIP trunk.
+      operationId: purchaseNumber
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/number-marketplace.PurchaseNumberRequest'
+        description: Purchase request
+        required: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/number-marketplace.PurchasedNumberResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '402':
+          description: Insufficient credits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '409':
+          description: Number already purchased
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Purchase a phone number
+      tags:
+        - Number Marketplace
+  /org/{org_id}/number-marketplace/purchased:
+    get:
+      description: Returns a paginated list of numbers purchased through the marketplace
+      operationId: listPurchasedNumbers
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Page number
+          in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - description: Page size
+          in: query
+          name: size
+          schema:
+            type: integer
+            maximum: 100
+            default: 20
+        - description: Filter by status
+          in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - active
+              - released
+        - description: Filter by provider
+          in: query
+          name: provider
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/number-marketplace.PaginatedPurchasedNumbersResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: List purchased numbers
+      tags:
+        - Number Marketplace
+  /org/{org_id}/number-marketplace/purchased/{purchase_id}:
+    get:
+      description: Returns details of a specific purchased number
+      operationId: getPurchasedNumber
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Purchase ID
+          in: path
+          name: purchase_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/number-marketplace.PurchasedNumberResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Get purchased number
+      tags:
+        - Number Marketplace
+  /org/{org_id}/number-marketplace/purchased/{purchase_id}/release:
+    post:
+      description: Releases a purchased phone number back to the provider
+      operationId: releaseNumber
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Purchase ID
+          in: path
+          name: purchase_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Number released successfully
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '409':
+          description: Number not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Release a purchased number
+      tags:
+        - Number Marketplace
+  /org/{org_id}/number-marketplace/purchased/{purchase_id}/setup:
+    post:
+      description: Creates LiveKit SIP trunks and phone number records for a pending purchase. Safe to retry.
+      operationId: setupNumberTrunk
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Purchase ID
+          in: path
+          name: purchase_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/number-marketplace.PurchasedNumberResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '409':
+          description: Purchase is not pending setup
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      security:
+        - BearerAuth: []
+      summary: Set up SIP trunks for a purchased number
+      tags:
+        - Number Marketplace
   /org/{org_id}/voices:
     get:
       description: Get a paginated list of available voices from the specified provider
@@ -452,7 +2008,7 @@ paths:
           name: next_page
           schema:
             type: string
-        - description: Filter by model (e.g., bulbul:v2, bulbul:v3-beta) - only for sarvam provider
+        - description: Filter by model (e.g., bulbul:v2, bulbul:v3) - only for sarvam provider
           in: query
           name: model
           schema:
@@ -476,6 +2032,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
         '500':
           description: Internal Server Error
           content:
@@ -485,6 +2047,58 @@ paths:
       summary: List voices
       tags:
         - Voices
+  /org/{org_id}/workflow-runs:
+    post:
+      description: Create a new workflow run with prospect creation in a single operation (API endpoint)
+      operationId: createWorkflowRunWithProspect
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/workflow-batches.CreateWorkflowRunWithProspectRequest'
+        description: Workflow run details
+        required: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/workflow-batches.CreateWorkflowRunWithProspectResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Create workflow run with prospect
+      tags:
+        - Workflow Runs
   /org/{org_id}/workflows:
     get:
       description: Get a paginated list of workflows with filtering
@@ -542,6 +2156,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
       summary: List workflows
       tags:
         - Workflows
@@ -587,6 +2207,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
       summary: Get workflow
       tags:
         - Workflows
@@ -608,8 +2234,9 @@ components:
       required: true
   securitySchemes:
     BearerAuth:
-      type: http
-      scheme: bearer
+      in: header
+      name: Authorization
+      type: apiKey
   schemas:
     admin.LivenessResponse:
       properties:
@@ -670,6 +2297,10 @@ components:
           type: array
         created_at:
           type: string
+        default_functions:
+          items:
+            type: string
+          type: array
         extra_config:
           items:
             type: integer
@@ -819,46 +2450,20 @@ components:
       type: object
     agents.CreateAgentRequest:
       properties:
-        allowed_sip_trunks:
-          items:
-            type: string
-          type: array
-        background_sound:
-          $ref: '#/components/schemas/agents.BackgroundSoundConfig'
-        extra_config:
-          $ref: '#/components/schemas/agents.ExtraConfig'
-        goodbye_config:
-          $ref: '#/components/schemas/agents.GoodbyeConfig'
-        greeting_config:
-          $ref: '#/components/schemas/agents.GreetingConfig'
-        llm_config:
-          $ref: '#/components/schemas/agents.LLMConfig'
+        copy_from_agent_id:
+          type: string
         name:
           type: string
-        plugins:
-          items: {}
-          type: array
-        precall_webhook:
-          $ref: '#/components/schemas/agents.PrecallWebhookConfig'
         prompt_template:
           type: string
-        room_duration_config:
-          $ref: '#/components/schemas/agents.RoomDurationConfig'
-        transcriber_config:
-          $ref: '#/components/schemas/agents.TranscriberConfig'
         type:
           enum:
             - voice
             - chat
             - video
           type: string
-        vad_config:
-          $ref: '#/components/schemas/agents.VadConfig'
-        voice_config:
-          $ref: '#/components/schemas/agents.VoiceConfig'
       required:
         - name
-        - prompt_template
         - type
       type: object
     agents.ExtraConfig:
@@ -877,6 +2482,13 @@ components:
         turn_detector_is_multilingual:
           type: boolean
         turn_detector_model_type:
+          type: string
+        use_gender_plugin:
+          enum:
+            - none
+            - pitch
+            - enhanced
+            - enhanced-multi
           type: string
       type: object
     agents.GoodbyeConfig:
@@ -903,6 +2515,11 @@ components:
       type: object
     agents.LLMConfig:
       properties:
+        fallbacks:
+          description: Ordered list of fallback providers tried in sequence when the primary LLM fails
+          items:
+            $ref: '#/components/schemas/agents.LLMConfig'
+          type: array
         frequency_penalty:
           maximum: 2
           minimum: -2
@@ -924,6 +2541,9 @@ components:
           enum:
             - openai
             - anthropic
+            - google
+            - groq
+            - cerebras
           type: string
         system_prompt:
           type: string
@@ -1072,6 +2692,7 @@ components:
             - vad
           type: string
         detect_language:
+          description: Legacy fields (backward compatibility)
           type: boolean
         eager_eot_threshold:
           description: Unified EOT/VAD Fields
@@ -1095,6 +2716,11 @@ components:
         eot_timeout_ms:
           minimum: 0
           type: integer
+        fallbacks:
+          description: Ordered list of fallback providers tried in sequence when the primary STT fails
+          items:
+            $ref: '#/components/schemas/agents.TranscriberConfig'
+          type: array
         filler_words:
           type: boolean
         include_language_detection:
@@ -1114,9 +2740,6 @@ components:
             type: string
           type: array
         language:
-          description: Legacy fields (backward compatibility)
-          type: string
-        language_code:
           type: string
         min_speech_duration_ms:
           minimum: 0
@@ -1143,6 +2766,8 @@ components:
             - deepgram
             - elevenlabs
             - speechmatics
+            - openai
+            - groq
           type: string
         punctuate:
           type: boolean
@@ -1159,12 +2784,12 @@ components:
       type: object
     agents.UpdateAgentRequest:
       properties:
-        allowed_sip_trunks:
+        background_sound:
+          $ref: '#/components/schemas/agents.BackgroundSoundConfig'
+        default_functions:
           items:
             type: string
           type: array
-        background_sound:
-          $ref: '#/components/schemas/agents.BackgroundSoundConfig'
         extra_config:
           $ref: '#/components/schemas/agents.ExtraConfig'
         goodbye_config:
@@ -1230,10 +2855,48 @@ components:
       type: object
     agents.VoiceConfig:
       properties:
+        emotion:
+          description: Language and Emotion
+          items:
+            type: string
+          type: array
+        enable_ssml_parsing:
+          description: elevenlabs
+          type: boolean
+        enable_ssml_tags:
+          description: cartesia (kept for backward compat)
+          type: boolean
+        encoding:
+          description: Audio Output
+          type: string
+        enhanced_named_entities:
+          description: cambai
+          type: boolean
+        fallbacks:
+          description: Ordered list of fallback providers tried in sequence when the primary TTS fails
+          items:
+            $ref: '#/components/schemas/agents.VoiceConfig'
+          type: array
+        instructions:
+          description: Content Controls
+          type: string
+        intensity:
+          description: minimax -100 to 100
+          maximum: 100
+          minimum: -100
+          type: number
         language:
           type: string
         model:
           type: string
+        pitch:
+          description: minimax -12 to 12
+          maximum: 12
+          minimum: -12
+          type: number
+        preprocessing:
+          description: sarvam
+          type: boolean
         provider:
           type: string
         sample_rate:
@@ -1253,12 +2916,31 @@ components:
           minimum: 0
           type: number
         style:
+          maximum: 1
           minimum: 0
+          type: number
+        text_normalization:
+          description: minimax, inworld
+          type: boolean
+        timbre:
+          description: minimax -100 to 100
+          maximum: 100
+          minimum: -100
           type: number
         use_speaker_boost:
           type: boolean
+        user_instructions:
+          description: cambai (3-1000 chars)
+          maxLength: 1000
+          minLength: 3
+          type: string
         voice_id:
           type: string
+        volume:
+          description: Voice Processing Parameters
+          maximum: 10
+          minimum: 0.5
+          type: number
       required:
         - model
         - provider
@@ -1373,6 +3055,12 @@ components:
       properties:
         avg_duration_seconds:
           type: number
+        completed_calls:
+          type: integer
+        completed_inbound_calls:
+          type: integer
+        completed_outbound_calls:
+          type: integer
         inbound_calls:
           type: integer
         max_duration_seconds:
@@ -2044,6 +3732,8 @@ components:
           type: string
         initial_agent_id:
           type: string
+        is_trace_available:
+          type: boolean
         organization_id:
           type: string
         participating_agent_ids:
@@ -2202,6 +3892,15 @@ components:
         tool_name:
           type: string
       type: object
+    calls.CallTraceResponse:
+      properties:
+        id:
+          type: string
+        trace:
+          items:
+            type: integer
+          type: array
+      type: object
     calls.CallTranscriptResponse:
       properties:
         cost_usd:
@@ -2286,6 +3985,15 @@ components:
         - display_name
         - key
         - value_type
+      type: object
+    calls.EvaluationKeyResponse:
+      properties:
+        display_name:
+          type: string
+        key:
+          type: string
+        value_type:
+          type: string
       type: object
     calls.ExportCountResponse:
       properties:
@@ -3414,6 +5122,89 @@ components:
           minLength: 1
           type: string
       type: object
+    features.FeatureDefinitionListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/features.FeatureDefinitionResponse'
+          type: array
+      type: object
+    features.FeatureDefinitionResponse:
+      properties:
+        config:
+          items:
+            type: integer
+          type: array
+        description:
+          type: string
+        enabled_at:
+          type: string
+        id:
+          type: string
+        is_enabled:
+          type: boolean
+        name:
+          type: string
+        organization_feature_id:
+          type: string
+        slug:
+          type: string
+        source:
+          type: string
+      type: object
+    features.FeatureEnabledResponse:
+      properties:
+        enabled:
+          type: boolean
+      type: object
+    features.OrganizationFeatureListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/features.OrganizationFeatureResponse'
+          type: array
+      type: object
+    features.OrganizationFeatureResponse:
+      properties:
+        config:
+          items:
+            type: integer
+          type: array
+        created_at:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        is_enabled:
+          type: boolean
+        name:
+          type: string
+        slug:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    features.ToggleFeatureRequest:
+      properties:
+        is_enabled:
+          type: boolean
+      required:
+        - is_enabled
+      type: object
+    features.UpsertFeatureRequest:
+      properties:
+        config:
+          items:
+            type: integer
+          type: array
+        is_enabled:
+          type: boolean
+        slug:
+          type: string
+      required:
+        - slug
+      type: object
     files.FileURLResponse:
       properties:
         expires_in:
@@ -3564,6 +5355,10 @@ components:
       type: object
     integrations.ConnectedIntegrationResponse:
       properties:
+        capabilities:
+          items:
+            type: string
+          type: array
         created_at:
           type: string
         id:
@@ -3598,6 +5393,10 @@ components:
       type: object
     integrations.IntegrationDefinitionResponse:
       properties:
+        capabilities:
+          items:
+            type: string
+          type: array
         connected_at:
           type: string
         id:
@@ -3664,6 +5463,322 @@ components:
         inviter_email:
           type: string
         role:
+          type: string
+      type: object
+    knowledge.AddDocumentsToLibraryRequest:
+      properties:
+        document_ids:
+          items:
+            type: string
+          minItems: 1
+          type: array
+      required:
+        - document_ids
+      type: object
+    knowledge.AssignLibraryRequest:
+      properties:
+        library_id:
+          type: string
+      required:
+        - library_id
+      type: object
+    knowledge.BatchUploadFailure:
+      properties:
+        error:
+          type: string
+        url:
+          type: string
+      type: object
+    knowledge.BatchUploadWebpagesRequest:
+      properties:
+        urls:
+          items:
+            type: string
+          maxItems: 100
+          minItems: 1
+          type: array
+      required:
+        - urls
+      type: object
+    knowledge.BatchUploadWebpagesResponse:
+      properties:
+        failed:
+          items:
+            $ref: '#/components/schemas/knowledge.BatchUploadFailure'
+          type: array
+        uploaded:
+          items:
+            $ref: '#/components/schemas/knowledge.DocumentResponse'
+          type: array
+      type: object
+    knowledge.CrawlWebsiteRequest:
+      properties:
+        depth:
+          maximum: 5
+          minimum: 1
+          type: integer
+        url:
+          maxLength: 4096
+          type: string
+      required:
+        - depth
+        - url
+      type: object
+    knowledge.CrawlWebsiteResponse:
+      properties:
+        pages:
+          items:
+            $ref: '#/components/schemas/knowledge.CrawledPage'
+          type: array
+      type: object
+    knowledge.CrawledPage:
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+      type: object
+    knowledge.CreateLibraryRequest:
+      properties:
+        description:
+          maxLength: 1024
+          type: string
+        name:
+          maxLength: 255
+          type: string
+      required:
+        - name
+      type: object
+    knowledge.DocumentResponse:
+      properties:
+        created_at:
+          type: string
+        file_name:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        organization_id:
+          type: string
+        provider:
+          type: string
+        provider_document_id:
+          type: string
+        source_url:
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    knowledge.LibraryResponse:
+      properties:
+        created_at:
+          type: string
+        description:
+          type: string
+        documents:
+          items:
+            $ref: '#/components/schemas/knowledge.DocumentResponse'
+          type: array
+        id:
+          type: string
+        name:
+          type: string
+        organization_id:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    knowledge.ListDocumentsResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/knowledge.DocumentResponse'
+          type: array
+      type: object
+    knowledge.ListLibrariesResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/knowledge.LibraryResponse'
+          type: array
+      type: object
+    knowledge.UpdateLibraryRequest:
+      properties:
+        description:
+          maxLength: 1024
+          type: string
+        name:
+          maxLength: 255
+          type: string
+      required:
+        - name
+      type: object
+    knowledge.UploadWebpageRequest:
+      properties:
+        name:
+          maxLength: 255
+          type: string
+        url:
+          maxLength: 4096
+          type: string
+      required:
+        - url
+      type: object
+    mail.InternalSendEmailRequest:
+      properties:
+        cc:
+          items:
+            type: string
+          type: array
+        email_template:
+          type: string
+        extras:
+          additionalProperties:
+            type: string
+          type: object
+        from_email:
+          type: string
+        integration_id:
+          type: string
+        org_id:
+          type: string
+        sanitize:
+          type: boolean
+        subject:
+          type: string
+        to_email:
+          type: string
+      required:
+        - email_template
+        - org_id
+        - to_email
+      type: object
+    mail.SendEmailRequest:
+      properties:
+        cc:
+          items:
+            type: string
+          type: array
+        email_template:
+          type: string
+        extras:
+          additionalProperties:
+            type: string
+          type: object
+        from_email:
+          type: string
+        integration_id:
+          type: string
+        sanitize:
+          type: boolean
+        subject:
+          type: string
+        to_email:
+          type: string
+      required:
+        - email_template
+        - to_email
+      type: object
+    number-marketplace.AvailableNumberResponse:
+      properties:
+        capabilities:
+          $ref: '#/components/schemas/number-marketplace.NumberCapabilities'
+        country:
+          type: string
+        friendly_name:
+          type: string
+        locality:
+          type: string
+        monthly_cost:
+          type: number
+        number:
+          type: string
+        provider:
+          type: string
+        region:
+          type: string
+        type:
+          type: string
+      type: object
+    number-marketplace.NumberCapabilities:
+      properties:
+        mms:
+          type: boolean
+        sms:
+          type: boolean
+        voice:
+          type: boolean
+      type: object
+    number-marketplace.PaginatedPurchasedNumbersResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/number-marketplace.PurchasedNumberResponse'
+          type: array
+        meta:
+          $ref: '#/components/schemas/number-marketplace.PaginationMeta'
+      type: object
+    number-marketplace.PaginationMeta:
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      type: object
+    number-marketplace.PurchaseNumberRequest:
+      properties:
+        label:
+          type: string
+        number:
+          type: string
+        number_type:
+          enum:
+            - local
+            - toll_free
+            - mobile
+          type: string
+        provider:
+          enum:
+            - twilio
+          type: string
+      required:
+        - number
+        - provider
+      type: object
+    number-marketplace.PurchasedNumberResponse:
+      properties:
+        country:
+          type: string
+        id:
+          type: string
+        label:
+          type: string
+        monthly_cost:
+          type: number
+        next_renewal_at:
+          type: string
+        number:
+          type: string
+        phone_number_id:
+          type: string
+        provider:
+          type: string
+        purchased_at:
+          type: string
+        sip_trunk_id:
+          type: string
+        status:
+          type: string
+        type:
           type: string
       type: object
     org-members.MemberListResponse:
@@ -4388,6 +6503,8 @@ components:
       type: object
     telephony.SipTrunkResponse:
       properties:
+        associated_agent:
+          type: string
         id:
           type: string
         is_active:
@@ -4730,6 +6847,37 @@ components:
           type: string
         token:
           description: LiveKit access token
+          type: string
+      type: object
+    webform.InitiateCallRequest:
+      properties:
+        company_name:
+          type: string
+        description:
+          description: optional
+          type: string
+        person_name:
+          type: string
+        phone_number:
+          type: string
+        token:
+          description: Turnstile token (validated by middleware)
+          type: string
+        website_url:
+          type: string
+      required:
+        - company_name
+        - person_name
+        - phone_number
+        - website_url
+      type: object
+    webform.InitiateCallResponse:
+      properties:
+        call_id:
+          type: string
+        created_at:
+          type: string
+        status:
           type: string
       type: object
     workflow-batches.BatchResponse:

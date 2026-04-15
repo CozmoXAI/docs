@@ -8,6 +8,109 @@ servers:
 security:
   - BearerAuth: []
 paths:
+  /org/{org_id}/agent-sessions:
+    post:
+      description: Create a new agent session for the organization. Supply either prospect_id for an existing prospect or new_prospect to create one inline.
+      operationId: createAgentSession
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/agent-sessions.CreateSessionRequest'
+        description: Session details
+        required: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/agent-sessions.SessionResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Create agent session
+      tags:
+        - Agent Sessions
+  /org/{org_id}/agent-sessions/{session_id}:
+    get:
+      description: Get the details of an agent session by ID
+      operationId: getAgentSession
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Session ID
+          in: path
+          name: session_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/agent-sessions.SessionResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Get agent session
+      tags:
+        - Agent Sessions
   /org/{org_id}/agents:
     get:
       description: Get a paginated list of agents for the organization
@@ -747,6 +850,129 @@ components:
           type: string
         status:
           example: ok
+          type: string
+      type: object
+    agent-sessions.CreateSessionRequest:
+      properties:
+        id:
+          description: Optional session ID (UUID). Auto-generated if omitted.
+          type: string
+        root_agent_id:
+          description: ID of the root agent handling this session.
+          type: string
+        prospect_id:
+          description: ID of an existing prospect. Mutually exclusive with new_prospect.
+          type: string
+        new_prospect:
+          $ref: '#/components/schemas/agent-sessions.NewProspectRequest'
+        workflow_run_id:
+          description: Workflow run associated with this session.
+          type: string
+        call_id:
+          description: Call associated with this session.
+          type: string
+        title:
+          type: string
+        channel:
+          description: Channel the session was initiated from (e.g. voice, chat).
+          type: string
+        entrypoint:
+          type: string
+        status:
+          type: string
+        agent_binding:
+          additionalProperties: true
+          description: Arbitrary JSON payload binding agent-specific configuration.
+          type: object
+        bootstrap:
+          additionalProperties: true
+          description: Arbitrary JSON payload used to bootstrap the session.
+          type: object
+        external_refs:
+          additionalProperties: true
+          description: External reference IDs for this session.
+          type: object
+        metadata:
+          additionalProperties: true
+          description: Arbitrary metadata for this session.
+          type: object
+      type: object
+    agent-sessions.NewProspectRequest:
+      description: Inline prospect creation. Used when prospect_id is not supplied.
+      properties:
+        phone:
+          description: Phone number in E.164 format.
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        external_id:
+          type: string
+      required:
+        - phone
+      type: object
+    agent-sessions.SessionResponse:
+      properties:
+        id:
+          type: string
+        organization_id:
+          type: string
+        root_agent_id:
+          type: string
+        prospect_id:
+          type: string
+        workflow_run_id:
+          type: string
+        call_id:
+          type: string
+        case_id:
+          description: Auto-generated 6-character alphanumeric case identifier.
+          type: string
+        title:
+          type: string
+        channel:
+          type: string
+        entrypoint:
+          type: string
+        status:
+          type: string
+        agent_binding:
+          additionalProperties: true
+          type: object
+        bootstrap:
+          additionalProperties: true
+          type: object
+        external_refs:
+          additionalProperties: true
+          type: object
+        metadata:
+          additionalProperties: true
+          type: object
+        last_event_sequence:
+          format: int64
+          type: integer
+        last_journal_sequence:
+          format: int64
+          type: integer
+        last_handle_version:
+          format: int64
+          type: integer
+        last_event_at:
+          type: string
+        last_activity_at:
+          type: string
+        started_at:
+          type: string
+        ended_at:
+          type: string
+        created_by:
+          type: string
+        created_at:
+          type: string
+        updated_at:
           type: string
       type: object
     agents.AddAgentSipTrunkRequest:

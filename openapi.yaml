@@ -853,6 +853,9 @@ components:
           type: string
       type: object
     agent-sessions.CreateSessionRequest:
+      required:
+        - root_agent_id
+      description: Exactly one of prospect_id or new_prospect must be provided.
       properties:
         id:
           description: Optional session ID (UUID). Auto-generated if omitted.
@@ -861,9 +864,10 @@ components:
           description: ID of the root agent handling this session.
           type: string
         prospect_id:
-          description: ID of an existing prospect. Mutually exclusive with new_prospect.
+          description: ID of an existing prospect. Required if new_prospect is not provided.
           type: string
         new_prospect:
+          description: Inline prospect to create. Required if prospect_id is not provided.
           $ref: '#/components/schemas/agent-sessions.NewProspectRequest'
         workflow_run_id:
           description: Workflow run associated with this session.

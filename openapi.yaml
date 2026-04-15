@@ -60,6 +60,7 @@ paths:
       summary: Create agent session
       tags:
         - Agent Sessions
+      x-hidden: true
   /org/{org_id}/agent-sessions/{session_id}:
     get:
       description: Get the details of an agent session by ID
@@ -109,6 +110,68 @@ paths:
               schema:
                 $ref: '#/components/schemas/helper.ResponseError'
       summary: Get agent session
+      tags:
+        - Agent Sessions
+  /org/{org_id}/agent-sessions/{session_id}/start:
+    post:
+      description: >
+        Creates the session record, appends the initial instruction as a user message event,
+        and triggers the agent workflow — all in a single call. The session_id must be a
+        client-generated UUID v4 and is used to idempotently reference the session afterward.
+      operationId: startAgentSession
+      parameters:
+        - description: Organization ID
+          in: path
+          name: org_id
+          required: true
+          schema:
+            type: string
+        - description: Client-generated UUID v4 for the session
+          in: path
+          name: session_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/agent-sessions.StartSessionRequest'
+        description: Session start parameters
+        required: true
+      responses:
+        '201':
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/agent-sessions.StartSessionResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/helper.ResponseError'
+      summary: Start agent session
       tags:
         - Agent Sessions
   /org/{org_id}/agents:
@@ -850,6 +913,33 @@ components:
           type: string
         status:
           example: ok
+          type: string
+      type: object
+    agent-sessions.StartSessionRequest:
+      required:
+        - agentId
+        - instruction
+      properties:
+        agentId:
+          description: ID of the agent to run for this session.
+          type: string
+        instruction:
+          description: Initial instruction sent to the agent as the first user message.
+          type: string
+        title:
+          description: Human-readable label for the session.
+          type: string
+        source:
+          description: Caller identifier (e.g. command-center, api).
+          type: string
+        prospectId:
+          description: ID of an existing prospect to associate with the session.
+          type: string
+      type: object
+    agent-sessions.StartSessionResponse:
+      properties:
+        sessionId:
+          description: The UUID of the newly started session.
           type: string
       type: object
     agent-sessions.CreateSessionRequest:

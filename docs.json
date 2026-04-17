@@ -44,5 +44,8 @@
       "pages": ["index", "authentication", "rate-limits", "webhook"]
     }
   ], 
-  "theme": "mint"
+  "theme": "mint",
+  "appearance": {
+    "default": "dark"
+  }
 }

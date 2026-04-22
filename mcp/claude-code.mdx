@@ -1,0 +1,225 @@
+---
+title: "Claude Code"
+description: "Add the Cozmo MCP server to Claude Code so it can generate accurate Nova API integrations from the terminal"
+icon: "asterisk"
+---
+
+## Prerequisites
+
+- [Claude Code](https://claude.ai/code) installed (`npm install -g @anthropic-ai/claude-code`)
+- Node.js 18 or later
+- A Cozmo API key from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
+
+## Step 1 - Install the MCP server
+
+```bash
+npm install -g @cozmoai/mcp-server
+```
+
+## Step 2 - Add to Claude Code
+
+Register the Cozmo MCP server with Claude Code:
+
+```bash
+claude mcp add cozmo-nova npx @cozmoai/mcp-server \
+  --env COZMO_API_KEY=YOUR_API_KEY \
+  --env COZMO_ORG_ID=YOUR_ORG_ID
+```
+
+This adds the server to your Claude Code global configuration at `~/.claude/settings.json`.
+
+To scope it to a specific project instead:
+
+```bash
+claude mcp add cozmo-nova npx @cozmoai/mcp-server --scope project
+```
+
+This creates a `.claude/settings.json` in your project root - safe to commit (without secrets in the env block).
+
+## Step 3 - Verify
+
+Start a Claude Code session in your project directory:
+
+```bash
+claude
+```
+
+Then ask:
+
+> *"List all the Nova API endpoints available for agent sessions"*
+
+Claude Code will query the Cozmo MCP server and return accurate endpoint details - not training-data guesses.
+
+## Configuration reference
+
+If you prefer to edit the config file directly, the MCP entry looks like this:
+
+```json ~/.claude/settings.json
+{
+  "mcpServers": {
+    "cozmo-nova": {
+      "command": "npx",
+      "args": ["@cozmoai/mcp-server"],
+      "env": {
+        "COZMO_API_KEY": "YOUR_API_KEY",
+        "COZMO_ORG_ID": "YOUR_ORG_ID"
+      }
+    }
+  }
+}
+```
+
+<Warning>
+  If you commit `.claude/settings.json` to version control, remove the `env` block and set `COZMO_API_KEY` as a shell environment variable instead.
+</Warning>
+
+## What you can now do
+
+With the Cozmo MCP server active, Claude Code can help you build Nova API integrations directly from the terminal. Example session:
+
+```
+$ claude
+
+> Write a Python script that polls for new workflow runs, starts a session for 
+  each one, and prints the session ID.
+
+Claude Code will generate a script using:
+- GET /org/{org_id}/workflows to list workflows
+- POST /org/{org_id}/workflow-runs to trigger a run
+- POST /org/{org_id}/agent-sessions/{session_id}/start with a client-generated UUID
+- Proper X-API-Key authentication on every request
+```
+
+**More things to ask:**
+
+- *"Show me the full `SessionResponse` schema - what fields does it return?"*
+- *"Write a webhook handler in Python (FastAPI) for `call.completed` that extracts the transcript and stores it"*
+- *"What's the correct way to create a prospect inline when starting a session?"*
+- *"Generate TypeScript types for the `CallDetailResponse` object"*
+- *"How do I implement exponential backoff for Nova API 429 errors?"*
+
+## CLAUDE.md for Nova API projects
+
+Add a `CLAUDE.md` to your project root to give Claude Code persistent context about your Cozmo integration:
+
+```markdown CLAUDE.md
+# Nova API Integration
+
+## Project context
+- This project integrates with the Cozmo AI Nova API
+- Base URL: https://v2-nova-api.prod.czmx.in/api
+- Auth: X-API-Key header (value in COZMO_API_KEY env var)
+- Org ID: in COZMO_ORG_ID env var - all endpoints are scoped to /org/{org_id}/
+
+## Key resources
+- Agents: create and configure AI agents (voice, chat, video)
+- Agent Sessions: run an agent for a prospect (POST .../agent-sessions/{session_id}/start)
+- Calls: retrieve voice call records with transcripts and evaluations
+- Workflows: trigger multi-step call flows via POST .../workflow-runs
+- Webhooks: call.completed, call.failed, session.completed, session.failed
+
+## Critical rules
+- session_id MUST be a client-generated UUID v4 - never let the server generate it
+- Phone numbers MUST be E.164 format (e.g. +19175551234)
+- Always implement retry logic for 429 responses using X-Rate-Limit-Reset header
+- Never hardcode API keys - always read from environment variables
+
+## SDK
+- TypeScript: npm install cozmoai
+- Python: pip install cozmoai
+- Go: go get github.com/cozmoai/cozmoai-go
+```
+
+## Example - generating a complete webhook handler
+
+In a Claude Code session:
+
+> *"Using the Cozmo MCP server context, write a complete FastAPI webhook handler for `call.completed`. It should extract the call result, transcript, recording URL, and all evaluations. Handle both success and failure cases."*
+
+Claude Code will generate:
+
+```python
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+app = FastAPI()
+
+@app.post("/webhook/cozmo")
+async def handle_cozmo_webhook(request: Request):
+    payload = await request.json()
+    event = payload.get("event")
+    data = payload.get("data", {})
+
+    if event == "call.completed":
+        call_id = data.get("call_id")
+        call_result = data.get("call_result")  # FINISHED, NO_ANSWER, BUSY, etc.
+        transcript = data.get("transcript")
+        recording_url = data.get("recording_url")
+        prospect = data.get("prospect", {})
+
+        evaluations = {
+            e["key"]: {
+                "value": e["extracted_value"],
+                "result": e["result_boolean"],
+                "reasoning": e["reasoning"],
+            }
+            for e in data.get("evaluations", [])
+        }
+
+        print(f"Call {call_id} result: {call_result}")
+        print(f"Prospect: {prospect.get('FullName')} ({prospect.get('Phone')})")
+        print(f"Evaluations: {evaluations}")
+
+        if recording_url:
+            # Save or process recording
+            pass
+
+    elif event == "call.failed":
+        call_result = data.get("call_result")  # FAILED, FAILED_SIP, NO_ANSWER, BUSY
+        print(f"Call failed: {call_result}")
+
+    return JSONResponse({"ok": True})
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="MCP server not found by Claude Code">
+    Confirm the server is registered:
+
+    ```bash
+    claude mcp list
+    ```
+
+    If `cozmo-nova` is missing, re-add it:
+
+    ```bash
+    claude mcp add cozmo-nova npx @cozmoai/mcp-server
+    ```
+  </Accordion>
+
+  <Accordion title="Remove the server">
+    ```bash
+    claude mcp remove cozmo-nova
+    ```
+  </Accordion>
+
+  <Accordion title="Server running but Claude ignores it">
+    Start your session with an explicit prompt that references the MCP server:
+
+    > *"Using the cozmo-nova MCP server, show me how to..."*
+
+    This forces Claude Code to query the server first.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Overview" icon="server" href="/mcp/overview">
+    See everything the Cozmo MCP server provides.
+  </Card>
+  <Card title="Error handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Implement retry logic and handle API errors correctly.
+  </Card>
+</CardGroup>

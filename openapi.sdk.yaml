@@ -7,6 +7,7 @@ servers:
   - url: https://v2-nova-api.prod.czmx.in/api/org/{org_id}
     variables:
       org_id:
+        default: your_org_id
         description: Organization ID
 security:
   - BearerAuth: []
@@ -69,7 +70,6 @@ paths:
     post:
       description: Create a new AI agent in the organization
       operationId: createAgent
-      parameters:
       requestBody:
         content:
           application/json:
@@ -502,7 +502,6 @@ paths:
     post:
       description: Create a new workflow run with prospect creation in a single operation (API endpoint)
       operationId: createWorkflowRunWithProspect
-      parameters:
       requestBody:
         content:
           application/json:

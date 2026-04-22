@@ -1,136 +1,363 @@
 ---
 title: "Rate Limits"
-description: "Understand API rate limiting and best practices for handling limits"
+description: "Understand Nova API rate limits, read response headers, and implement production-grade retry logic"
 ---
 
 ## Overview
 
-Nova API uses rate limiting to ensure fair usage and maintain service stability. Limits are applied per IP address and reset every minute.
+Nova API enforces per-organization rate limits to ensure fair usage and platform stability. Limits are applied per minute per API key and reset on a rolling window.
 
-## Rate Limit Tiers
+## Rate limit tiers
 
-| Endpoint Type | Requests per Minute | Description |
-|---------------|---------------------|-------------|
-| **Normal** | 1,000 | Standard endpoints (default) |
-| **Strict** | 10 | Sensitive or resource-intensive endpoints |
+| Tier | Limit | Applied to |
+|------|-------|-----------|
+| **Normal** | 1,000 req/min | All standard endpoints |
+| **Strict** | 10 req/min | Resource-intensive operations |
 
 <Info>
-  Most endpoints use the **normal** rate limit. Strict limits apply to specific endpoints documented in the API Reference.
+  Most endpoints use the normal tier. Strict limits apply to endpoints noted in the API Reference. Contact [support](https://dash.prod.czmx.in) if your use case requires higher limits.
 </Info>
 
-## Response Headers
+## Response headers
 
-Every API response includes rate limit information in the headers:
+Every API response includes rate limit state in the headers:
 
-| Header | Description |
-|--------|-------------|
-| `X-Rate-Limit-Limit` | Maximum requests allowed per minute |
-| `X-Rate-Limit-Remaining` | Requests remaining in the current window |
-| `X-Rate-Limit-Reset` | Unix timestamp (UTC) when the limit resets |
+| Header | Type | Description |
+|--------|------|-------------|
+| `X-Rate-Limit-Limit` | integer | Maximum requests allowed per window |
+| `X-Rate-Limit-Remaining` | integer | Requests remaining in the current window |
+| `X-Rate-Limit-Reset` | unix timestamp | UTC timestamp when the window resets |
 
-### Example Headers
+**Example headers:**
 
 ```http
+HTTP/2 200
 X-Rate-Limit-Limit: 1000
 X-Rate-Limit-Remaining: 742
-X-Rate-Limit-Reset: 1737388800
+X-Rate-Limit-Reset: 1745232060
 ```
 
-## Rate Limit Exceeded
+## Rate limit exceeded
 
-When you exceed the rate limit, the API returns a `429 Too Many Requests` response:
-
-```json
-{
-  "error": "Rate limit exceeded"
-}
-```
-
-The response headers will show:
+When you exceed the limit, the API returns `429 Too Many Requests`:
 
 ```http
+HTTP/2 429
 X-Rate-Limit-Limit: 1000
 X-Rate-Limit-Remaining: 0
-X-Rate-Limit-Reset: 1737388800
+X-Rate-Limit-Reset: 1745232060
+Content-Type: application/json
+
+{"error": "Rate limit exceeded"}
 ```
 
-## Handling Rate Limits
+The `X-Rate-Limit-Reset` timestamp tells you exactly when you can resume. Calculate the wait:
 
-<Steps>
-  <Step title="Monitor Headers">
-    Check `X-Rate-Limit-Remaining` in responses to track your usage.
-  </Step>
-  <Step title="Implement Backoff">
-    When you receive a `429` response, wait until the `X-Rate-Limit-Reset` timestamp before retrying.
-  </Step>
-  <Step title="Queue Requests">
-    For bulk operations, implement a request queue to stay within limits.
-  </Step>
-</Steps>
+```
+wait_seconds = X-Rate-Limit-Reset - current_unix_timestamp
+```
 
-## Code Examples
+## Handling 429 responses
 
-### Handling 429 Responses
+### Respect the reset header
 
-```python
+The most reliable approach is to wait until the `X-Rate-Limit-Reset` timestamp rather than using a fixed sleep:
+
+<CodeGroup>
+
+```python Python
 import requests
 import time
+import math
 
-def make_request_with_retry(url, headers, max_retries=3):
+def request_with_retry(
+    method: str,
+    url: str,
+    headers: dict,
+    max_retries: int = 5,
+    **kwargs,
+) -> requests.Response:
     for attempt in range(max_retries):
-        response = requests.get(url, headers=headers)
-        
+        response = requests.request(method, url, headers=headers, **kwargs)
+
         if response.status_code == 429:
-            reset_time = int(response.headers.get('X-Rate-Limit-Reset', 0))
-            wait_seconds = max(reset_time - time.time(), 1)
-            print(f"Rate limited. Waiting {wait_seconds:.0f} seconds...")
-            time.sleep(wait_seconds)
+            reset_ts = int(response.headers.get("X-Rate-Limit-Reset", 0))
+            wait = max(reset_ts - time.time(), 1)
+            jitter = wait * 0.1  # 10% jitter to avoid thundering herd
+            sleep_time = wait + (math.random() * jitter if attempt > 0 else 0)
+            print(f"Rate limited. Sleeping {sleep_time:.1f}s (attempt {attempt + 1}/{max_retries})")
+            time.sleep(sleep_time)
             continue
-            
+
+        if response.status_code >= 500:
+            backoff = min(2 ** attempt, 60)
+            print(f"Server error {response.status_code}. Backoff {backoff}s")
+            time.sleep(backoff)
+            continue
+
         return response
-    
-    raise Exception("Max retries exceeded")
+
+    raise RuntimeError(f"Max retries exceeded after {max_retries} attempts")
 ```
 
-### Monitoring Rate Limit Usage
+```typescript TypeScript
+async function requestWithRetry(
+  input: RequestInfo,
+  init: RequestInit,
+  maxRetries = 5
+): Promise<Response> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch(input, init);
 
-```javascript
-async function fetchWithRateLimitInfo(url, options) {
-  const response = await fetch(url, options);
-  
-  const rateLimit = {
-    limit: response.headers.get('X-Rate-Limit-Limit'),
-    remaining: response.headers.get('X-Rate-Limit-Remaining'),
-    reset: response.headers.get('X-Rate-Limit-Reset'),
-  };
-  
-  console.log(`Rate limit: ${rateLimit.remaining}/${rateLimit.limit} remaining`);
-  
-  if (rateLimit.remaining < 10) {
-    console.warn('Approaching rate limit!');
+    if (response.status === 429) {
+      const resetTs = parseInt(response.headers.get("X-Rate-Limit-Reset") ?? "0");
+      const waitMs = Math.max((resetTs - Date.now() / 1000) * 1000, 1000);
+      const jitterMs = attempt > 0 ? Math.random() * waitMs * 0.1 : 0;
+      console.log(`Rate limited. Sleeping ${(waitMs + jitterMs).toFixed(0)}ms`);
+      await new Promise((r) => setTimeout(r, waitMs + jitterMs));
+      continue;
+    }
+
+    if (response.status >= 500) {
+      const backoffMs = Math.min(Math.pow(2, attempt) * 1000, 60_000);
+      await new Promise((r) => setTimeout(r, backoffMs));
+      continue;
+    }
+
+    return response;
   }
-  
-  return { response, rateLimit };
+
+  throw new Error(`Max retries exceeded after ${maxRetries} attempts`);
 }
 ```
 
-## Best Practices
+```go Go
+package cozmo
+
+import (
+    "fmt"
+    "math"
+    "math/rand"
+    "net/http"
+    "strconv"
+    "time"
+)
+
+func requestWithRetry(client *http.Client, req *http.Request, maxRetries int) (*http.Response, error) {
+    var lastErr error
+    for attempt := 0; attempt < maxRetries; attempt++ {
+        // Clone request body for retry
+        reqClone := req.Clone(req.Context())
+
+        resp, err := client.Do(reqClone)
+        if err != nil {
+            lastErr = err
+            time.Sleep(time.Duration(math.Pow(2, float64(attempt))) * time.Second)
+            continue
+        }
+
+        if resp.StatusCode == 429 {
+            resetStr := resp.Header.Get("X-Rate-Limit-Reset")
+            resetTs, _ := strconv.ParseInt(resetStr, 10, 64)
+            wait := time.Until(time.Unix(resetTs, 0))
+            if wait < time.Second {
+                wait = time.Second
+            }
+            jitter := time.Duration(rand.Int63n(int64(wait / 10)))
+            fmt.Printf("Rate limited. Sleeping %v (attempt %d/%d)\n", wait+jitter, attempt+1, maxRetries)
+            time.Sleep(wait + jitter)
+            continue
+        }
+
+        if resp.StatusCode >= 500 {
+            backoff := time.Duration(math.Pow(2, float64(attempt))) * time.Second
+            if backoff > 60*time.Second {
+                backoff = 60 * time.Second
+            }
+            time.Sleep(backoff)
+            continue
+        }
+
+        return resp, nil
+    }
+
+    return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
+}
+```
+
+</CodeGroup>
+
+### Proactive throttling
+
+Rather than waiting for a 429, check `X-Rate-Limit-Remaining` proactively and slow down before hitting the limit:
+
+```python Python
+class RateLimitedClient:
+    def __init__(self, api_key: str, org_id: str, threshold: int = 50):
+        self.threshold = threshold  # start throttling below this many remaining
+        self.session = requests.Session()
+        self.session.headers["X-API-Key"] = api_key
+        self.remaining = None
+        self.reset_ts = None
+
+    def _check_headers(self, response: requests.Response) -> None:
+        self.remaining = int(response.headers.get("X-Rate-Limit-Remaining", 999))
+        self.reset_ts = int(response.headers.get("X-Rate-Limit-Reset", 0))
+
+    def request(self, method: str, url: str, **kwargs) -> requests.Response:
+        # Proactive throttle: if we're low on remaining requests, add a small delay
+        if self.remaining is not None and self.remaining < self.threshold:
+            wait = max(self.reset_ts - time.time(), 0)
+            delay = wait / max(self.remaining, 1)  # spread remaining calls over reset window
+            time.sleep(min(delay, 1.0))
+
+        response = self.session.request(method, url, **kwargs)
+        self._check_headers(response)
+        return response
+```
+
+### Request queuing for bulk operations
+
+When triggering many workflow runs, use a queue to stay within limits:
+
+<CodeGroup>
+
+```python Python
+import asyncio
+import aiohttp
+import time
+
+async def bulk_workflow_runs(
+    runs: list[dict],
+    api_key: str,
+    org_id: str,
+    rate_limit: int = 50,  # conservative - leave headroom
+) -> list[dict]:
+    """Trigger multiple workflow runs while respecting rate limits."""
+    results = []
+    semaphore = asyncio.Semaphore(rate_limit)
+    delay = 60.0 / rate_limit  # distribute evenly across the minute
+
+    async with aiohttp.ClientSession() as session:
+        async def trigger_one(run_data: dict) -> dict:
+            async with semaphore:
+                await asyncio.sleep(delay)  # pace requests
+                async with session.post(
+                    f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs",
+                    headers={"X-API-Key": api_key},
+                    json=run_data,
+                ) as resp:
+                    return await resp.json()
+
+        results = await asyncio.gather(*[trigger_one(r) for r in runs])
+
+    return results
+```
+
+```typescript TypeScript
+import pLimit from "p-limit";
+
+async function bulkWorkflowRuns(
+  runs: object[],
+  apiKey: string,
+  orgId: string,
+  concurrency = 50
+): Promise<object[]> {
+  const limit = pLimit(concurrency);
+  const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const intervalMs = 60_000 / concurrency;
+
+  return Promise.all(
+    runs.map((run, i) =>
+      limit(async () => {
+        await delay(i * intervalMs);
+        const res = await fetch(
+          `https://v2-nova-api.prod.czmx.in/api/org/${orgId}/workflow-runs`,
+          {
+            method: "POST",
+            headers: {
+              "X-API-Key": apiKey,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(run),
+          }
+        );
+        return res.json();
+      })
+    )
+  );
+}
+```
+
+</CodeGroup>
+
+## Monitoring rate limit usage
+
+Log rate limit headers to detect when you are approaching limits:
+
+```python Python
+import logging
+
+logger = logging.getLogger(__name__)
+
+def log_rate_limit_state(response: requests.Response) -> None:
+    remaining = response.headers.get("X-Rate-Limit-Remaining")
+    limit = response.headers.get("X-Rate-Limit-Limit")
+    reset = response.headers.get("X-Rate-Limit-Reset")
+
+    if remaining is None:
+        return
+
+    remaining_int = int(remaining)
+    limit_int = int(limit) if limit else 1000
+    usage_pct = ((limit_int - remaining_int) / limit_int) * 100
+
+    log_fn = logger.warning if usage_pct > 80 else logger.debug
+    log_fn(
+        "rate_limit",
+        extra={
+            "remaining": remaining_int,
+            "limit": limit_int,
+            "reset": reset,
+            "usage_pct": f"{usage_pct:.1f}%",
+        },
+    )
+```
+
+## Best practices
 
 <CardGroup cols={2}>
-  <Card title="Cache Responses" icon="database">
-    Cache frequently accessed data to reduce API calls.
+  <Card title="Implement retry with backoff" icon="rotate-right">
+    Always handle `429` with a wait until `X-Rate-Limit-Reset` plus jitter. Fixed sleeps can cause thundering herd issues.
   </Card>
-  <Card title="Batch Requests" icon="layer-group">
-    Use bulk endpoints when available instead of multiple single requests.
+  <Card title="Proactive throttling" icon="gauge">
+    Watch `X-Rate-Limit-Remaining` and slow down before hitting zero. Keep at least 10% headroom.
   </Card>
-  <Card title="Implement Retry Logic" icon="rotate-right">
-    Always handle `429` responses gracefully with exponential backoff.
+  <Card title="Queue bulk operations" icon="layer-group">
+    For high-volume operations like batch workflow runs, use a queue with controlled concurrency rather than firing all requests simultaneously.
   </Card>
-  <Card title="Monitor Usage" icon="gauge">
-    Track your rate limit consumption to prevent unexpected throttling.
+  <Card title="Cache read-only data" icon="database">
+    Cache agent lists, workflow lists, and voice catalogs client-side. These change infrequently - polling them on every request wastes your quota.
+  </Card>
+  <Card title="Separate keys per workload" icon="key">
+    Use one API key for your API server and a separate key for batch jobs. This way batch workloads cannot exhaust the quota used by real-time API calls.
+  </Card>
+  <Card title="Monitor and alert" icon="bell">
+    Set up an alert when your usage exceeds 80% of the limit within a minute. This gives you time to throttle before users experience errors.
   </Card>
 </CardGroup>
 
 <Note>
-  Need higher rate limits? Contact us to discuss enterprise options.
+  Need higher rate limits for high-volume use cases? Contact Cozmo AI at [dash.prod.czmx.in](https://dash.prod.czmx.in) to discuss enterprise options.
 </Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Implement circuit breakers and structured error handling for production.
+  </Card>
+  <Card title="Making Your First Call" icon="phone" href="/guides/making-your-first-call">
+    End-to-end guide with production-ready retry patterns built in.
+  </Card>
+</CardGroup>

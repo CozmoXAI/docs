@@ -1,0 +1,230 @@
+---
+title: "Windsurf"
+description: "Add the Cozmo MCP server to Windsurf so Cascade can generate accurate Nova API integrations"
+icon: "water"
+---
+
+## Prerequisites
+
+- [Windsurf](https://codeium.com/windsurf) installed
+- Node.js 18 or later
+- A Cozmo API key from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
+
+## Step 1 - Install the MCP server
+
+```bash
+npm install -g @cozmoai/mcp-server
+```
+
+Verify:
+
+```bash
+cozmo-mcp --version
+```
+
+## Step 2 - Configure Windsurf
+
+Create a `.windsurf/mcp.json` file at the root of your project:
+
+```bash
+mkdir -p .windsurf
+```
+
+```json .windsurf/mcp.json
+{
+  "servers": {
+    "cozmo-nova": {
+      "command": "npx",
+      "args": ["@cozmoai/mcp-server"],
+      "env": {
+        "COZMO_API_KEY": "YOUR_API_KEY",
+        "COZMO_ORG_ID": "YOUR_ORG_ID"
+      }
+    }
+  }
+}
+```
+
+<Warning>
+  Keep API keys out of version control. Commit `.windsurf/mcp.json` without the `env` block and set `COZMO_API_KEY` in each developer's shell profile.
+</Warning>
+
+Team-safe version (no secrets):
+
+```json .windsurf/mcp.json
+{
+  "servers": {
+    "cozmo-nova": {
+      "command": "npx",
+      "args": ["@cozmoai/mcp-server"]
+    }
+  }
+}
+```
+
+Each developer exports in their shell:
+
+```bash
+export COZMO_API_KEY="your_api_key"
+export COZMO_ORG_ID="your_org_id"
+```
+
+## Step 3 - Reload Windsurf
+
+Open the command palette and run **Windsurf: Reload Window**, or close and reopen Windsurf. Cascade will detect the MCP server automatically on next load.
+
+## Step 4 - Verify
+
+Open Cascade and ask:
+
+> *"What are the required fields to start a Cozmo agent session?"*
+
+A correct response will mention `agentId` and `instruction` as required fields, with `session_id` as a client-generated UUID v4 in the URL path - pulled directly from the Nova API spec.
+
+## Windsurf rules for Nova API projects
+
+Create a `.windsurf/rules.md` file to give Cascade persistent context about your Cozmo integration. This works alongside the MCP server:
+
+```markdown .windsurf/rules.md
+# Cozmo Nova API integration
+
+## Project context
+- Integrates with the Nova API: https://v2-nova-api.prod.czmx.in/api
+- Auth: X-API-Key header - value from COZMO_API_KEY environment variable
+- All endpoints scoped to /org/{org_id}/ - org ID from COZMO_ORG_ID env var
+
+## Key patterns
+- session_id must always be a client-generated UUID v4 (never server-generated)
+- Phone numbers must be E.164 format: +[country_code][number] (e.g. +19175551234)
+- Retry 429 responses: wait until X-Rate-Limit-Reset timestamp, use exponential backoff
+- Retry 5xx responses with backoff; never retry 4xx (fix the request instead)
+
+## Resources
+- Agents: POST/GET/PATCH/DELETE /org/{org_id}/agents
+- Sessions: POST /org/{org_id}/agent-sessions/{session_id}/start
+- Calls: GET /org/{org_id}/calls and /org/{org_id}/calls/{call_id}
+- Workflows: GET /org/{org_id}/workflows
+- Workflow Runs: POST /org/{org_id}/workflow-runs
+- Webhooks: call.completed, call.failed, session.completed, session.failed
+
+## SDK packages
+- TypeScript/Node: cozmoai (npm)
+- Python: cozmoai (pip)
+- Go: github.com/cozmoai/cozmoai-go
+```
+
+## What you can ask Cascade
+
+Once the MCP server is active, Cascade has full knowledge of the Nova API. Example prompts:
+
+<AccordionGroup>
+  <Accordion title="Building a session manager">
+    > *"Create a TypeScript class that manages Cozmo agent sessions - it should start sessions, check their status, and emit events when they complete"*
+
+    Cascade will generate a class using the correct Start Session and Get Session endpoints, with proper UUID generation and `X-API-Key` auth.
+  </Accordion>
+
+  <Accordion title="Webhook validation and parsing">
+    > *"Write a Node.js middleware that receives Cozmo webhooks and routes call.completed vs session.completed events to different handlers"*
+
+    Cascade will correctly handle the `event` field and the `data` structure for both event types.
+  </Accordion>
+
+  <Accordion title="Bulk workflow runs">
+    > *"I have a CSV of prospects with phone and email. Write a Python script that reads the CSV and triggers a Cozmo workflow run for each one, with rate limiting"*
+
+    Cascade will generate a script using the `POST /org/{org_id}/workflow-runs` endpoint with correct prospect fields (E.164 phone, optional `external_id`, `custom_data`), and implement rate limiting using `X-Rate-Limit-Remaining`.
+  </Accordion>
+
+  <Accordion title="Inspecting call records">
+    > *"Fetch all calls from the last 7 days and export them to a CSV with columns: call_id, prospect_name, result, duration, summary"*
+
+    Cascade will use the `GET /org/{org_id}/calls` list endpoint with pagination and map `CallListItemResponse` fields correctly.
+  </Accordion>
+</AccordionGroup>
+
+## Example - workflow run with error handling
+
+Ask Cascade:
+
+> *"Write a production-ready Python function that creates a Cozmo workflow run, handles rate limits, and retries on server errors"*
+
+Cascade generates:
+
+```python
+import time
+import uuid
+import requests
+
+def create_workflow_run(
+    org_id: str,
+    api_key: str,
+    workflow_id: str,
+    prospect: dict,
+    max_retries: int = 5,
+) -> dict:
+    url = f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs"
+    headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
+    payload = {"workflow_id": workflow_id, "prospect": prospect}
+
+    for attempt in range(max_retries):
+        response = requests.post(url, headers=headers, json=payload)
+
+        if response.status_code == 201:
+            return response.json()  # {"workflow_run_id": "...", "external_id": "..."}
+
+        if response.status_code == 429:
+            reset_ts = int(response.headers.get("X-Rate-Limit-Reset", 0))
+            wait = max(reset_ts - time.time(), 2 ** attempt)
+            time.sleep(wait)
+            continue
+
+        if response.status_code >= 500:
+            time.sleep(2 ** attempt)
+            continue
+
+        # 4xx - don't retry, raise immediately
+        response.raise_for_status()
+
+    raise RuntimeError(f"Failed after {max_retries} attempts")
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cascade doesn't seem to use the MCP server">
+    Confirm `.windsurf/mcp.json` is at the **root of the open workspace folder**, not inside a subdirectory. Windsurf resolves MCP config relative to the workspace root.
+
+    Reload Windsurf after any changes to the config file.
+  </Accordion>
+
+  <Accordion title="npx command not found">
+    Ensure Node.js is installed and `npx` is on your PATH:
+
+    ```bash
+    node --version   # should be 18+
+    npx --version
+    ```
+
+    If using nvm, activate the right version before opening Windsurf:
+
+    ```bash
+    nvm use 18
+    ```
+  </Accordion>
+
+  <Accordion title="Environment variables not picked up">
+    If you set `COZMO_API_KEY` in your shell profile but Windsurf doesn't see it, add the env block explicitly to `.windsurf/mcp.json` for local development (and add the file to `.gitignore`).
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Overview" icon="server" href="/mcp/overview">
+    See the full list of what the Cozmo MCP server provides.
+  </Card>
+  <Card title="Agents" icon="robot" href="/concepts/agents">
+    Understand agent configuration so you can prompt Cascade accurately.
+  </Card>
+</CardGroup>

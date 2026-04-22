@@ -1,0 +1,382 @@
+---
+title: "Project Init"
+description: "Scaffold a production-ready Cozmo integration in seconds - cozmo init detects your stack and generates the right code automatically"
+---
+
+## Overview
+
+`cozmo init` analyses your project and generates integration files tailored to your framework - correct Nova API patterns already in place, including UUID v4 session IDs, E.164 phone formatting, `X-API-Key` auth, and webhook handler scaffolding. You get runnable code on day one instead of reading docs to wire it together.
+
+## Quick start
+
+```bash
+cd your-project
+cozmo init
+```
+
+The CLI will:
+
+1. Detect your tech stack from `package.json`, `requirements.txt`, `go.mod`, etc.
+2. Ask which Cozmo features to include (agents, sessions, webhook handling, workflow runs)
+3. Install any missing SDK dependencies
+4. Generate integration files in the right directories
+5. Create a `.env.example` with the required variables
+
+## What gets generated
+
+<Tabs>
+  <Tab title="Node.js / TypeScript">
+    For a Node.js or TypeScript project the CLI generates:
+
+    ```
+    your-project/
+    ├── src/
+    │   ├── cozmo/
+    │   │   ├── client.ts          # Configured Nova API client
+    │   │   ├── agents.ts          # Agent create / list helpers
+    │   │   ├── sessions.ts        # Session start with UUID idempotency
+    │   │   └── workflow-runs.ts   # Workflow run trigger
+    │   └── webhooks/
+    │       └── cozmo.ts           # call.completed / session.completed handler
+    └── .env.example
+    ```
+
+    **`src/cozmo/sessions.ts`** - generated session helper:
+
+    ```typescript
+    import { v4 as uuidv4 } from "uuid";
+
+    const BASE = `https://v2-nova-api.prod.czmx.in/api/org/${process.env.COZMO_ORG_ID}`;
+    const HEADERS = {
+      "X-API-Key": process.env.COZMO_API_KEY!,
+      "Content-Type": "application/json",
+    };
+
+    export async function startSession(params: {
+      agentId: string;
+      instruction: string;
+      prospectId?: string;
+      title?: string;
+    }) {
+      const sessionId = uuidv4();   // client-generated, idempotent
+
+      const res = await fetch(`${BASE}/agent-sessions/${sessionId}/start`, {
+        method: "POST",
+        headers: HEADERS,
+        body: JSON.stringify({
+          agentId: params.agentId,
+          instruction: params.instruction,
+          prospectId: params.prospectId,
+          title: params.title,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(`[${res.status}] ${err.message}`);
+      }
+
+      return { sessionId, ...(await res.json()) };
+    }
+    ```
+
+    **`src/webhooks/cozmo.ts`** - generated Express webhook handler:
+
+    ```typescript
+    import { Router } from "express";
+
+    export const cozmoWebhook = Router();
+
+    cozmoWebhook.post("/webhook/cozmo", (req, res) => {
+      const { event, data } = req.body;
+
+      switch (event) {
+        case "call.completed": {
+          const { call_id, call_result, transcript, recording_url, evaluations, prospect } = data;
+          console.log(`Call ${call_id} - ${call_result}`);
+          // TODO: save to DB, update CRM, etc.
+          break;
+        }
+        case "call.failed": {
+          console.warn(`Call failed: ${data.call_result}`);
+          break;
+        }
+        case "session.completed": {
+          console.log(`Session ${data.session_id} completed in ${data.duration_seconds}s`);
+          break;
+        }
+        case "session.failed": {
+          console.warn(`Session ${data.session_id} failed - status: ${data.status}`);
+          break;
+        }
+      }
+
+      res.json({ ok: true });
+    });
+    ```
+
+    **`.env.example`:**
+
+    ```bash
+    COZMO_API_KEY=your_api_key_here
+    COZMO_ORG_ID=your_org_id_here
+    ```
+  </Tab>
+  <Tab title="Python">
+    For a Python project the CLI generates:
+
+    ```
+    your-project/
+    ├── cozmo/
+    │   ├── __init__.py
+    │   ├── client.py              # Base URL + headers setup
+    │   ├── agents.py              # Agent helpers
+    │   ├── sessions.py            # Session start with uuid4
+    │   └── workflow_runs.py       # Workflow run trigger with retry
+    ├── webhooks/
+    │   └── cozmo.py               # FastAPI / Flask handler
+    └── .env.example
+    ```
+
+    **`cozmo/sessions.py`** - generated session helper:
+
+    ```python
+    import uuid
+    import requests
+    import os
+
+    BASE = f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMO_ORG_ID']}"
+    HEADERS = {
+        "X-API-Key": os.environ["COZMO_API_KEY"],
+        "Content-Type": "application/json",
+    }
+
+    def start_session(agent_id: str, instruction: str, prospect_id: str = None, title: str = None) -> dict:
+        session_id = str(uuid.uuid4())  # client-generated UUID v4
+
+        response = requests.post(
+            f"{BASE}/agent-sessions/{session_id}/start",
+            headers=HEADERS,
+            json={
+                "agentId": agent_id,
+                "instruction": instruction,
+                "prospectId": prospect_id,
+                "title": title,
+            },
+        )
+        response.raise_for_status()
+        return {"session_id": session_id, **response.json()}
+    ```
+
+    **`webhooks/cozmo.py`** - generated FastAPI handler:
+
+    ```python
+    from fastapi import APIRouter, Request
+    from fastapi.responses import JSONResponse
+
+    router = APIRouter()
+
+    @router.post("/webhook/cozmo")
+    async def cozmo_webhook(request: Request):
+        payload = await request.json()
+        event = payload.get("event")
+        data = payload.get("data", {})
+
+        if event == "call.completed":
+            call_id = data["call_id"]
+            result = data["call_result"]
+            transcript = data.get("transcript")
+            recording_url = data.get("recording_url")
+            evaluations = {e["key"]: e for e in data.get("evaluations", [])}
+            # TODO: persist results
+            print(f"Call {call_id} - {result}")
+
+        elif event == "call.failed":
+            print(f"Call failed: {data['call_result']}")
+
+        elif event == "session.completed":
+            print(f"Session {data['session_id']} done in {data['duration_seconds']}s")
+
+        elif event == "session.failed":
+            print(f"Session {data['session_id']} failed: {data['status']}")
+
+        return JSONResponse({"ok": True})
+    ```
+  </Tab>
+  <Tab title="Go">
+    For a Go project the CLI generates:
+
+    ```
+    your-project/
+    ├── cozmo/
+    │   ├── client.go              # HTTP client with X-API-Key auth
+    │   ├── agents.go              # Agent CRUD
+    │   ├── sessions.go            # Session start with UUID
+    │   └── workflow_runs.go       # Workflow run trigger
+    ├── webhooks/
+    │   └── cozmo.go               # net/http handler
+    └── .env.example
+    ```
+
+    **`cozmo/sessions.go`** - generated session helper:
+
+    ```go
+    package cozmo
+
+    import (
+        "bytes"
+        "encoding/json"
+        "fmt"
+        "net/http"
+        "os"
+
+        "github.com/google/uuid"
+    )
+
+    type StartSessionRequest struct {
+        AgentID     string `json:"agentId"`
+        Instruction string `json:"instruction"`
+        ProspectID  string `json:"prospectId,omitempty"`
+        Title       string `json:"title,omitempty"`
+    }
+
+    type StartSessionResponse struct {
+        SessionID string `json:"sessionId"`
+    }
+
+    func StartSession(req StartSessionRequest) (*StartSessionResponse, error) {
+        sessionID := uuid.New().String() // client-generated UUID v4
+
+        body, _ := json.Marshal(req)
+        url := fmt.Sprintf(
+            "https://v2-nova-api.prod.czmx.in/api/org/%s/agent-sessions/%s/start",
+            os.Getenv("COZMO_ORG_ID"), sessionID,
+        )
+
+        httpReq, _ := http.NewRequest("POST", url, bytes.NewReader(body))
+        httpReq.Header.Set("X-API-Key", os.Getenv("COZMO_API_KEY"))
+        httpReq.Header.Set("Content-Type", "application/json")
+
+        resp, err := http.DefaultClient.Do(httpReq)
+        if err != nil {
+            return nil, err
+        }
+        defer resp.Body.Close()
+
+        var result StartSessionResponse
+        json.NewDecoder(resp.Body).Decode(&result)
+        return &result, nil
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Supported stacks
+
+| Category | Frameworks |
+|----------|-----------|
+| **Node.js / TypeScript** | Express, Fastify, Next.js (App Router & Pages), NestJS |
+| **Python** | FastAPI, Flask, Django |
+| **Go** | Gin, Echo, net/http |
+| **Frontend** | React, Vue, Next.js (client components) |
+
+## Advanced options
+
+```bash
+# Specify a project directory
+cozmo init /path/to/project
+
+# Generate files only - skip npm/pip/go install
+cozmo init --skip-install
+
+# Override detected framework
+cozmo init --framework fastapi
+
+# Skip confirmation prompts (CI-safe)
+cozmo init --force
+```
+
+## Environment setup
+
+After `cozmo init`, copy the generated `.env.example` to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Fill in your values:
+
+```bash
+COZMO_API_KEY=your_api_key       # from Dashboard → Organization Settings
+COZMO_ORG_ID=your_org_id         # visible in Dashboard URL
+```
+
+<Warning>
+  Add `.env` to `.gitignore` immediately. Never commit API keys to version control.
+</Warning>
+
+## Monorepos
+
+Run `cozmo init` separately in each service directory:
+
+```bash
+cozmo init apps/api         # Node.js API service
+cozmo init services/worker  # Python worker service
+```
+
+## File conflicts
+
+If generated files conflict with existing ones, the CLI:
+
+1. Asks for confirmation before overwriting
+2. Creates a `.backup` file of the original (e.g. `sessions.ts.backup`)
+3. Shows a diff so you can review the changes
+
+Force overwrite without prompts:
+
+```bash
+cozmo init --force
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Framework not detected">
+    Run from the project root (where `package.json` or `requirements.txt` lives), or use `--framework` to override:
+
+    ```bash
+    cozmo init --framework express
+    cozmo init --framework fastapi
+    cozmo init --framework gin
+    ```
+  </Accordion>
+
+  <Accordion title="Dependency install fails">
+    Skip the install step and run it manually after:
+
+    ```bash
+    cozmo init --skip-install
+    npm install   # or pip install -r requirements.txt
+    ```
+  </Accordion>
+
+  <Accordion title="Generated code has wrong org ID">
+    The CLI reads `COZMO_ORG_ID` from your environment. Make sure it's set before running init:
+
+    ```bash
+    export COZMO_ORG_ID=your_org_id
+    cozmo init
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhook testing" icon="webhook" href="/cli/webhook">
+    Forward live call events to the generated webhook handler.
+  </Card>
+  <Card title="Making your first call" icon="phone" href="/guides/making-your-first-call">
+    End-to-end guide using the generated code.
+  </Card>
+</CardGroup>

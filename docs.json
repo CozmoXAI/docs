@@ -22,11 +22,87 @@
     "dark": "/logo/cozmo_dark.png",
     "light": "/logo/cozmo_light.png"
   },
- "navigation": {
+  "navigation": {
     "tabs": [
       {
-        "openapi": "openapi.yaml",
-        "tab": "API Reference"
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["index", "quickstart", "authentication", "rate-limits"]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/agents",
+              "concepts/sessions",
+              "concepts/calls",
+              "concepts/prospects",
+              "concepts/workflows"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/making-your-first-call",
+              "guides/managing-prospects",
+              "guides/error-handling",
+              "webhooks",
+              "sdks"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["api-reference/introduction"]
+          }
+        ],
+        "openapi": "openapi.yaml"
+      },
+      {
+        "tab": "SDKs",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["sdk/overview"]
+          },
+          {
+            "group": "Server SDKs",
+            "pages": ["sdk/python", "sdk/typescript", "sdk/go"]
+          }
+        ]
+      },
+      {
+        "tab": "CLI",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["cli/overview"]
+          }
+        ]
+      },
+      {
+        "tab": "MCP",
+        "hidden": true,
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["mcp/overview"]
+          },
+          {
+            "group": "IDE Setup",
+            "pages": [
+              "mcp/cursor",
+              "mcp/claude-code",
+              "mcp/windsurf",
+              "mcp/vscode"
+            ]
+          }
+        ]
       }
     ]
   },
@@ -38,12 +114,6 @@
       "type": "button"
     }
   },
-  "sidebar": [
-    {
-      "group": "Getting Started",
-      "pages": ["index", "authentication", "rate-limits", "webhook"]
-    }
-  ], 
   "theme": "mint",
   "appearance": {
     "default": "dark"

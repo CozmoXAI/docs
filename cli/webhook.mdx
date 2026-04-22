@@ -1,0 +1,436 @@
+---
+title: "Webhook Testing"
+description: "Forward live call and session events from Cozmo to your local development server - no deployed URL needed"
+---
+
+## Overview
+
+`cozmo listen` receives real-time webhook events from Cozmo's servers and forwards them to a port on your machine. Combined with a tunneling tool like ngrok, you can test your webhook handler against live `call.completed`, `call.failed`, `session.completed`, and `session.failed` events without deploying.
+
+<Info>
+  `cozmo listen` is a local forwarder - it does **not** provide a public URL on its own. You need a tunnel (ngrok, cloudflared, or localtunnel) to expose the listener port to the internet so Cozmo can reach it.
+</Info>
+
+## Quick start
+
+You'll need three terminal windows:
+
+<Steps>
+  <Step title="Start your local server">
+    In terminal 1, run your application:
+
+    ```bash
+    npm run dev          # Node.js
+    python main.py       # Python / FastAPI
+    go run main.go       # Go
+    ```
+
+    Your webhook handler should be listening on a local path like `POST /webhook/cozmo`.
+  </Step>
+
+  <Step title="Open a tunnel">
+    In terminal 2, expose the `cozmo listen` default port (4242) to the internet:
+
+    ```bash
+    ngrok http 4242
+    ```
+
+    Copy the `https://` URL that ngrok gives you - e.g. `https://a1b2c3d4.ngrok.io`.
+  </Step>
+
+  <Step title="Start the forwarder">
+    In terminal 3, start `cozmo listen` and point it at your local server:
+
+    ```bash
+    cozmo listen --forward-to localhost:3000/webhook/cozmo
+    ```
+  </Step>
+
+  <Step title="Register the tunnel URL in the Dashboard">
+    Go to [Dashboard → Webhook Settings](https://dash.prod.czmx.in) and set your webhook URL to the ngrok URL:
+
+    ```
+    https://a1b2c3d4.ngrok.io
+    ```
+
+    Cozmo will now deliver events to your tunnel, which forwards them to `cozmo listen`, which forwards them to your local server.
+  </Step>
+
+  <Step title="Trigger a call">
+    Run a workflow or start a session to generate a real event. Watch terminal 3 for live output:
+
+    ```
+    2026-04-21 10:01:42  →  call.completed   call_17546d2d   200 OK  (48ms)
+    2026-04-21 10:02:10  →  session.completed  sess_abc123    200 OK  (31ms)
+    ```
+  </Step>
+</Steps>
+
+## Data flow
+
+```
+Cozmo servers
+    │
+    │  POST https://a1b2c3d4.ngrok.io
+    ▼
+Tunnel (ngrok / cloudflared)
+    │
+    │  POST http://localhost:4242
+    ▼
+cozmo listen  (port 4242)
+    │
+    │  POST http://localhost:3000/webhook/cozmo
+    ▼
+Your local server
+```
+
+## Command reference
+
+```bash
+# Basic - forward to local server
+cozmo listen --forward-to localhost:3000/webhook/cozmo
+
+# Short flag
+cozmo listen -f localhost:3000/webhook/cozmo
+
+# Change listener port (if 4242 is taken)
+cozmo listen --forward-to localhost:3000/webhook/cozmo --port 8080
+
+# HTTPS local server (dev cert - skip TLS verification)
+cozmo listen --forward-to https://localhost:3000/webhook/cozmo --skip-verify
+
+# Filter to specific events only
+cozmo listen --forward-to localhost:3000/webhook/cozmo --filter call.completed
+cozmo listen --forward-to localhost:3000/webhook/cozmo --filter "call.completed,call.failed"
+```
+
+## Webhook events forwarded
+
+| Event | Fired when |
+|-------|-----------|
+| `call.completed` | A voice call finishes - includes transcript, evaluations, recording URL |
+| `call.failed` | A voice call fails (SIP error, no answer, busy, validation failure) |
+| `session.completed` | An agent session reaches `COMPLETED` or `STOPPED` status |
+| `session.failed` | An agent session reaches `FAILED` or `CANCELLED` status |
+
+## Request headers added by `cozmo listen`
+
+The forwarder adds these headers to every request it sends to your local server:
+
+```
+X-Forwarded-For:     cozmo-webhook-listener
+X-Original-Host:     a1b2c3d4.ngrok.io
+X-Webhook-Event:     call.completed
+X-Webhook-Timestamp: 1745232000
+```
+
+Use `X-Webhook-Event` to route events without parsing the body first.
+
+## Tunneling options
+
+<Tabs>
+  <Tab title="ngrok">
+    ```bash
+    # Install
+    brew install ngrok          # macOS
+    choco install ngrok         # Windows
+    snap install ngrok          # Linux
+
+    # Run
+    ngrok http 4242
+    ```
+
+    ngrok gives you a stable URL (with a paid plan) or a random URL per session (free). Copy the `https://` URL and paste it into your Cozmo Dashboard webhook settings.
+  </Tab>
+  <Tab title="cloudflared">
+    ```bash
+    # Install
+    brew install cloudflared    # macOS
+    # See https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/
+
+    # Run
+    cloudflared tunnel --url http://localhost:4242
+    ```
+
+    Cloudflare Tunnel does not require an account for quick dev sessions.
+  </Tab>
+  <Tab title="localtunnel">
+    ```bash
+    # Install
+    npm install -g localtunnel
+
+    # Run
+    lt --port 4242
+    ```
+
+    Gives you a `https://random.loca.lt` URL. Free, no account needed.
+  </Tab>
+</Tabs>
+
+## Webhook handler examples
+
+`cozmo init` generates a handler automatically, but here's what a complete handler looks like for each language:
+
+<Tabs>
+  <Tab title="Node.js / Express">
+    ```typescript
+    import express from "express";
+
+    const app = express();
+    app.use(express.json());
+
+    app.post("/webhook/cozmo", (req, res) => {
+      const { event, data } = req.body;
+
+      switch (event) {
+        case "call.completed": {
+          const {
+            call_id,
+            call_result,      // "FINISHED" | "NO_ANSWER" | "BUSY" | ...
+            transcript,
+            recording_url,
+            summary,
+            evaluations,      // array of { key, extracted_value, result_boolean, reasoning }
+            prospect,         // { ID, FullName, Phone, ExternalId, ... }
+          } = data;
+
+          console.log(`✓ Call ${call_id} - ${call_result}`);
+
+          const interested = evaluations?.find(
+            (e: any) => e.key === "INTERESTED" && e.result_boolean
+          );
+          if (interested) updateCRM(prospect.ExternalId, "interested");
+          break;
+        }
+
+        case "call.failed": {
+          console.warn(`✗ Call failed: ${data.call_result}`);
+          // FAILED | FAILED_SIP | FAILED_VALIDATION | NO_ANSWER | BUSY | CANCELLED
+          break;
+        }
+
+        case "session.completed": {
+          const { session_id, duration_seconds, channel, metadata } = data;
+          console.log(`✓ Session ${session_id} - ${duration_seconds}s on ${channel}`);
+          break;
+        }
+
+        case "session.failed": {
+          console.warn(`✗ Session ${data.session_id} - ${data.status}`);
+          break;
+        }
+      }
+
+      // Always respond 200 within 10 seconds
+      res.json({ ok: true });
+    });
+
+    app.listen(3000);
+    ```
+  </Tab>
+  <Tab title="Python / FastAPI">
+    ```python
+    from fastapi import FastAPI, Request
+    from fastapi.responses import JSONResponse
+
+    app = FastAPI()
+
+    @app.post("/webhook/cozmo")
+    async def cozmo_webhook(request: Request):
+        payload = await request.json()
+        event = payload.get("event")
+        data = payload.get("data", {})
+
+        if event == "call.completed":
+            call_id = data["call_id"]
+            result = data["call_result"]    # FINISHED, NO_ANSWER, BUSY, ...
+            transcript = data.get("transcript")
+            recording_url = data.get("recording_url")
+            prospect = data.get("prospect", {})
+
+            # Index evaluations by key
+            evals = {e["key"]: e for e in data.get("evaluations", [])}
+
+            print(f"✓ Call {call_id} - {result}")
+            print(f"  Prospect: {prospect.get('FullName')} ({prospect.get('Phone')})")
+
+            if evals.get("INTERESTED", {}).get("result_boolean"):
+                update_crm(prospect["ExternalId"], status="interested")
+
+        elif event == "call.failed":
+            print(f"✗ Call failed: {data['call_result']}")
+
+        elif event == "session.completed":
+            print(f"✓ Session {data['session_id']} - {data['duration_seconds']}s")
+
+        elif event == "session.failed":
+            print(f"✗ Session {data['session_id']} - {data['status']}")
+
+        return JSONResponse({"ok": True})
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    package main
+
+    import (
+        "encoding/json"
+        "fmt"
+        "net/http"
+    )
+
+    type WebhookPayload struct {
+        Event string          `json:"event"`
+        Data  json.RawMessage `json:"data"`
+    }
+
+    type CallData struct {
+        CallID      string `json:"call_id"`
+        CallResult  string `json:"call_result"`
+        Transcript  string `json:"transcript"`
+        RecordingURL string `json:"recording_url"`
+    }
+
+    type SessionData struct {
+        SessionID       string `json:"session_id"`
+        Status          string `json:"status"`
+        DurationSeconds int    `json:"duration_seconds"`
+    }
+
+    func webhookHandler(w http.ResponseWriter, r *http.Request) {
+        var payload WebhookPayload
+        if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+            http.Error(w, "bad request", 400)
+            return
+        }
+
+        switch payload.Event {
+        case "call.completed":
+            var d CallData
+            json.Unmarshal(payload.Data, &d)
+            fmt.Printf("✓ Call %s - %s\n", d.CallID, d.CallResult)
+
+        case "call.failed":
+            var d CallData
+            json.Unmarshal(payload.Data, &d)
+            fmt.Printf("✗ Call failed: %s\n", d.CallResult)
+
+        case "session.completed":
+            var d SessionData
+            json.Unmarshal(payload.Data, &d)
+            fmt.Printf("✓ Session %s - %ds\n", d.SessionID, d.DurationSeconds)
+
+        case "session.failed":
+            var d SessionData
+            json.Unmarshal(payload.Data, &d)
+            fmt.Printf("✗ Session %s - %s\n", d.SessionID, d.Status)
+        }
+
+        w.Header().Set("Content-Type", "application/json")
+        w.Write([]byte(`{"ok":true}`))
+    }
+
+    func main() {
+        http.HandleFunc("/webhook/cozmo", webhookHandler)
+        http.ListenAndServe(":3000", nil)
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Response requirements
+
+Cozmo expects your webhook endpoint to respond within **10 seconds** with a `2xx` status code. If it doesn't:
+
+- `200-299` → success, event acknowledged
+- `400-499` → client error, event rejected (not retried)
+- `500-599` → server error, Cozmo will retry
+
+Keep webhook handlers fast. For slow work (writing to DB, calling external APIs), acknowledge the event immediately and process asynchronously:
+
+```typescript
+app.post("/webhook/cozmo", (req, res) => {
+  const { event, data } = req.body;
+
+  // Acknowledge immediately
+  res.json({ ok: true });
+
+  // Process asynchronously
+  processEvent(event, data).catch(console.error);
+});
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Events not arriving in cozmo listen">
+    Verify your webhook URL in the Dashboard points to your tunnel URL, not localhost. Check that your tunnel is still running (ngrok sessions expire after a few hours on the free plan).
+
+    Test the tunnel directly:
+
+    ```bash
+    curl -X POST https://your-tunnel-url.ngrok.io \
+      -H "Content-Type: application/json" \
+      -d '{"event":"test","data":{}}'
+    ```
+  </Accordion>
+
+  <Accordion title="Connection refused forwarding to local server">
+    Confirm your local server is running on the port you specified. Test it directly:
+
+    ```bash
+    curl -X POST http://localhost:3000/webhook/cozmo \
+      -H "Content-Type: application/json" \
+      -d '{"event":"call.completed","data":{"call_id":"test"}}'
+    ```
+  </Accordion>
+
+  <Accordion title="Timeouts in the terminal output">
+    Your handler is taking longer than 10 seconds. Move slow operations (DB writes, HTTP calls to external APIs) out of the request path:
+
+    ```typescript
+    app.post("/webhook/cozmo", (req, res) => {
+      res.json({ ok: true });          // respond immediately
+      processAsync(req.body);          // do the work after
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Port 4242 already in use">
+    Use a different listener port:
+
+    ```bash
+    cozmo listen --forward-to localhost:3000/webhook/cozmo --port 9000
+    ngrok http 9000
+    ```
+  </Accordion>
+
+  <Accordion title="SSL errors with HTTPS local server">
+    Add `--skip-verify` to bypass certificate validation in development:
+
+    ```bash
+    cozmo listen --forward-to https://localhost:3000/webhook/cozmo --skip-verify
+    ```
+
+    Never use `--skip-verify` in production.
+  </Accordion>
+</AccordionGroup>
+
+## Security note
+
+`cozmo listen` is a **development tool only**. In production:
+
+- Host your webhook handler on a server with a valid HTTPS certificate
+- Validate the webhook payload - check the `X-Cozmo-Signature` header to confirm requests come from Cozmo
+- Do not expose `cozmo listen` in production environments
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhooks reference" icon="webhook" href="/webhooks">
+    Full payload schemas for all four event types.
+  </Card>
+  <Card title="Error handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle call failures and implement retry logic.
+  </Card>
+</CardGroup>

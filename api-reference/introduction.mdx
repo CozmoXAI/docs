@@ -1,33 +1,422 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "API Reference"
+description: "Complete reference for the Cozmo Nova API - create agents, trigger workflow runs, inspect calls, and manage sessions programmatically"
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+## Overview
 
-## Welcome
+The Cozmo Nova API is a REST API for building AI voice and chat workflows. With it you can:
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+- Create and configure AI agents (voice, chat, video)
+- Create and manage prospects, lists, tags, and bulk imports
+- Trigger outbound workflow runs for individual prospects
+- Start agent sessions directly via API or SDK
+- Retrieve call transcripts, recordings, evaluations, histories, and tool logs
+- Manage webhook endpoints, API keys, tools, SIP trunks, and phone numbers
+- Query analytics, audit logs, integrations, quality rules, and knowledge resources
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+All endpoints are authenticated with an API key and scoped to your organization.
+
+## Base URL
+
+```
+https://v2-nova-api.prod.czmx.in/api
+```
+
+Every resource endpoint is prefixed with your org ID:
+
+```
+/org/{org_id}/{resource}
+```
+
+Your org ID is visible in the [Dashboard URL](https://dash.prod.czmx.in) and in any API response under `organization_id`.
 
 ## Authentication
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+Pass your API key in the `X-API-Key` header on every request:
+
+```bash
+curl https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+Create and manage API keys in [Dashboard - Organization Settings](https://dash.prod.czmx.in).
+
+| Status | Meaning |
+|--------|---------|
+| `401 Unauthorized` | Missing or invalid API key |
+| `403 Forbidden` | Key does not have access to this resource |
+
+<Info>
+  API keys are organization-scoped. One key grants access to all resources within that organization.
+</Info>
+
+## Quick start
+
+Make your first API call in under 2 minutes:
+
+<Steps>
+  <Step title="Create an agent">
+    ```bash
+    curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Sales Assistant",
+        "type": "voice",
+        "prompt_template": "You are a helpful sales assistant for Acme Corp."
+      }'
+    ```
+
+    Returns `{ "id": "agent_abc123", ... }`. Save the `id`.
+  </Step>
+
+  <Step title="Find your workflow">
+    ```bash
+    curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflows" \
+      -H "X-API-Key: YOUR_API_KEY"
+    ```
+
+    Pick the workflow ID you want to run.
+  </Step>
+
+  <Step title="Trigger a workflow run">
+    ```bash
+    curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "workflow_id": "wf_abc123",
+        "prospect": {
+          "phone": "+19175551234",
+          "first_name": "Jane",
+          "last_name": "Doe",
+          "external_id": "crm_789"
+        }
+      }'
+    ```
+
+    Returns `{ "workflow_run_id": "wr_xyz789" }`.
+  </Step>
+
+  <Step title="Retrieve call results">
+    After the call completes, retrieve the transcript and evaluations:
+
+    ```bash
+    curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/calls?workflow_id=wf_abc123" \
+      -H "X-API-Key: YOUR_API_KEY"
+    ```
+  </Step>
+</Steps>
+
+## Resources
+
+### Agents
+
+Agents are the AI entities that handle calls and chat sessions. Each agent has an LLM config (provider + model + system prompt), a transcriber config (STT), a voice config (TTS), and behavior settings (greeting, goodbye, interruptions).
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/org/{org_id}/agents` | List agents (paginated) |
+| `POST` | `/org/{org_id}/agents` | Create an agent |
+| `GET` | `/org/{org_id}/agents/{agent_id}` | Get agent details |
+| `PATCH` | `/org/{org_id}/agents/{agent_id}` | Update agent (partial) |
+| `DELETE` | `/org/{org_id}/agents/{agent_id}` | Delete an agent |
+
+**Supported agent types:** `voice`, `chat`, `video`
+
+**LLM providers:** `openai`, `anthropic`, `google`, `groq`, `cerebras`
+
+**Transcriber providers:** `deepgram`, `elevenlabs`, `speechmatics`, `openai`, `groq`
+
+---
+
+### Agent Sessions
+
+A session represents a single run of an agent - one conversation with one prospect. Start a session by POSTing to `/{session_id}/start` with a client-generated UUID v4. The UUID makes the call idempotent: retrying with the same ID will not create a duplicate session.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/org/{org_id}/agent-sessions/{session_id}/start` | Start a session |
+| `GET` | `/org/{org_id}/agent-sessions/{session_id}` | Get session status |
+
+**Session statuses:** `PENDING` - `ACTIVE` - `COMPLETED` - `STOPPED` - `FAILED` - `CANCELLED`
+
+```bash
+SESSION_ID=$(python3 -c "import uuid; print(uuid.uuid4())")
+
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agent-sessions/${SESSION_ID}/start" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "agent_abc123",
+    "instruction": "Follow up about the demo we scheduled.",
+    "prospectId": "prospect_xyz"
+  }'
+```
+
+---
+
+### Calls
+
+Calls are the voice call records produced by workflow runs and sessions. Each call includes a full transcript, AI-generated summary, evaluations (outcome scores), tool invocation logs, and a signed recording URL.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/org/{org_id}/calls` | List calls (paginated, filterable) |
+| `GET` | `/org/{org_id}/calls/{call_id}` | Get call details |
+| `GET` | `/org/{org_id}/calls/{call_id}/transcript` | Get the full transcript |
+| `GET` | `/org/{org_id}/calls/{call_id}/recording` | Get the recording URL |
+| `GET` | `/org/{org_id}/calls/{call_id}/evaluations` | Get AI evaluation results |
+| `GET` | `/org/{org_id}/calls/{call_id}/history` | Get the callback chain |
+| `GET` | `/org/{org_id}/calls/{call_id}/tool-logs` | Get tool invocation logs |
+| `GET` | `/org/{org_id}/calls/export` | Export matching calls as CSV |
+| `GET` | `/org/{org_id}/calls/export/count` | Count matching calls before export |
+
+**Filter parameters for list/export:** `status`, `direction`, `agent_id`, `workflow_id`, `prospect_id`, `prospect_external_id`, `prospect_name`, `evaluation_key`, `evaluation_value`, `start_date`, `end_date`, `min_duration`, `phone`
+
+**Call statuses:** `SCHEDULED`, `RINGING`, `IN_PROGRESS`, `completed`, `no-answer`, `failed`, `busy`, `cancelled`
+
+---
+
+### Prospects
+
+Prospects are the contacts your workflows operate on. The reference covers both one-off CRUD operations and higher-volume list management tasks.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/org/{org_id}/prospects` | List prospects with filters |
+| `POST` | `/org/{org_id}/prospects` | Create a prospect |
+| `GET` | `/org/{org_id}/prospects/{prospect_id}` | Get prospect details |
+| `PATCH` | `/org/{org_id}/prospects/{prospect_id}` | Update a prospect |
+| `DELETE` | `/org/{org_id}/prospects/{prospect_id}` | Delete a prospect |
+| `GET` | `/org/{org_id}/prospects/{prospect_id}/calls` | List calls for a prospect |
+| `POST` | `/org/{org_id}/prospects/{prospect_id}/tags` | Add tags to a prospect |
+| `DELETE` | `/org/{org_id}/prospects/{prospect_id}/tags` | Remove all tags from a prospect |
+| `DELETE` | `/org/{org_id}/prospects/{prospect_id}/tags/{tag_id}` | Remove one tag from a prospect |
+| `POST` | `/org/{org_id}/prospects/bulk` | Import prospects from CSV |
+| `PATCH` | `/org/{org_id}/prospects/bulk` | Bulk update prospects |
+| `DELETE` | `/org/{org_id}/prospects/bulk` | Bulk delete prospects |
+| `POST` | `/org/{org_id}/prospects/bulk/custom-data` | Bulk update custom metadata |
+
+**Common filters:** `list_id`, `no_list`, `status`, `country`, `tag_id`, `search`
+
+See [Managing Prospects](/guides/managing-prospects) for end-to-end examples.
+
+---
+
+### Lists And Tags
+
+Lists and tags help you segment prospects for imports, campaigns, and operational workflows.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/org/{org_id}/lists` | List prospect lists |
+| `POST` | `/org/{org_id}/lists` | Create a list |
+| `GET` | `/org/{org_id}/lists/{list_id}` | Get list details |
+| `PATCH` | `/org/{org_id}/lists/{list_id}` | Update a list |
+| `DELETE` | `/org/{org_id}/lists/{list_id}` | Delete a list |
+| `POST` | `/org/{org_id}/lists/{list_id}/prospects` | Add prospects to a list |
+| `DELETE` | `/org/{org_id}/lists/{list_id}/prospects` | Remove prospects from a list |
+| `GET` | `/org/{org_id}/tags` | List tags |
+| `POST` | `/org/{org_id}/tags` | Create a tag |
+| `PATCH` | `/org/{org_id}/tags/{tag_id}` | Update a tag |
+| `DELETE` | `/org/{org_id}/tags/{tag_id}` | Delete a tag |
+
+**List filters:** `source`, `search`, `sort`, `page`, `size`
+
+---
+
+### Voices
+
+Browse available TTS voices by provider. Use the returned `voice_id` in `UpdateAgentRequest.voice_config.voice_id`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/org/{org_id}/voices` | List voices for a provider |
+
+**Providers:** `elevenlabs`, `cartesia`, `openai`, `cambai`, `sarvam`, `inworld`, `minimax`
+
+---
+
+### Workflows
+
+Workflows define multi-step outbound calling sequences. You cannot create workflows via API - they are built in the [Dashboard](https://dash.prod.czmx.in). Use these endpoints to discover workflow IDs and check their status before triggering runs.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/org/{org_id}/workflows` | List workflows |
+| `GET` | `/org/{org_id}/workflows/{workflow_id}` | Get workflow details |
+
+---
+
+### Workflow Runs
+
+A workflow run executes a workflow for a specific prospect. Supply the `workflow_id` and the prospect's phone number (E.164 format). All other prospect fields are optional but improve context passed to the agent.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/org/{org_id}/workflow-runs` | Create a workflow run |
+
+Use `scheduled_at` (ISO 8601 UTC) to defer execution:
 
 ```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
+{
+  "workflow_id": "wf_abc123",
+  "prospect": {
+    "phone": "+19175551234",
+    "first_name": "Jane",
+    "external_id": "crm_789",
+    "custom_data": { "account_tier": "enterprise" }
+  },
+  "scheduled_at": "2026-05-01T09:00:00Z"
+}
 ```
+
+---
+
+### Tools, Webhooks, And Platform Operations
+
+Beyond agent runtime APIs, the reference also includes the operational surface area you use to manage an org programmatically:
+
+- `Tools`: create reusable tool definitions, attach them to agents, and search them with `/org/{org_id}/tools/search`
+- `Webhooks`: manage global webhook endpoints from the API instead of only in the Dashboard
+- `API Keys`: create, revoke, and scope organization API keys
+- `Telephony`: manage SIP trunks and phone numbers
+- `Billing`: inspect balances, invoices, ledger entries, usage summaries, and top-up flows
+- `Chat`: send analytics chat prompts and browse stored conversations
+- `Integrations`: inspect available integrations, connect accounts, and update integration settings
+- `Email Templates` and `FAQs`: manage reusable content and knowledge artifacts used across workflows
+- `Knowledge`: manage knowledge libraries, documents, webpage ingestion, and agent knowledge assignments
+- `Analytics` and `Audit Logs`: query usage, performance, and admin activity
+- `Quality Rules` and `Evaluations`: define post-call scoring and run test/eval workflows
+
+Use the tag list in the reference sidebar to jump directly to each resource family.
+
+---
+
+## Request format
+
+All request bodies must be JSON. Set `Content-Type: application/json`:
+
+```bash
+curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Agent", "type": "voice"}'
+```
+
+## Response format
+
+Successful single-resource responses return the object directly:
+
+```json
+{
+  "id": "agent_abc123",
+  "name": "Sales Assistant",
+  "type": "voice",
+  "organization_id": "org_xyz",
+  "created_at": "2026-04-01T10:00:00Z"
+}
+```
+
+List endpoints return a paginated wrapper:
+
+```json
+{
+  "data": [...],
+  "meta": {
+    "page": 1,
+    "size": 20,
+    "total": 142,
+    "total_pages": 8
+  }
+}
+```
+
+Errors return a consistent shape:
+
+```json
+{
+  "error": "not_found",
+  "message": "Agent agent_abc123 not found in organization org_xyz"
+}
+```
+
+## Pagination
+
+| Parameter | Type | Default | Max | Description |
+|-----------|------|---------|-----|-------------|
+| `page` | integer | `1` | - | Page number |
+| `size` | integer | `20` | `100` | Results per page |
+
+## HTTP status codes
+
+| Code | Meaning |
+|------|---------|
+| `200 OK` | Request succeeded |
+| `201 Created` | Resource created successfully |
+| `400 Bad Request` | Invalid parameters - check the `message` field |
+| `401 Unauthorized` | Missing or invalid API key |
+| `403 Forbidden` | API key lacks permission for this resource |
+| `404 Not Found` | Resource does not exist in your organization |
+| `409 Conflict` | Resource already exists (e.g. duplicate agent name) |
+| `429 Too Many Requests` | Rate limit exceeded - check `X-Rate-Limit-Reset` header |
+| `500 Internal Server Error` | Server-side error - safe to retry |
+
+## Rate limits
+
+| Tier | Limit | Window |
+|------|-------|--------|
+| Normal | 1,000 requests | per minute |
+| Strict | 10 requests | per minute |
+
+Rate limit headers are returned on every response:
+
+| Header | Description |
+|--------|-------------|
+| `X-Rate-Limit-Limit` | Requests allowed per window |
+| `X-Rate-Limit-Remaining` | Requests remaining in current window |
+| `X-Rate-Limit-Reset` | Unix timestamp when the window resets |
+
+See [Rate Limits](/rate-limits) for full details.
+
+## SDK reference
+
+Official SDKs are available for Python, TypeScript, and Go:
+
+<CardGroup cols={3}>
+  <Card title="Python SDK" icon="python" href="/sdks">
+    `pip install cozmoai`
+  </Card>
+  <Card title="TypeScript SDK" icon="js" href="/sdks">
+    `npm install cozmoai`
+  </Card>
+  <Card title="Go SDK" icon="golang" href="/sdks">
+    `go get github.com/cozmoai/cozmoai-go`
+  </Card>
+</CardGroup>
+
+## OpenAPI spec
+
+The published API reference is driven by the OpenAPI 3.0 spec in this repository. A Swagger 2.0 compatibility file is also included for tooling that still expects Swagger format.
+
+- `openapi.yaml` - OpenAPI 3.0 (used for this API Reference)
+- `api-doc.swagger.yml` - Swagger 2.0 compatibility snapshot
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    End-to-end guide: create an agent and make your first call.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    Receive real-time call and session events.
+  </Card>
+  <Card title="Error handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Retry logic, rate limits, and failure types.
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/concepts/agents">
+    Deep dives on agents, sessions, calls, and workflows.
+  </Card>
+</CardGroup>

@@ -1,0 +1,1739 @@
+swagger: "2.0"
+info:
+  title: Cozmo Nova API
+  description: >
+    The Cozmo Nova API lets you manage AI voice and chat agents, trigger workflow runs,
+    inspect call transcripts, and control agent sessions programmatically.
+    All endpoints are authenticated with an API key passed in the X-API-Key header.
+  version: "1.0.0"
+  contact:
+    name: Cozmo Support
+    url: https://dash.prod.czmx.in
+host: v2-nova-api.prod.czmx.in
+basePath: /api
+schemes:
+  - https
+consumes:
+  - application/json
+produces:
+  - application/json
+securityDefinitions:
+  ApiKeyAuth:
+    type: apiKey
+    in: header
+    name: X-API-Key
+security:
+  - ApiKeyAuth: []
+tags:
+  - name: Agents
+    description: Create and manage AI agents (voice, chat, video)
+  - name: Agent Sessions
+    description: Start and inspect agent sessions
+  - name: Calls
+    description: List and inspect call records with transcripts and evaluations
+  - name: Voices
+    description: Browse available TTS voices by provider
+  - name: Workflow Runs
+    description: Trigger a workflow run for a prospect
+  - name: Workflows
+    description: List and inspect workflow definitions
+  - name: Health
+    description: Liveness and readiness probes
+
+paths:
+
+  # -------------------------------------------------------------------------
+  # Agent Sessions
+  # -------------------------------------------------------------------------
+
+  /org/{org_id}/agent-sessions/{session_id}/start:
+    post:
+      tags:
+        - Agent Sessions
+      summary: Start agent session
+      operationId: startAgentSession
+      description: >
+        Creates the session record, appends the initial instruction as a user message event,
+        and triggers the agent workflow in a single call. The session_id must be a
+        client-generated UUID v4 and is used to idempotently reference the session afterward.
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: session_id
+          in: path
+          required: true
+          type: string
+          format: uuid
+          description: Client-generated UUID v4 for the session
+        - name: body
+          in: body
+          required: true
+          description: Session start parameters
+          schema:
+            $ref: '#/definitions/StartSessionRequest'
+      responses:
+        201:
+          description: Session started
+          schema:
+            $ref: '#/definitions/StartSessionResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /org/{org_id}/agent-sessions/{session_id}:
+    get:
+      tags:
+        - Agent Sessions
+      summary: Get agent session
+      operationId: getAgentSession
+      description: Get the details of an agent session by ID
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: session_id
+          in: path
+          required: true
+          type: string
+          description: Session ID (UUID v4)
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/SessionResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        404:
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  # -------------------------------------------------------------------------
+  # Agents
+  # -------------------------------------------------------------------------
+
+  /org/{org_id}/agents:
+    get:
+      tags:
+        - Agents
+      summary: List agents
+      operationId: listAgents
+      description: Get a paginated list of agents for the organization
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: page
+          in: query
+          type: integer
+          default: 1
+          description: Page number
+        - name: size
+          in: query
+          type: integer
+          default: 20
+          description: Page size
+        - name: type
+          in: query
+          type: string
+          description: Filter by agent type (voice, chat, video)
+        - name: search
+          in: query
+          type: string
+          description: Search by agent name
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/PaginatedAgentsResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+    post:
+      tags:
+        - Agents
+      summary: Create agent
+      operationId: createAgent
+      description: Create a new AI agent in the organization
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: body
+          in: body
+          required: true
+          description: Agent creation parameters
+          schema:
+            $ref: '#/definitions/CreateAgentRequest'
+      responses:
+        201:
+          description: Created
+          schema:
+            $ref: '#/definitions/AgentResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        409:
+          description: Duplicate agent name
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /org/{org_id}/agents/{agent_id}:
+    get:
+      tags:
+        - Agents
+      summary: Get agent
+      operationId: getAgent
+      description: Get agent details by ID
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: agent_id
+          in: path
+          required: true
+          type: string
+          description: Agent ID
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/AgentResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        404:
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+    patch:
+      tags:
+        - Agents
+      summary: Update agent
+      operationId: updateAgent
+      description: Update agent details (partial update)
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: agent_id
+          in: path
+          required: true
+          type: string
+          description: Agent ID
+        - name: body
+          in: body
+          required: true
+          description: Agent update fields
+          schema:
+            $ref: '#/definitions/UpdateAgentRequest'
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/AgentResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        404:
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+    delete:
+      tags:
+        - Agents
+      summary: Delete agent
+      operationId: deleteAgent
+      description: Delete an agent by ID
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: agent_id
+          in: path
+          required: true
+          type: string
+          description: Agent ID
+      responses:
+        200:
+          description: OK
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        404:
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  # -------------------------------------------------------------------------
+  # Calls
+  # -------------------------------------------------------------------------
+
+  /org/{org_id}/calls:
+    get:
+      tags:
+        - Calls
+      summary: List calls
+      operationId: listCalls
+      description: Returns a paginated list of calls with optional filters
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: page
+          in: query
+          type: integer
+          default: 1
+          description: Page number
+        - name: size
+          in: query
+          type: integer
+          default: 50
+          maximum: 100
+          description: Page size (max 100)
+        - name: status
+          in: query
+          type: string
+          description: Filter by status (SCHEDULED, RINGING, IN_PROGRESS, completed, no-answer, failed, busy)
+        - name: direction
+          in: query
+          type: string
+          description: Filter by direction (INBOUND, OUTBOUND)
+        - name: agent_id
+          in: query
+          type: string
+          description: Filter by agent ID
+        - name: prospect_id
+          in: query
+          type: string
+          description: Filter by prospect ID
+        - name: workflow_id
+          in: query
+          type: string
+          description: Filter by workflow ID
+        - name: prospect_external_id
+          in: query
+          type: string
+          description: Filter by prospect external ID
+        - name: prospect_name
+          in: query
+          type: string
+          description: Filter by prospect name (first or last)
+        - name: start_date
+          in: query
+          type: string
+          description: Filter by start date (ISO 8601)
+        - name: end_date
+          in: query
+          type: string
+          description: Filter by end date (ISO 8601)
+        - name: min_duration
+          in: query
+          type: integer
+          description: Filter by minimum duration in seconds
+        - name: phone
+          in: query
+          type: string
+          description: Search by phone number
+        - name: evaluation_key
+          in: query
+          type: string
+          description: Filter by evaluation outcome key (e.g. is_interested)
+        - name: evaluation_value
+          in: query
+          type: string
+          description: Filter by evaluation value (e.g. true, false, or extracted text)
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/PaginatedCallsResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /org/{org_id}/calls/{call_id}:
+    get:
+      tags:
+        - Calls
+      summary: Get call details
+      operationId: getCallDetails
+      description: Returns full details for a specific call including transcript, evaluations, and recording URL
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: call_id
+          in: path
+          required: true
+          type: string
+          description: Call ID
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/CallDetailResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        404:
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  # -------------------------------------------------------------------------
+  # Voices
+  # -------------------------------------------------------------------------
+
+  /org/{org_id}/voices:
+    get:
+      tags:
+        - Voices
+      summary: List voices
+      operationId: listVoices
+      description: Get a paginated list of available voices from the specified provider
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: provider
+          in: query
+          required: true
+          type: string
+          enum:
+            - elevenlabs
+            - cartesia
+            - openai
+            - cambai
+            - sarvam
+            - inworld
+            - minimax
+          description: Voice provider
+        - name: page
+          in: query
+          type: integer
+          description: Page number (default 1)
+        - name: size
+          in: query
+          type: integer
+          description: Page size (default 50, max 100)
+        - name: next_page
+          in: query
+          type: string
+          description: Cursor for next page (cartesia, elevenlabs native pagination)
+        - name: model
+          in: query
+          type: string
+          description: Filter by model (e.g. bulbul:v2) - sarvam provider only
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/ListVoicesResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  # -------------------------------------------------------------------------
+  # Workflow Runs
+  # -------------------------------------------------------------------------
+
+  /org/{org_id}/workflow-runs:
+    post:
+      tags:
+        - Workflow Runs
+      summary: Create workflow run
+      operationId: createWorkflowRun
+      description: >
+        Create a new workflow run with prospect creation in a single operation.
+        The prospect.phone field (E.164 format) and workflow_id are required.
+        Use scheduled_at to defer execution to a future time (ISO 8601 UTC).
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: body
+          in: body
+          required: true
+          description: Workflow run details
+          schema:
+            $ref: '#/definitions/CreateWorkflowRunRequest'
+      responses:
+        201:
+          description: Created
+          schema:
+            $ref: '#/definitions/CreateWorkflowRunResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        404:
+          description: Workflow not found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        500:
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  # -------------------------------------------------------------------------
+  # Workflows
+  # -------------------------------------------------------------------------
+
+  /org/{org_id}/workflows:
+    get:
+      tags:
+        - Workflows
+      summary: List workflows
+      operationId: listWorkflows
+      description: Get a paginated list of workflows with optional filtering
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: page
+          in: query
+          type: integer
+          default: 1
+          description: Page number
+        - name: size
+          in: query
+          type: integer
+          default: 20
+          description: Page size
+        - name: is_active
+          in: query
+          type: boolean
+          description: Filter by active status
+        - name: trigger_type
+          in: query
+          type: string
+          description: Filter by trigger type
+        - name: search
+          in: query
+          type: string
+          description: Search in workflow name and description
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/PaginatedWorkflowsResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  /org/{org_id}/workflows/{workflow_id}:
+    get:
+      tags:
+        - Workflows
+      summary: Get workflow
+      operationId: getWorkflow
+      description: Get a single workflow by ID with its latest definition
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+          description: Organization ID
+        - name: workflow_id
+          in: path
+          required: true
+          type: string
+          description: Workflow ID
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/WorkflowResponse'
+        400:
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        404:
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        429:
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+
+  # -------------------------------------------------------------------------
+  # Health / Admin
+  # -------------------------------------------------------------------------
+
+  /liveness:
+    get:
+      tags:
+        - Health
+      summary: Liveness probe
+      operationId: liveness
+      description: Returns 200 OK when the service is alive. Used by load balancers and orchestrators.
+      security: []
+      parameters: []
+      responses:
+        200:
+          description: Service is alive
+          schema:
+            $ref: '#/definitions/LivenessResponse'
+
+  /readiness:
+    get:
+      tags:
+        - Health
+      summary: Readiness probe
+      operationId: readiness
+      description: Returns 200 OK when the service is ready to handle traffic. Returns 503 during startup or when dependencies are unavailable.
+      security: []
+      parameters: []
+      responses:
+        200:
+          description: Service is ready
+          schema:
+            $ref: '#/definitions/ReadinessResponse'
+        503:
+          description: Service is not ready
+          schema:
+            $ref: '#/definitions/ReadinessResponse'
+
+# =============================================================================
+# Definitions
+# =============================================================================
+
+definitions:
+
+  # ---------------------------------------------------------------------------
+  # Common
+  # ---------------------------------------------------------------------------
+
+  ErrorResponse:
+    type: object
+    properties:
+      message:
+        type: string
+        description: Human-readable error message
+      code:
+        type: string
+        description: Machine-readable error code
+
+  PaginationMeta:
+    type: object
+    properties:
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+
+  # ---------------------------------------------------------------------------
+  # Agent Sessions
+  # ---------------------------------------------------------------------------
+
+  StartSessionRequest:
+    type: object
+    required:
+      - agentId
+      - instruction
+    properties:
+      agentId:
+        type: string
+        description: ID of the agent to run for this session
+      instruction:
+        type: string
+        description: Initial instruction sent to the agent as the first user message
+      title:
+        type: string
+        description: Human-readable label for the session
+      source:
+        type: string
+        description: Caller identifier (e.g. command-center, api)
+      prospectId:
+        type: string
+        description: ID of an existing prospect to associate with the session
+
+  StartSessionResponse:
+    type: object
+    properties:
+      sessionId:
+        type: string
+        description: The UUID of the newly started session
+
+  SessionResponse:
+    type: object
+    properties:
+      id:
+        type: string
+      organization_id:
+        type: string
+      root_agent_id:
+        type: string
+      prospect_id:
+        type: string
+      workflow_run_id:
+        type: string
+      call_id:
+        type: string
+      case_id:
+        type: string
+        description: Auto-generated 6-character alphanumeric case identifier
+      title:
+        type: string
+      channel:
+        type: string
+        description: Channel the session was initiated from (voice, chat)
+      entrypoint:
+        type: string
+      status:
+        type: string
+        description: "PENDING | ACTIVE | COMPLETED | STOPPED | FAILED | CANCELLED"
+      metadata:
+        type: object
+        additionalProperties: true
+      last_event_at:
+        type: string
+        format: date-time
+      last_activity_at:
+        type: string
+        format: date-time
+      started_at:
+        type: string
+        format: date-time
+      ended_at:
+        type: string
+        format: date-time
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+
+  # ---------------------------------------------------------------------------
+  # Agents
+  # ---------------------------------------------------------------------------
+
+  CreateAgentRequest:
+    type: object
+    required:
+      - name
+      - prompt_template
+      - type
+    properties:
+      name:
+        type: string
+        description: Unique name for the agent within the organization
+      type:
+        type: string
+        enum:
+          - voice
+          - chat
+          - video
+        description: Agent modality
+      prompt_template:
+        type: string
+        description: System prompt template for the agent (required unless copy_from_agent_id is set)
+      copy_from_agent_id:
+        type: string
+        description: Clone configuration from an existing agent (when set, prompt_template may be omitted)
+
+  UpdateAgentRequest:
+    type: object
+    properties:
+      name:
+        type: string
+      type:
+        type: string
+        enum:
+          - voice
+          - chat
+          - video
+      prompt_template:
+        type: string
+      llm_config:
+        $ref: '#/definitions/LLMConfig'
+      transcriber_config:
+        $ref: '#/definitions/TranscriberConfig'
+      voice_config:
+        $ref: '#/definitions/VoiceConfig'
+      greeting_config:
+        $ref: '#/definitions/GreetingConfig'
+      goodbye_config:
+        $ref: '#/definitions/GoodbyeConfig'
+      extra_config:
+        $ref: '#/definitions/ExtraConfig'
+      vad_config:
+        $ref: '#/definitions/VadConfig'
+      background_sound:
+        $ref: '#/definitions/BackgroundSoundConfig'
+      precall_webhook:
+        $ref: '#/definitions/PrecallWebhookConfig'
+      default_functions:
+        type: array
+        items:
+          type: string
+
+  AgentResponse:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+        description: "voice | chat | video"
+      organization_id:
+        type: string
+      prompt_template:
+        type: string
+      tools:
+        type: array
+        items:
+          $ref: '#/definitions/AgentToolResponse'
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+
+  AgentListItemResponse:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+
+  PaginatedAgentsResponse:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/AgentListItemResponse'
+      meta:
+        $ref: '#/definitions/PaginationMeta'
+
+  AgentToolResponse:
+    type: object
+    properties:
+      tool_id:
+        type: string
+      name:
+        type: string
+      description:
+        type: string
+      method:
+        type: string
+      url:
+        type: string
+      is_enabled:
+        type: boolean
+
+  LLMConfig:
+    type: object
+    required:
+      - provider
+      - model
+    properties:
+      provider:
+        type: string
+        enum:
+          - openai
+          - anthropic
+          - google
+          - groq
+          - cerebras
+        description: LLM provider
+      model:
+        type: string
+        description: Model identifier (e.g. gpt-4o, claude-3-5-sonnet-20241022)
+      system_prompt:
+        type: string
+      temperature:
+        type: number
+        minimum: 0
+        maximum: 2
+      max_tokens:
+        type: integer
+        minimum: 1
+      top_p:
+        type: number
+        minimum: 0
+        maximum: 1
+      top_k:
+        type: integer
+        minimum: 1
+        description: Anthropic only
+      frequency_penalty:
+        type: number
+        minimum: -2
+        maximum: 2
+      presence_penalty:
+        type: number
+        minimum: -2
+        maximum: 2
+        description: OpenAI only
+      parallel_tool_calls:
+        type: boolean
+      fallbacks:
+        type: array
+        description: Ordered list of fallback providers tried when the primary LLM fails
+        items:
+          $ref: '#/definitions/LLMConfig'
+
+  TranscriberConfig:
+    type: object
+    required:
+      - provider
+      - model
+    properties:
+      provider:
+        type: string
+        enum:
+          - deepgram
+          - elevenlabs
+          - speechmatics
+          - openai
+          - groq
+        description: STT provider
+      model:
+        type: string
+        description: Transcription model (e.g. nova-3, whisper-1)
+      language:
+        type: string
+        description: BCP-47 language code (e.g. en-US)
+
+  VoiceConfig:
+    type: object
+    properties:
+      provider:
+        type: string
+        description: TTS provider (elevenlabs, cartesia, openai, cambai, sarvam, etc.)
+      voice_id:
+        type: string
+        description: Provider-specific voice ID
+      model:
+        type: string
+        description: TTS model
+      language:
+        type: string
+
+  GreetingConfig:
+    type: object
+    properties:
+      agent_speaks_first:
+        type: boolean
+      greeting:
+        type: string
+      pause_before_first_message:
+        type: integer
+        minimum: 0
+        description: Milliseconds to pause before the agent speaks
+      voice_mail_message:
+        type: string
+      welcome_message_is_generated:
+        type: boolean
+
+  GoodbyeConfig:
+    type: object
+    properties:
+      enabled:
+        type: boolean
+      message:
+        type: string
+        maxLength: 500
+
+  ExtraConfig:
+    type: object
+    properties:
+      allow_interruptions:
+        type: boolean
+      interruption_sensitivity:
+        type: number
+        minimum: 0
+        maximum: 1
+      min_words:
+        type: integer
+        minimum: 0
+      turn_detector_enabled:
+        type: boolean
+
+  VadConfig:
+    type: object
+    properties:
+      activation_threshold:
+        type: number
+        minimum: 0
+        maximum: 1
+      min_silence_duration:
+        type: number
+        minimum: 0
+      min_speech_duration:
+        type: number
+        minimum: 0
+      sample_rate:
+        type: integer
+        minimum: 8000
+        maximum: 48000
+
+  BackgroundSoundConfig:
+    type: object
+    required:
+      - file
+    properties:
+      file:
+        type: string
+        description: Background audio file identifier or URL
+      volume:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: Playback volume (0.0 = silent, 1.0 = full)
+
+  PrecallWebhookConfig:
+    type: object
+    required:
+      - method
+      - url
+    properties:
+      url:
+        type: string
+        description: URL to call before each session starts
+      method:
+        type: string
+        enum:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+        description: HTTP method for the pre-call webhook
+      headers:
+        type: object
+        additionalProperties:
+          type: string
+        description: Custom headers to include in the webhook request
+      body_template:
+        type: string
+        description: JSON body template sent with the request (supports template variables)
+      timeout_seconds:
+        type: integer
+        minimum: 1
+        maximum: 60
+        description: Seconds to wait for a response before timing out (1-60)
+
+  ToolParameter:
+    type: object
+    required:
+      - name
+      - type
+    properties:
+      name:
+        type: string
+        description: Parameter name
+      type:
+        type: string
+        description: Parameter type (string, number, boolean, object, array)
+      description:
+        type: string
+        description: Human-readable description of this parameter
+      required:
+        type: boolean
+        description: Whether this parameter is required when calling the tool
+
+  # ---------------------------------------------------------------------------
+  # Calls
+  # ---------------------------------------------------------------------------
+
+  CallListItemResponse:
+    type: object
+    properties:
+      id:
+        type: string
+      status:
+        type: string
+        description: "SCHEDULED | RINGING | IN_PROGRESS | completed | no-answer | failed | busy | cancelled"
+      direction:
+        type: string
+        description: "INBOUND | OUTBOUND"
+      from_number:
+        type: string
+      to_number:
+        type: string
+      agent_name:
+        type: string
+      initial_agent_id:
+        type: string
+      prospect_id:
+        type: string
+      prospect_first_name:
+        type: string
+      prospect_last_name:
+        type: string
+      prospect_phone:
+        type: string
+      prospect_external_id:
+        type: string
+      duration_seconds:
+        type: integer
+      started_at:
+        type: string
+        format: date-time
+      ended_at:
+        type: string
+        format: date-time
+      scheduled_at:
+        type: string
+        format: date-time
+
+  PaginatedCallsResponse:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/CallListItemResponse'
+      meta:
+        $ref: '#/definitions/PaginationMeta'
+
+  CallDetailResponse:
+    type: object
+    properties:
+      id:
+        type: string
+      status:
+        type: string
+        description: "SCHEDULED | RINGING | IN_PROGRESS | completed | no-answer | failed | busy | cancelled"
+      direction:
+        type: string
+        description: "INBOUND | OUTBOUND"
+      from_number:
+        type: string
+      to_number:
+        type: string
+      agent_name:
+        type: string
+      initial_agent_id:
+        type: string
+      organization_id:
+        type: string
+      prospect_id:
+        type: string
+      prospect_first_name:
+        type: string
+      prospect_last_name:
+        type: string
+      prospect_phone:
+        type: string
+      prospect_email:
+        type: string
+      prospect_external_id:
+        type: string
+      duration_seconds:
+        type: integer
+      stt_duration_seconds:
+        type: integer
+      tts_characters:
+        type: integer
+      tokens_input:
+        type: integer
+      tokens_output:
+        type: integer
+      cost_usd:
+        type: string
+      transcript_text:
+        type: string
+        description: Full call transcript (null if not yet available)
+      summary:
+        type: string
+        description: AI-generated call summary
+      recording_url:
+        type: string
+        description: Signed URL to the call recording (MP3)
+      recording_slug:
+        type: string
+      evaluations:
+        type: array
+        items:
+          $ref: '#/definitions/CallEvaluationResponse'
+        description: Outcome evaluations for this call
+      tool_logs:
+        type: array
+        items:
+          $ref: '#/definitions/CallToolLogResponse'
+        description: Tool invocation logs during the call
+      workflow_run_id:
+        type: string
+      workflow_node_id:
+        type: string
+      started_at:
+        type: string
+        format: date-time
+      ended_at:
+        type: string
+        format: date-time
+      scheduled_at:
+        type: string
+        format: date-time
+
+  CallEvaluationResponse:
+    type: object
+    properties:
+      id:
+        type: string
+      outcome_key:
+        type: string
+        description: Evaluation key (e.g. INTERESTED, CALLBACK_REQUESTED)
+      extracted_value:
+        type: string
+        description: Extracted text value (for extraction-type outcomes)
+      result_boolean:
+        type: boolean
+        description: True/false result (for boolean-type outcomes)
+      reasoning:
+        type: string
+        description: AI reasoning for this evaluation
+      created_at:
+        type: string
+        format: date-time
+
+  CallToolLogResponse:
+    type: object
+    properties:
+      id:
+        type: string
+      tool_name:
+        type: string
+      status:
+        type: string
+      error_message:
+        type: string
+      created_at:
+        type: string
+        format: date-time
+
+  # ---------------------------------------------------------------------------
+  # Voices
+  # ---------------------------------------------------------------------------
+
+  VoiceItem:
+    type: object
+    properties:
+      voice_id:
+        type: string
+      name:
+        type: string
+      provider:
+        type: string
+      language:
+        type: string
+      gender:
+        type: string
+      preview_url:
+        type: string
+
+  ListVoicesResponse:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/VoiceItem'
+      meta:
+        $ref: '#/definitions/PaginationMeta'
+
+  # ---------------------------------------------------------------------------
+  # Workflow Runs
+  # ---------------------------------------------------------------------------
+
+  ProspectDataForWorkflow:
+    type: object
+    required:
+      - phone
+    properties:
+      phone:
+        type: string
+        description: Phone number in E.164 format (e.g. +19175551234)
+        example: "+19175551234"
+      first_name:
+        type: string
+      last_name:
+        type: string
+      email:
+        type: string
+      external_id:
+        type: string
+        description: Your CRM or system ID for this prospect
+      country:
+        type: string
+        description: ISO 3166-1 alpha-2 country code
+      timezone:
+        type: string
+        description: IANA timezone (e.g. America/New_York)
+      custom_data:
+        type: object
+        additionalProperties: true
+        description: Arbitrary key-value pairs passed into the workflow context
+
+  CreateWorkflowRunRequest:
+    type: object
+    required:
+      - workflow_id
+      - prospect
+    properties:
+      workflow_id:
+        type: string
+        description: ID of the workflow to run
+      prospect:
+        $ref: '#/definitions/ProspectDataForWorkflow'
+      scheduled_at:
+        type: string
+        format: date-time
+        description: ISO 8601 UTC datetime to defer execution (omit for immediate)
+
+  CreateWorkflowRunResponse:
+    type: object
+    properties:
+      workflow_run_id:
+        type: string
+        description: ID of the created workflow run
+      external_id:
+        type: string
+        description: External ID of the prospect associated with this run
+
+  # ---------------------------------------------------------------------------
+  # Workflows
+  # ---------------------------------------------------------------------------
+
+  WorkflowListItemResponse:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      description:
+        type: string
+      trigger_type:
+        type: string
+      is_active:
+        type: boolean
+      version:
+        type: integer
+      published_at:
+        type: string
+        format: date-time
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+
+  PaginatedWorkflowsResponse:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/WorkflowListItemResponse'
+      meta:
+        $ref: '#/definitions/PaginationMeta'
+
+  WorkflowResponse:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      description:
+        type: string
+      trigger_type:
+        type: string
+      is_active:
+        type: boolean
+      version:
+        type: integer
+      definition:
+        type: string
+        description: JSON-encoded workflow definition (base64 in some SDKs)
+      published_at:
+        type: string
+        format: date-time
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+
+  # ---------------------------------------------------------------------------
+  # Analytics (read-only summaries available via Dashboard)
+  # ---------------------------------------------------------------------------
+
+  DashboardSummaryResponse:
+    type: object
+    description: High-level metrics shown in the Cozmo Dashboard overview
+    properties:
+      calls_in_period:
+        type: integer
+      total_call_minutes:
+        type: integer
+      total_agents:
+        type: integer
+      active_workflows:
+        type: integer
+      total_prospects:
+        type: integer
+      current_balance:
+        type: string
+      period:
+        $ref: '#/definitions/AnalyticsPeriod'
+
+  AnalyticsPeriod:
+    type: object
+    properties:
+      start:
+        type: string
+        format: date-time
+      end:
+        type: string
+        format: date-time
+
+  AgentAnalyticsResponse:
+    type: object
+    properties:
+      period:
+        $ref: '#/definitions/AnalyticsPeriod'
+      agents:
+        type: array
+        items:
+          $ref: '#/definitions/AgentPerformance'
+      outcome_rates:
+        type: array
+        items:
+          $ref: '#/definitions/AgentOutcomeRate'
+
+  AgentPerformance:
+    type: object
+    properties:
+      agent_id:
+        type: string
+      agent_name:
+        type: string
+      total_calls:
+        type: integer
+      completed_calls:
+        type: integer
+      avg_duration_seconds:
+        type: number
+      total_cost_usd:
+        type: number
+
+  AgentOutcomeRate:
+    type: object
+    properties:
+      agent_id:
+        type: string
+      agent_name:
+        type: string
+      outcome_key:
+        type: string
+      total:
+        type: integer
+      positive:
+        type: integer
+      positive_rate_pct:
+        type: number
+
+  CallAnalyticsResponse:
+    type: object
+    properties:
+      period:
+        $ref: '#/definitions/AnalyticsPeriod'
+      duration:
+        $ref: '#/definitions/CallDurationStats'
+      outcomes:
+        type: array
+        items:
+          $ref: '#/definitions/OutcomeAggregatorResult'
+      time_series:
+        type: array
+        items:
+          $ref: '#/definitions/CallVolumeDataPoint'
+
+  CallDurationStats:
+    type: object
+    properties:
+      total_calls:
+        type: integer
+      completed_calls:
+        type: integer
+      inbound_calls:
+        type: integer
+      outbound_calls:
+        type: integer
+      avg_duration_seconds:
+        type: number
+      max_duration_seconds:
+        type: integer
+      total_duration_seconds:
+        type: integer
+
+  OutcomeAggregatorResult:
+    type: object
+    properties:
+      outcome_key:
+        type: string
+      outcome_value:
+        type: string
+      outcome_count:
+        type: integer
+
+  CallVolumeDataPoint:
+    type: object
+    properties:
+      date:
+        type: string
+        format: date
+      total:
+        type: integer
+      completed:
+        type: integer
+      failed:
+        type: integer
+      no_answer:
+        type: integer
+      busy:
+        type: integer
+
+  WorkflowAnalyticsResponse:
+    type: object
+    properties:
+      period:
+        $ref: '#/definitions/AnalyticsPeriod'
+      workflows:
+        type: array
+        items:
+          $ref: '#/definitions/WorkflowRunStats'
+
+  WorkflowRunStats:
+    type: object
+    properties:
+      workflow_id:
+        type: string
+      workflow_name:
+        type: string
+      total_runs:
+        type: integer
+      completed:
+        type: integer
+      failed:
+        type: integer
+      pending:
+        type: integer
+      running:
+        type: integer
+      completion_rate_pct:
+        type: number
+
+  # ---------------------------------------------------------------------------
+  # Admin / Health
+  # ---------------------------------------------------------------------------
+
+  LivenessResponse:
+    type: object
+    description: Response from the liveness probe
+    properties:
+      status:
+        type: string
+        description: Always "ok" when alive
+        example: "ok"
+
+  ReadinessResponse:
+    type: object
+    description: Response from the readiness probe
+    properties:
+      status:
+        type: string
+        description: '"ok" when ready, "not ready" when unavailable'
+        example: "ok"
+      details:
+        type: object
+        additionalProperties:
+          type: string
+        description: Per-dependency readiness details (e.g. database, cache)

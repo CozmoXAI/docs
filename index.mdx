@@ -1,52 +1,183 @@
 ---
 title: "Introduction"
-description: "The Nova API powers Cozmo AI's Sirius platform with robust, scalable backend services"
+description: "Build AI voice and chat agents that make real calls, handle conversations, and integrate with your systems - powered by the Cozmo Nova API"
 ---
 
-## Welcome to Nova API
+## What is Nova API?
 
-Nova API is the backend infrastructure powering **Cozmo AI's Sirius platform**. Designed for scale, it provides the foundation for AI-driven interactions and seamless integrations.
+Nova API is Cozmo AI's platform for building production-grade AI voice and chat agents. It gives you complete programmatic control over the full agent lifecycle:
 
-<Card
-  title="Quickstart"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Get up and running with the Nova API in minutes.
-</Card>
-
-## Core Capabilities
-
-<Columns cols={2}>
-  <Card
-    title="Authentication"
-    icon="shield-check"
-    href="/authentication"
-  >
-    Secure OAuth2 and JWT-based authentication powered by Auth0.
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Go from zero to a live AI call in under 5 minutes.
   </Card>
-  <Card
-    title="API Reference"
-    icon="code"
-    href="/api-reference"
-  >
-    Explore all available endpoints with request and response schemas.
+  <Card title="API Reference" icon="code" href="/api-reference/introduction">
+    Interactive reference for every endpoint with request and response schemas.
   </Card>
-  <Card
-    title="Webhooks"
-    icon="webhook"
-    href="/webhooks"
-  >
-    Receive real-time notifications for events in your application.
+  <Card title="Core Concepts" icon="book-open" href="/concepts/agents">
+    Understand agents, sessions, calls, prospects, and workflows.
   </Card>
-  <Card
-    title="Rate Limits"
-    icon="gauge"
-    href="/rate-limits"
-  >
-    Understand rate limiting and best practices for API usage.
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    Receive real-time events when calls and sessions complete.
   </Card>
-</Columns>
+</CardGroup>
 
+## How it works
 
+A typical integration follows this flow:
+
+```
+1. Create Agent       Configure LLM, voice, transcriber, and system prompt
+        |
+2. Create Workflow    Define multi-step interaction logic in the Dashboard
+        |
+3. Trigger Run        POST /workflow-runs with prospect phone + data
+        |
+4. Call Placed        Nova dials the prospect, agent conducts the conversation
+        |
+5. Webhook Fired      call.completed arrives with transcript, evaluations, recording
+        |
+6. Update Systems     CRM update, next-step scheduling, reporting
+```
+
+### Or start a session directly
+
+For chat agents, inbound calls, or custom orchestration, skip workflows and start a session directly:
+
+```
+1. Create Agent       Configure LLM and channel settings
+        |
+2. Start Session      POST /agent-sessions/{uuid}/start with instruction
+        |
+3. Agent Runs         Nova processes the instruction and runs the agent
+        |
+4. Session Ends       session.completed webhook fires with results
+```
+
+## Base URL
+
+```
+https://v2-nova-api.prod.czmx.in/api
+```
+
+Every endpoint is scoped to your organization:
+
+```
+/org/{org_id}/agents
+/org/{org_id}/agent-sessions/{session_id}/start
+/org/{org_id}/calls
+/org/{org_id}/workflows
+/org/{org_id}/workflow-runs
+/org/{org_id}/voices
+```
+
+Find your `org_id` in the [Dashboard](https://dash.prod.czmx.in) URL or in **Organization Settings**.
+
+## Authentication
+
+Every request requires your API key in the `X-API-Key` header:
+
+```bash
+curl https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+Get your API key from [Dashboard - Organization Settings](https://dash.prod.czmx.in). See [Authentication](/authentication) for key management and security best practices.
+
+## Resources at a glance
+
+| Resource | Description | Key endpoints |
+|----------|-------------|---------------|
+| **Agents** | AI entities with LLM, voice, and transcriber configs | `GET/POST /agents`, `PATCH /agents/{id}` |
+| **Agent Sessions** | Single run of an agent for a prospect | `POST /agent-sessions/{id}/start`, `GET /agent-sessions/{id}` |
+| **Calls** | Voice call records with transcript, evaluations, recordings | `GET /calls`, `GET /calls/{id}` |
+| **Voices** | Available TTS voices by provider | `GET /voices?provider=elevenlabs` |
+| **Workflows** | Named multi-step interaction templates | `GET /workflows`, `GET /workflows/{id}` |
+| **Workflow Runs** | Single execution of a workflow for a prospect | `POST /workflow-runs` |
+
+## Supported providers
+
+<Tabs>
+  <Tab title="LLM">
+    | Provider | Models |
+    |----------|--------|
+    | `openai` | gpt-4o, gpt-4o-mini, gpt-4-turbo |
+    | `anthropic` | claude-3-5-sonnet-20241022, claude-3-haiku |
+    | `google` | gemini-1.5-pro, gemini-1.5-flash |
+    | `groq` | llama-3.1-70b-versatile, llama-3.1-8b-instant |
+    | `cerebras` | llama3.1-70b, llama3.1-8b |
+  </Tab>
+  <Tab title="Speech-to-Text">
+    | Provider | Strengths |
+    |----------|-----------|
+    | `deepgram` | Low latency, nova-3 model, keyword boosting |
+    | `elevenlabs` | High accuracy, 30+ languages |
+    | `speechmatics` | Enterprise accuracy, financial/legal vocabulary |
+    | `openai` | Whisper model, broad language support |
+    | `groq` | Ultra-low latency inference |
+  </Tab>
+  <Tab title="Text-to-Speech">
+    | Provider | Voices |
+    |----------|--------|
+    | `elevenlabs` | 1,000+ voices, voice cloning |
+    | `cartesia` | Ultra-low latency streaming |
+    | `openai` | alloy, echo, fable, nova, onyx, shimmer |
+    | `cambai` | Multilingual, natural cadence |
+    | `sarvam` | Indian language specialization |
+    | `inworld` | Expressive characters |
+    | `minimax` | High-quality multilingual |
+  </Tab>
+</Tabs>
+
+## Webhook events
+
+Configure a webhook URL in the Dashboard to receive real-time event notifications:
+
+| Event | Fires when |
+|-------|-----------|
+| `call.completed` | Voice call finishes - includes transcript, evaluations, recording URL |
+| `call.failed` | Voice call fails (no answer, busy, SIP error, validation failure) |
+| `session.completed` | Agent session reaches COMPLETED or STOPPED |
+| `session.failed` | Agent session reaches FAILED or CANCELLED |
+
+## Official SDKs
+
+<CardGroup cols={3}>
+  <Card title="Python" icon="python" href="/sdks">
+    `pip install cozmoai`
+  </Card>
+  <Card title="TypeScript" icon="js" href="/sdks">
+    `npm install cozmoai`
+  </Card>
+  <Card title="Go" icon="golang" href="/sdks">
+    `go get github.com/cozmoai/cozmoai-go`
+  </Card>
+</CardGroup>
+
+## Developer tools
+
+<CardGroup cols={2}>
+  <Card title="CLI" icon="terminal" href="/cli/overview">
+    Manage agents, sessions, and workflows from the terminal. Forward live webhooks to your local server with `cozmo listen`.
+  </Card>
+  <Card title="MCP" icon="server" href="/mcp/overview">
+    Give your AI coding assistant (Cursor, Claude Code, Windsurf, VS Code) full Nova API knowledge with one command.
+  </Card>
+</CardGroup>
+
+## Start building
+
+<Steps>
+  <Step title="Get your API key">
+    Sign in to the [Dashboard](https://dash.prod.czmx.in) and navigate to **Organization Settings - API Keys**. Create a key and save it securely.
+  </Step>
+  <Step title="Follow the Quickstart">
+    The [Quickstart guide](/quickstart) walks you through creating an agent, starting a session, and receiving your first webhook event.
+  </Step>
+  <Step title="Explore the concepts">
+    Read through [Agents](/concepts/agents), [Sessions](/concepts/sessions), and [Workflows](/concepts/workflows) to understand the data model before integrating deeply.
+  </Step>
+  <Step title="Set up webhooks">
+    Configure a webhook endpoint to receive [call and session events](/webhooks) in real time. Use the [CLI](/cli/webhook) to test locally without deploying.
+  </Step>
+</Steps>

@@ -1,0 +1,590 @@
+---
+title: "Python SDK"
+description: "Official Cozmo AI Python SDK - sync and async clients, full type hints, Pydantic models"
+---
+
+## Installation
+
+```bash
+pip install cozmoai
+# or with poetry
+poetry add cozmoai
+# or with uv
+uv add cozmoai
+```
+
+**Requirements:** Python 3.8+
+
+## Setup
+
+Set your credentials as environment variables:
+
+```bash
+export COZMO_API_KEY="your_api_key_here"
+export COZMO_ORG_ID="your_org_id_here"
+```
+
+Or use a `.env` file with `python-dotenv`:
+
+```bash
+pip install python-dotenv
+```
+
+```python
+from dotenv import load_dotenv
+load_dotenv()
+```
+
+## Initialize the client
+
+```python
+from cozmoai import CozmoAI
+
+# Reads COZMO_API_KEY and COZMO_ORG_ID from environment automatically
+client = CozmoAI()
+```
+
+Pass credentials explicitly if you prefer:
+
+```python
+client = CozmoAI(
+    api_key="your_api_key",
+    org_id="your_org_id",
+)
+```
+
+---
+
+## Agents
+
+### List agents
+
+```python
+agents = client.agents.list()
+
+for agent in agents.data:
+    print(agent.id, agent.name, agent.type)
+
+# With filters and pagination
+agents = client.agents.list(page=1, size=50, type="voice")
+print(f"Total: {agents.meta.total}")
+```
+
+### Create an agent
+
+```python
+from cozmoai.types import LLMConfig, TranscriberConfig, VoiceConfig, GreetingConfig
+
+agent = client.agents.create(
+    name="Sales Agent",
+    type="voice",
+    prompt_template=(
+        "You are a friendly outbound sales agent for Acme Corp. "
+        "Your goal is to reconnect with {{prospect_first_name}} and schedule a follow-up demo. "
+        "Be concise and respectful of their time."
+    ),
+)
+
+print(agent.id)
+```
+
+Create with full configuration:
+
+```python
+agent = client.agents.create(
+    name="Enterprise Sales Agent",
+    type="voice",
+    prompt_template="You are a senior enterprise sales rep...",
+)
+
+# Configure after creation with update
+agent = client.agents.update(
+    agent_id=agent.id,
+    llm_config=LLMConfig(
+        provider="openai",
+        model="gpt-4o",
+        temperature=0.7,
+        max_tokens=512,
+        system_prompt="You are a helpful enterprise sales assistant.",
+        fallbacks=[
+            LLMConfig(provider="anthropic", model="claude-3-5-sonnet-20241022")
+        ],
+    ),
+    transcriber_config=TranscriberConfig(
+        provider="deepgram",
+        model="nova-3",
+        language="en-US",
+    ),
+    voice_config=VoiceConfig(
+        provider="elevenlabs",
+        voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel
+        model="eleven_turbo_v2",
+    ),
+    greeting_config=GreetingConfig(
+        agent_speaks_first=True,
+        greeting="Hi {{prospect_first_name}}, this is Alex from Acme. Do you have a moment?",
+        pause_before_first_message=800,
+        voice_mail_message="Hi, this is Alex from Acme. I'll try you again later. Have a great day.",
+    ),
+)
+```
+
+### Get an agent
+
+```python
+agent = client.agents.get(agent_id="agt_01j9xyz")
+print(agent.name, agent.type, agent.created_at)
+```
+
+### Update an agent
+
+All fields are optional - only pass what you want to change:
+
+```python
+agent = client.agents.update(
+    agent_id="agt_01j9xyz",
+    name="Updated Sales Agent",
+    prompt_template="New system prompt...",
+    llm_config=LLMConfig(
+        provider="anthropic",
+        model="claude-3-5-sonnet-20241022",
+        temperature=0.5,
+    ),
+)
+```
+
+### Clone an agent
+
+```python
+# Clone all settings from an existing agent
+agent = client.agents.create(
+    name="Sales Agent - Copy",
+    type="voice",
+    copy_from_agent_id="agt_existing123",
+)
+```
+
+### Delete an agent
+
+```python
+client.agents.delete(agent_id="agt_01j9xyz")
+```
+
+---
+
+## Agent Sessions
+
+### Start a session
+
+The `session_id` must be a client-generated UUID v4. It makes the call idempotent - safe to retry.
+
+```python
+import uuid
+
+session_id = str(uuid.uuid4())
+
+session = client.agent_sessions.start(
+    session_id=session_id,
+    agent_id="agt_01j9xyz",
+    instruction="Follow up with this prospect about their demo request from last week.",
+    title="Demo follow-up",
+    prospect_id="prospect_uuid",  # optional - link to existing prospect
+    source="api",
+)
+
+print(session.session_id)  # same as session_id you passed
+```
+
+### Get a session
+
+```python
+session = client.agent_sessions.get(session_id="550e8400-e29b-41d4-a716-446655440000")
+
+print(session.status)        # PENDING | ACTIVE | COMPLETED | STOPPED | FAILED | CANCELLED
+print(session.channel)       # voice | chat | telegram | whatsapp
+print(session.started_at)    # datetime or None
+print(session.ended_at)      # datetime or None (when terminal)
+```
+
+---
+
+## Calls
+
+### List calls
+
+```python
+# Basic listing
+calls = client.calls.list()
+for call in calls.data:
+    print(call.id, call.status, call.duration_seconds)
+
+# With filters
+calls = client.calls.list(
+    status="completed",
+    direction="outbound",
+    agent_id="agt_01j9xyz",
+    start_date="2026-04-01",
+    end_date="2026-04-30",
+    page=1,
+    size=50,
+)
+
+# Filter by evaluation outcome (e.g. interested prospects only)
+calls = client.calls.list(
+    evaluation_key="INTERESTED",
+    evaluation_value="true",
+)
+```
+
+### Iterate all calls (pagination helper)
+
+```python
+def iter_all_calls(client, **filters):
+    page = 1
+    while True:
+        result = client.calls.list(page=page, size=100, **filters)
+        yield from result.data
+        if page >= result.meta.total_pages:
+            break
+        page += 1
+
+# Process every completed call this month
+for call in iter_all_calls(client, status="completed", start_date="2026-04-01"):
+    print(call.id, call.prospect_first_name, call.duration_seconds)
+```
+
+### Get call details
+
+```python
+call = client.calls.get(call_id="call_17546d2d")
+
+# Transcript
+print(call.transcript_text)
+
+# AI-generated summary
+print(call.summary)
+
+# Recording
+print(call.recording_url)
+
+# Evaluations
+for evaluation in call.evaluations:
+    print(evaluation.outcome_key, evaluation.result_boolean, evaluation.reasoning)
+
+# Tool invocations
+for log in call.tool_logs:
+    print(log.tool_name, log.status)
+
+# Cost
+print(f"Cost: ${call.cost_usd}")
+print(f"Tokens: {call.tokens_input} in / {call.tokens_output} out")
+```
+
+---
+
+## Voices
+
+### List available voices
+
+```python
+# List ElevenLabs voices
+voices = client.voices.list(provider="elevenlabs")
+for voice in voices.data:
+    print(voice.voice_id, voice.name, voice.language)
+
+# With pagination cursor (ElevenLabs / Cartesia native pagination)
+voices = client.voices.list(provider="cartesia", next_page=voices.meta.next_page)
+```
+
+---
+
+## Workflows
+
+### List workflows
+
+```python
+workflows = client.workflows.list()
+
+# Only active workflows
+workflows = client.workflows.list(is_active=True)
+
+for wf in workflows.data:
+    print(wf.id, wf.name, wf.trigger_type, wf.version)
+```
+
+### Get a workflow
+
+```python
+workflow = client.workflows.get(workflow_id="wf_abc123")
+print(workflow.name, workflow.is_active, workflow.trigger_type)
+```
+
+---
+
+## Workflow Runs
+
+### Create a workflow run
+
+```python
+run = client.workflow_runs.create(
+    workflow_id="wf_abc123",
+    prospect={
+        "phone": "+19175551234",
+        "first_name": "Jane",
+        "last_name": "Doe",
+        "email": "jane.doe@example.com",
+        "external_id": "crm_789",
+        "country": "US",
+        "timezone": "America/New_York",
+        "custom_data": {
+            "account_tier": "enterprise",
+            "deal_stage": "proposal",
+            "contract_value": 85000,
+        },
+    },
+)
+
+print(run.workflow_run_id)
+print(run.external_id)
+```
+
+### Schedule a future run
+
+```python
+from datetime import datetime, timezone
+
+run = client.workflow_runs.create(
+    workflow_id="wf_abc123",
+    prospect={"phone": "+19175551234", "first_name": "Jane"},
+    scheduled_at=datetime(2026, 5, 1, 9, 0, 0, tzinfo=timezone.utc),
+)
+```
+
+---
+
+## Async client
+
+For use with `asyncio`, `FastAPI`, or any async framework:
+
+```python
+import asyncio
+from cozmoai import AsyncCozmoAI
+
+async def main():
+    client = AsyncCozmoAI()
+
+    # All methods are identical to the sync client but return coroutines
+    agents = await client.agents.list()
+    agent = await client.agents.create(name="Async Agent", type="voice")
+    session = await client.agent_sessions.start(
+        session_id=str(uuid.uuid4()),
+        agent_id=agent.id,
+        instruction="Hello world",
+    )
+    await client.aclose()
+
+asyncio.run(main())
+```
+
+### FastAPI integration
+
+```python
+import uuid
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from cozmoai import AsyncCozmoAI
+
+client: AsyncCozmoAI
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global client
+    client = AsyncCozmoAI()
+    yield
+    await client.aclose()
+
+app = FastAPI(lifespan=lifespan)
+
+class TriggerRequest(BaseModel):
+    phone: str
+    first_name: str
+    last_name: str = ""
+    external_id: str = ""
+
+@app.post("/trigger-call")
+async def trigger_call(body: TriggerRequest):
+    try:
+        run = await client.workflow_runs.create(
+            workflow_id="wf_abc123",
+            prospect={
+                "phone": body.phone,
+                "first_name": body.first_name,
+                "last_name": body.last_name,
+                "external_id": body.external_id,
+            },
+        )
+        return {"workflow_run_id": run.workflow_run_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+```
+
+### Bulk async workflow runs
+
+```python
+import asyncio
+from cozmoai import AsyncCozmoAI
+
+async def bulk_trigger(prospects: list[dict], workflow_id: str, concurrency: int = 50):
+    client = AsyncCozmoAI()
+    semaphore = asyncio.Semaphore(concurrency)
+    results = []
+
+    async def trigger_one(prospect: dict):
+        async with semaphore:
+            return await client.workflow_runs.create(
+                workflow_id=workflow_id,
+                prospect=prospect,
+            )
+
+    try:
+        results = await asyncio.gather(
+            *[trigger_one(p) for p in prospects],
+            return_exceptions=True,
+        )
+    finally:
+        await client.aclose()
+
+    successes = [r for r in results if not isinstance(r, Exception)]
+    failures = [r for r in results if isinstance(r, Exception)]
+    print(f"{len(successes)} succeeded, {len(failures)} failed")
+    return successes
+```
+
+---
+
+## Error handling
+
+The SDK raises specific exception types for different error categories:
+
+```python
+from cozmoai import CozmoAI
+from cozmoai.exceptions import (
+    AuthenticationError,    # 401 - invalid or missing API key
+    NotFoundError,          # 404 - resource not found
+    RateLimitError,         # 429 - rate limit exceeded
+    BadRequestError,        # 400 - validation error
+    APIStatusError,         # any other 4xx/5xx
+    APIConnectionError,     # network/connection error
+)
+
+client = CozmoAI()
+
+try:
+    agent = client.agents.get(agent_id="agt_does_not_exist")
+except NotFoundError as e:
+    print(f"Agent not found: {e.message}")
+except RateLimitError as e:
+    reset_ts = e.response.headers.get("X-Rate-Limit-Reset")
+    print(f"Rate limited. Reset at {reset_ts}")
+except AuthenticationError:
+    print("Invalid API key - check COZMO_API_KEY")
+except BadRequestError as e:
+    print(f"Validation error: {e.message}")
+except APIStatusError as e:
+    print(f"API error {e.status_code}: {e.message}")
+except APIConnectionError as e:
+    print(f"Network error: {e}")
+```
+
+### Retry with backoff
+
+```python
+import time
+
+def with_retry(fn, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return fn()
+        except RateLimitError as e:
+            reset_ts = int(e.response.headers.get("X-Rate-Limit-Reset", 0))
+            wait = max(reset_ts - time.time(), 1)
+            print(f"Rate limited. Waiting {wait:.0f}s")
+            time.sleep(wait)
+        except APIStatusError as e:
+            if e.status_code < 500 or attempt == max_retries - 1:
+                raise
+            time.sleep(2 ** attempt)
+    raise RuntimeError("Max retries exceeded")
+
+agent = with_retry(lambda: client.agents.get("agt_abc123"))
+```
+
+---
+
+## Pagination
+
+All list methods return a `PaginatedResponse` with `.data` and `.meta`:
+
+```python
+result = client.agents.list(page=1, size=20)
+
+print(result.meta.page)         # 1
+print(result.meta.size)         # 20
+print(result.meta.total)        # total items across all pages
+print(result.meta.total_pages)  # number of pages
+
+# Iterate all pages
+all_agents = []
+page = 1
+while True:
+    result = client.agents.list(page=page, size=100)
+    all_agents.extend(result.data)
+    if page >= result.meta.total_pages:
+        break
+    page += 1
+```
+
+---
+
+## TypeScript types
+
+All response objects are Pydantic models with full field documentation:
+
+```python
+from cozmoai.types import (
+    AgentResponse,
+    AgentListItemResponse,
+    SessionResponse,
+    CallDetailResponse,
+    CallEvaluationResponse,
+    WorkflowResponse,
+    CreateWorkflowRunResponse,
+)
+
+# Access fields with dot notation and full IDE completion
+call: CallDetailResponse = client.calls.get(call_id="call_abc")
+print(call.transcript_text)     # str | None
+print(call.recording_url)       # str | None
+print(call.cost_usd)            # str
+print(call.evaluations)         # list[CallEvaluationResponse]
+```
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="TypeScript SDK" icon="js" href="/sdk/typescript">
+    Using Node.js or a TypeScript backend?
+  </Card>
+  <Card title="Go SDK" icon="golang" href="/sdk/go">
+    Using Go for your backend services?
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    Handle call and session completion events.
+  </Card>
+  <Card title="Error Handling Guide" icon="triangle-exclamation" href="/guides/error-handling">
+    Retry logic, circuit breakers, and production patterns.
+  </Card>
+</CardGroup>

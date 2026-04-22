@@ -1,0 +1,39 @@
+---
+title: "CLI"
+description: "Cozmo AI command-line tool - coming soon"
+---
+
+## Coming Soon
+
+The Cozmo CLI is currently in development. It will allow you to manage agents, sessions, calls, and workflows directly from your terminal - including live webhook forwarding to your local server for development.
+
+## Planned features
+
+- **Agent management** - create, list, update, and delete agents from the terminal
+- **Workflow runs** - trigger workflow runs for individual prospects without writing code
+- **Webhook forwarding** - forward live `call.completed` and `session.completed` events to your local server for development and testing
+- **Project scaffolding** - `cozmo init` to generate integration boilerplate for your stack
+- **MCP setup** - one-command IDE configuration for Cursor, Claude Code, Windsurf, and VSCode
+
+## In the meantime
+
+Use the REST API or the official SDKs to interact with Nova programmatically:
+
+<CardGroup cols={2}>
+  <Card title="Python SDK" icon="python" href="/sdk/python">
+    `pip install cozmoai` - available now.
+  </Card>
+  <Card title="TypeScript SDK" icon="js" href="/sdk/typescript">
+    `npm install cozmoai` - available now.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/introduction">
+    Full REST API documentation with curl examples.
+  </Card>
+  <Card title="Dashboard" icon="gauge" href="https://dash.prod.czmx.in">
+    Manage agents and trigger workflow runs via the web UI.
+  </Card>
+</CardGroup>
+
+## Get notified
+
+Watch the [Cozmo changelog](https://dash.prod.czmx.in) for CLI availability announcements.

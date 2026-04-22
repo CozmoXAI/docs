@@ -1,0 +1,345 @@
+---
+title: "Authentication"
+description: "Log in, manage multiple Cozmo accounts, and switch between organisations from the terminal"
+---
+
+## Overview
+
+The Cozmo CLI supports multiple accounts so you can work across different organisations, clients, or environments - production, staging, personal - without manually swapping API keys. Credentials are stored securely in your OS keychain.
+
+## Quick start
+
+<Steps>
+  <Step title="Log in">
+    ```bash
+    cozmo login
+    ```
+    Opens the Cozmo Dashboard in your browser. Copy your API key and paste it at the terminal prompt. The CLI stores it securely and associates it with your organisation.
+  </Step>
+
+  <Step title="Check status">
+    ```bash
+    cozmo auth status
+    ```
+    Shows your current account, org ID, and a masked API key.
+  </Step>
+
+  <Step title="Add another account">
+    ```bash
+    cozmo auth login --alias staging
+    ```
+    Adds a second account under the alias `staging` without logging out of your current one.
+  </Step>
+
+  <Step title="Switch accounts">
+    ```bash
+    cozmo auth switch staging
+    ```
+    All subsequent commands run against the `staging` account's org.
+  </Step>
+</Steps>
+
+## Authentication methods
+
+### API key (recommended for most users)
+
+Log in by providing your API key from [Dashboard → Organization Settings](https://dash.prod.czmx.in):
+
+```bash
+cozmo login
+# Prompts: Enter your API key:
+# Prompts: Enter your Org ID:
+```
+
+The CLI stores the key in your OS keychain and writes a reference to `~/.cozmo-cli.yaml`.
+
+### Environment variables (CI/CD and automation)
+
+For scripts, pipelines, and Docker, set environment variables directly:
+
+```bash
+export COZMO_API_KEY=your_api_key
+export COZMO_ORG_ID=your_org_id
+
+cozmo agent list   # uses env vars automatically
+```
+
+You can also pass them inline for a single command:
+
+```bash
+COZMO_API_KEY=your_key COZMO_ORG_ID=your_org cozmo call list
+```
+
+### Config file
+
+Credentials can be set directly in `~/.cozmo-cli.yaml`:
+
+```yaml
+api_key: your_api_key
+org_id: your_org_id
+base_url: https://v2-nova-api.prod.czmx.in/api
+```
+
+<Warning>
+  The config file is stored in plaintext. Use environment variables or the OS keychain (via `cozmo login`) for sensitive environments.
+</Warning>
+
+**Priority order** - the CLI resolves credentials in this order:
+
+1. Inline flags (`--api-key`, `--org-id`)
+2. Environment variables (`COZMO_API_KEY`, `COZMO_ORG_ID`)
+3. Active account from `~/.cozmo-cli.yaml`
+
+## Multi-account management
+
+### Viewing current status
+
+```bash
+cozmo auth status
+```
+
+Sample output:
+
+```
+Active account: production
+──────────────────────────────
+  Email:    you@company.com
+  Org ID:   org_abc123
+  Org name: Acme Corp
+  API key:  sk-••••••••••••••••3f9a
+
+Other accounts:
+  • staging    (org_dev456)
+  • personal   (org_xyz789)
+```
+
+### Who am I?
+
+```bash
+cozmo auth whoami
+```
+
+Returns full account details:
+
+```
+User:         you@company.com
+Org ID:       org_abc123
+Org name:     Acme Corp
+Plan:         Enterprise
+API key:      sk-••••••••••••••••3f9a
+Base URL:     https://v2-nova-api.prod.czmx.in/api
+```
+
+### Adding accounts
+
+Add a second account without logging out:
+
+```bash
+cozmo auth login --alias staging
+```
+
+After prompting for the new API key and org ID, the account is stored under the alias `staging`.
+
+Use meaningful aliases - `prod-acme`, `dev-personal`, `staging-client` are clearer than `test1` or `new`.
+
+### Switching accounts
+
+```bash
+# Switch by alias
+cozmo auth switch staging
+
+# Switch by email
+cozmo auth switch you@otherorg.com
+
+# Interactive picker (if no argument given)
+cozmo auth switch
+```
+
+After switching, `cozmo auth status` confirms the new active account.
+
+### Renaming an alias
+
+```bash
+cozmo auth alias you@company.com production
+```
+
+### Logging out
+
+```bash
+# Log out of active account
+cozmo auth logout
+
+# Log out of a specific account
+cozmo auth logout staging
+
+# Log out of all accounts
+cozmo auth logout --all
+```
+
+## Common workflows
+
+<Tabs>
+  <Tab title="Production vs Staging">
+    Keep production and staging configs completely separate:
+
+    ```bash
+    # Work in staging
+    cozmo auth switch staging
+    cozmo agent create --name "Test Agent"
+    cozmo workflow run --workflow-id wf_staging_001 --phone "+19175550000"
+
+    # Promote to production
+    cozmo auth switch production
+    cozmo agent create --file agent-config.json
+    cozmo workflow run --workflow-id wf_prod_001 --phone "+19175551234"
+    ```
+  </Tab>
+  <Tab title="Multiple clients">
+    Manage separate client orgs with dedicated aliases:
+
+    ```bash
+    # Client A
+    cozmo auth switch client-acme
+    cozmo call list
+    cozmo agent list
+
+    # Client B
+    cozmo auth switch client-globex
+    cozmo workflow list
+    ```
+  </Tab>
+  <Tab title="Team collaboration">
+    Each team member uses their own API key for the shared org:
+
+    ```bash
+    # Developer's personal setup
+    cozmo auth switch personal
+    cozmo init
+
+    # Team org work
+    cozmo auth switch team-org
+    cozmo agent list
+    ```
+  </Tab>
+</Tabs>
+
+## CI/CD integration
+
+Use environment variables to authenticate in automated pipelines - never hardcode keys:
+
+```yaml GitHub Actions
+env:
+  COZMO_API_KEY: ${{ secrets.COZMO_PROD_KEY }}
+  COZMO_ORG_ID: ${{ secrets.COZMO_ORG_ID }}
+
+steps:
+  - name: Install Cozmo CLI
+    run: npm install -g @cozmoai/cli
+
+  - name: Trigger workflow run
+    run: |
+      cozmo workflow run \
+        --workflow-id ${{ vars.WORKFLOW_ID }} \
+        --phone "${{ inputs.phone }}" \
+        --first-name "${{ inputs.first_name }}"
+```
+
+```yaml GitLab CI
+variables:
+  COZMO_API_KEY: $COZMO_PROD_KEY
+  COZMO_ORG_ID: $COZMO_ORG_ID
+
+deploy:
+  script:
+    - npm install -g @cozmoai/cli
+    - cozmo agent list --output json
+```
+
+## Security
+
+**Credential storage:**
+- macOS - OS Keychain
+- Linux - Secret Service API / libsecret
+- Windows - Windows Credential Manager
+
+The CLI never writes raw API keys to disk in plaintext when using `cozmo login`. Keys are fetched from the keychain at runtime.
+
+**Best practices:**
+
+<CardGroup cols={2}>
+  <Card title="Never commit API keys" icon="eye-slash">
+    Use `COZMO_API_KEY` env vars in CI/CD. Add `~/.cozmo-cli.yaml` to `.gitignore` if it contains any keys.
+  </Card>
+  <Card title="Use separate keys per environment" icon="shield-check">
+    Create one API key for production and a separate one for staging so you can revoke either independently.
+  </Card>
+  <Card title="Rotate keys regularly" icon="rotate">
+    Revoke and replace API keys in [Dashboard → Organization Settings](https://dash.prod.czmx.in) after team member changes.
+  </Card>
+  <Card title="Scope automation keys" icon="lock">
+    For scripts and pipelines, create a dedicated API key - never reuse a personal key in automation.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Login prompt doesn't appear">
+    Ensure your terminal has a valid TTY. In Docker or non-interactive shells, use environment variables instead:
+
+    ```bash
+    export COZMO_API_KEY=your_api_key
+    export COZMO_ORG_ID=your_org_id
+    ```
+  </Accordion>
+
+  <Accordion title="401 Unauthorized after logging in">
+    Your API key may have been revoked. Generate a fresh key in [Dashboard → Organization Settings](https://dash.prod.czmx.in), then re-login:
+
+    ```bash
+    cozmo auth logout
+    cozmo login
+    ```
+  </Accordion>
+
+  <Accordion title="Wrong org being used">
+    Check which account is active:
+
+    ```bash
+    cozmo auth status
+    ```
+
+    Switch to the correct one:
+
+    ```bash
+    cozmo auth switch production
+    ```
+  </Accordion>
+
+  <Accordion title="Keychain errors on Linux">
+    Install the required keyring backend:
+
+    ```bash
+    sudo apt-get install gnome-keyring
+    # or
+    sudo apt-get install libsecret-1-0
+    ```
+
+    Or fall back to file storage:
+
+    ```bash
+    cozmo config set storage file
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Project init" icon="folder-open" href="/cli/init">
+    Scaffold a Cozmo integration for your framework.
+  </Card>
+  <Card title="Webhook testing" icon="webhook" href="/cli/webhook">
+    Forward live call events to your local server.
+  </Card>
+</CardGroup>

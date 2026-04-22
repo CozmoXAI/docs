@@ -1,32 +1,387 @@
 ---
 title: "Authentication"
-description: "Secure API access using API keys"
+description: "Authenticate every Nova API request with an API key - manage keys, rotate them safely, and follow security best practices"
 ---
 
 ## Overview
 
-Nova API uses **Auth0** for authentication, providing enterprise-grade security. All API requests must include a valid API key.
+Nova API uses **API key authentication**. Every request must include your key in the `X-API-Key` header. Keys are issued per organization and provide access to all resources within that organization.
 
 <Info>
-  All data is encrypted in transit using TLS 1.3 and at rest using AES-256 encryption.
+  All API traffic is encrypted in transit using TLS 1.3. API keys are stored as hashed values - Cozmo AI cannot retrieve a key after it is created, so store it securely on creation.
 </Info>
 
-## API Keys
+## Creating an API key
 
-Create and manage API keys from the [Dashboard](https://dash.prod.czmx.in) in your **Organization Settings**.
+1. Sign in to the [Dashboard](https://dash.prod.czmx.in)
+2. Navigate to **Organization Settings - API Keys**
+3. Click **Create API Key** and give it a descriptive name (e.g. `production-backend`, `staging-worker`)
+4. Copy the key immediately - it is shown only once
 
-When creating an API key, you can select its **scope** to control which parts of the API it can access.
+<Warning>
+  Store your API key in a secrets manager or environment variable immediately after creation. It cannot be retrieved again from the Dashboard.
+</Warning>
 
-## Using API Keys
+## Making authenticated requests
 
-Include your API key in the `Authorization` header of all requests:
+Pass your key in the `X-API-Key` header on every request:
 
-```bash
-curl --request GET \
-  --url https://<API_ENDPOINT> \
-  --header 'Authorization: Bearer YOUR_API_KEY'
+<CodeGroup>
+
+```bash cURL
+curl https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
+  -H "X-API-Key: YOUR_API_KEY"
 ```
 
-<Note>
-  Keep your API keys secure. Never expose them in client-side code or public repositories.
-</Note>
+```python Python
+import requests
+
+response = requests.get(
+    "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+)
+data = response.json()
+```
+
+```typescript TypeScript
+const response = await fetch(
+  "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+  {
+    headers: {
+      "X-API-Key": process.env.COZMO_API_KEY!,
+    },
+  }
+);
+const data = await response.json();
+```
+
+```go Go
+req, _ := http.NewRequest("GET",
+    "https://v2-nova-api.prod.czmx.in/api/org/"+orgID+"/agents", nil)
+req.Header.Set("X-API-Key", os.Getenv("COZMO_API_KEY"))
+
+resp, err := http.DefaultClient.Do(req)
+```
+
+</CodeGroup>
+
+## Organization ID
+
+All Nova API endpoints are scoped to your organization. Your `org_id` appears:
+
+- In the Dashboard URL: `https://dash.prod.czmx.in/org/{org_id}/...`
+- In **Organization Settings** under "Organization ID"
+- In any API response under the `organization_id` field
+
+```
+https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents
+                                             ^^^^^^^^
+                                             Your org ID
+```
+
+## Using environment variables
+
+Store credentials in environment variables, never in source code:
+
+<Tabs>
+  <Tab title="Shell">
+    ```bash
+    export COZMO_API_KEY="your_api_key_here"
+    export COZMO_ORG_ID="your_org_id_here"
+    ```
+  </Tab>
+  <Tab title=".env file">
+    ```bash
+    COZMO_API_KEY=your_api_key_here
+    COZMO_ORG_ID=your_org_id_here
+    ```
+
+    Load with `python-dotenv` (Python), `dotenv` (Node.js), or `godotenv` (Go):
+
+    ```bash
+    pip install python-dotenv
+    npm install dotenv
+    go get github.com/joho/godotenv
+    ```
+  </Tab>
+  <Tab title="GitHub Actions">
+    ```yaml
+    env:
+      COZMO_API_KEY: ${{ secrets.COZMO_API_KEY }}
+      COZMO_ORG_ID: ${{ secrets.COZMO_ORG_ID }}
+
+    steps:
+      - name: Trigger workflow run
+        run: |
+          curl -X POST \
+            "https://v2-nova-api.prod.czmx.in/api/org/$COZMO_ORG_ID/workflow-runs" \
+            -H "X-API-Key: $COZMO_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"workflow_id":"wf_abc123","prospect":{"phone":"+19175551234"}}'
+    ```
+  </Tab>
+  <Tab title="Docker">
+    ```bash
+    docker run \
+      -e COZMO_API_KEY=your_api_key \
+      -e COZMO_ORG_ID=your_org_id \
+      your-app:latest
+    ```
+
+    Or use Docker secrets for production:
+
+    ```yaml
+    # docker-compose.yml
+    services:
+      app:
+        image: your-app:latest
+        secrets:
+          - cozmo_api_key
+    secrets:
+      cozmo_api_key:
+        external: true
+    ```
+  </Tab>
+</Tabs>
+
+## Building an authenticated client
+
+Rather than passing headers manually on every request, build a reusable client:
+
+<CodeGroup>
+
+```python Python
+import os
+import requests
+from typing import Any
+
+class CozmoClient:
+    BASE_URL = "https://v2-nova-api.prod.czmx.in/api"
+
+    def __init__(self, api_key: str | None = None, org_id: str | None = None):
+        self.api_key = api_key or os.environ["COZMO_API_KEY"]
+        self.org_id = org_id or os.environ["COZMO_ORG_ID"]
+        self.session = requests.Session()
+        self.session.headers.update({
+            "X-API-Key": self.api_key,
+            "Content-Type": "application/json",
+        })
+
+    def _url(self, path: str) -> str:
+        return f"{self.BASE_URL}/org/{self.org_id}/{path.lstrip('/')}"
+
+    def get(self, path: str, **kwargs) -> Any:
+        resp = self.session.get(self._url(path), **kwargs)
+        resp.raise_for_status()
+        return resp.json()
+
+    def post(self, path: str, **kwargs) -> Any:
+        resp = self.session.post(self._url(path), **kwargs)
+        resp.raise_for_status()
+        return resp.json()
+
+    def patch(self, path: str, **kwargs) -> Any:
+        resp = self.session.patch(self._url(path), **kwargs)
+        resp.raise_for_status()
+        return resp.json()
+
+    def delete(self, path: str, **kwargs) -> Any:
+        resp = self.session.delete(self._url(path), **kwargs)
+        resp.raise_for_status()
+        return resp.json()
+
+# Usage
+client = CozmoClient()  # reads from env
+agents = client.get("agents")
+```
+
+```typescript TypeScript
+const BASE_URL = "https://v2-nova-api.prod.czmx.in/api";
+
+class CozmoClient {
+  private headers: Record<string, string>;
+  private baseUrl: string;
+
+  constructor(
+    apiKey = process.env.COZMO_API_KEY!,
+    private orgId = process.env.COZMO_ORG_ID!
+  ) {
+    this.headers = {
+      "X-API-Key": apiKey,
+      "Content-Type": "application/json",
+    };
+    this.baseUrl = `${BASE_URL}/org/${orgId}`;
+  }
+
+  async get<T>(path: string, params?: Record<string, string>): Promise<T> {
+    const url = new URL(`${this.baseUrl}/${path}`);
+    if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    const res = await fetch(url.toString(), { headers: this.headers });
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return res.json();
+  }
+
+  async post<T>(path: string, body: unknown): Promise<T> {
+    const res = await fetch(`${this.baseUrl}/${path}`, {
+      method: "POST",
+      headers: this.headers,
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return res.json();
+  }
+
+  async patch<T>(path: string, body: unknown): Promise<T> {
+    const res = await fetch(`${this.baseUrl}/${path}`, {
+      method: "PATCH",
+      headers: this.headers,
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return res.json();
+  }
+}
+
+// Usage
+const client = new CozmoClient();
+const agents = await client.get("agents");
+```
+
+```go Go
+package cozmo
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "os"
+    "time"
+)
+
+type Client struct {
+    apiKey  string
+    orgID   string
+    baseURL string
+    http    *http.Client
+}
+
+func NewClient(opts ...func(*Client)) *Client {
+    c := &Client{
+        apiKey:  os.Getenv("COZMO_API_KEY"),
+        orgID:   os.Getenv("COZMO_ORG_ID"),
+        baseURL: "https://v2-nova-api.prod.czmx.in/api",
+        http:    &http.Client{Timeout: 30 * time.Second},
+    }
+    for _, opt := range opts {
+        opt(c)
+    }
+    return c
+}
+
+func WithAPIKey(key string) func(*Client) { return func(c *Client) { c.apiKey = key } }
+func WithOrgID(id string) func(*Client)   { return func(c *Client) { c.orgID = id } }
+
+func (c *Client) do(method, path string, body any, out any) error {
+    url := fmt.Sprintf("%s/org/%s/%s", c.baseURL, c.orgID, path)
+
+    var bodyReader io.Reader
+    if body != nil {
+        b, _ := json.Marshal(body)
+        bodyReader = bytes.NewReader(b)
+    }
+
+    req, err := http.NewRequest(method, url, bodyReader)
+    if err != nil {
+        return err
+    }
+    req.Header.Set("X-API-Key", c.apiKey)
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := c.http.Do(req)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode >= 400 {
+        var errBody map[string]string
+        json.NewDecoder(resp.Body).Decode(&errBody)
+        return fmt.Errorf("API error %d: %s", resp.StatusCode, errBody["message"])
+    }
+
+    return json.NewDecoder(resp.Body).Decode(out)
+}
+```
+
+</CodeGroup>
+
+## Authentication errors
+
+| Status | Meaning | Resolution |
+|--------|---------|------------|
+| `401 Unauthorized` | API key is missing, malformed, or revoked | Check the `X-API-Key` header; regenerate if needed |
+| `403 Forbidden` | API key valid but lacks permission | Verify the key has access to the resource |
+
+**Example 401 response:**
+
+```json
+{
+  "error": "Unauthorized",
+  "message": "Invalid or missing API key"
+}
+```
+
+If you receive a `401` after a previously working key:
+1. Check your key has not been revoked in the Dashboard
+2. Confirm you are using the key for the correct organization
+3. Verify no trailing spaces or newlines in your env var
+
+## Key rotation
+
+Rotate API keys regularly or when a team member leaves:
+
+1. Create a new key in **Dashboard - Organization Settings - API Keys**
+2. Update your application's secrets without downtime (create the new key while the old one is still active)
+3. Deploy the new key to your services
+4. Verify requests are succeeding with the new key
+5. Revoke the old key
+
+<Tip>
+  Create one key per service (e.g. `api-server`, `webhook-worker`, `cli-automation`). This way you can revoke a single service's access without affecting others.
+</Tip>
+
+## Security best practices
+
+<CardGroup cols={2}>
+  <Card title="Never commit API keys" icon="eye-slash">
+    Add `.env` to `.gitignore`. Scan your git history with `git log -p | grep COZMO_API_KEY` before pushing to public repositories.
+  </Card>
+  <Card title="Server-side only" icon="server">
+    API keys grant org-level access. Never expose them in browser JavaScript, mobile app binaries, or client-side code.
+  </Card>
+  <Card title="Use a secrets manager" icon="lock">
+    In production, use AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault, or similar rather than environment variables in plain text config files.
+  </Card>
+  <Card title="One key per environment" icon="shield-check">
+    Maintain separate keys for `production`, `staging`, and `development` so you can rotate one without affecting others.
+  </Card>
+  <Card title="Rotate after incidents" icon="rotate">
+    If a key is exposed (leaked in logs, committed to git, sent in a message), revoke it immediately and rotate all dependent services.
+  </Card>
+  <Card title="Audit key usage" icon="gauge">
+    Check the Dashboard periodically to review which keys are active. Revoke any keys that are no longer in use.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Make your first authenticated API call in minutes.
+  </Card>
+  <Card title="Rate Limits" icon="gauge" href="/rate-limits">
+    Understand request limits and how to handle 429 responses.
+  </Card>
+</CardGroup>

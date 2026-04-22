@@ -1,0 +1,164 @@
+---
+title: "MCP Server"
+description: "Give your AI coding assistant accurate, up-to-date knowledge of the Nova API - create agents, start sessions, and handle webhooks without hallucinations"
+---
+
+## Overview
+
+The Cozmo MCP server connects your AI coding assistant directly to the Nova API specification. Once configured, your assistant can generate accurate Nova API code - correct endpoint paths, field names, authentication headers, and payload shapes - instead of relying on training data that may be outdated or incorrect.
+
+## Prerequisites
+
+- Node.js 18 or later
+- A Cozmo API key from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
+- One of the supported IDEs below
+
+## Setup
+
+**Step 1 - Install the MCP server**
+
+```bash
+npm install -g @cozmoai/mcp-server
+```
+
+**Step 2 - Configure your IDE**
+
+Pick your IDE and follow its setup guide:
+
+<CardGroup cols={2}>
+  <Card title="Cursor" icon="arrow-pointer" href="/mcp/cursor">
+    Add `.cursor/mcp.json` to your project.
+  </Card>
+  <Card title="Claude Code" icon="asterisk" href="/mcp/claude-code">
+    Register via `claude mcp add`.
+  </Card>
+  <Card title="Windsurf" icon="water" href="/mcp/windsurf">
+    Add `.windsurf/mcp.json` to your project.
+  </Card>
+  <Card title="VSCode" icon="code" href="/mcp/vscode">
+    Add `.vscode/mcp.json` to your project.
+  </Card>
+</CardGroup>
+
+**Step 3 - Verify**
+
+Open your IDE's AI assistant and ask:
+
+> *"What are the required fields to start a Cozmo agent session?"*
+
+A correct response will include `agentId` and `instruction` as required fields, with `session_id` as a client-generated UUID v4 passed in the URL path.
+
+## How it works
+
+When your AI assistant needs Nova API information, it queries the Cozmo MCP server instead of relying on training data. The server returns up-to-date information directly from the Nova API specification.
+
+```
+Your IDE
+   │
+   └── AI Assistant (Claude, Copilot, Cascade...)
+            │
+            └── Cozmo MCP Server
+                     │
+                     ├── Nova API endpoint reference
+                     ├── Request / response schemas
+                     ├── Webhook payload structures
+                     └── Authentication patterns
+```
+
+Each query is a separate connection. The MCP server does not receive your actual API calls or call data - it only serves API reference information.
+
+## Configuration options
+
+All IDEs use the same server configuration:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `command` | Yes | `npx` (runs the installed package) |
+| `args` | Yes | `["@cozmoai/mcp-server"]` |
+| `env.COZMO_API_KEY` | No | Your API key - can be set in shell profile instead |
+| `env.COZMO_ORG_ID` | No | Your org ID - can be set in shell profile instead |
+
+**Minimal config (env vars set in shell):**
+
+```json
+{
+  "servers": {
+    "cozmo-nova": {
+      "command": "npx",
+      "args": ["@cozmoai/mcp-server"]
+    }
+  }
+}
+```
+
+**Explicit config:**
+
+```json
+{
+  "servers": {
+    "cozmo-nova": {
+      "command": "npx",
+      "args": ["@cozmoai/mcp-server"],
+      "env": {
+        "COZMO_API_KEY": "your_api_key",
+        "COZMO_ORG_ID": "your_org_id"
+      }
+    }
+  }
+}
+```
+
+<Warning>
+  Do not commit API keys to version control. Use the minimal config and set `COZMO_API_KEY` in your shell profile, or add the config file with secrets to `.gitignore`.
+</Warning>
+
+## What the MCP server provides
+
+| Category | Details |
+|----------|---------|
+| **Endpoint reference** | All Nova API paths, HTTP methods, path and query parameters |
+| **Request schemas** | Every request body field with types and required/optional status |
+| **Response schemas** | Complete response object shapes for all endpoints |
+| **Webhook payloads** | Full `call.completed`, `call.failed`, `session.completed`, `session.failed` structures |
+| **Authentication** | `X-API-Key` header usage, org-scoped URL pattern |
+| **Code examples** | Verified patterns in Python, TypeScript, and Go |
+
+## Example prompts
+
+Once configured, ask your AI assistant:
+
+- *"Create a Python function that starts an agent session for a prospect"*
+- *"Show me how to handle the `call.completed` webhook in Express and extract the evaluations"*
+- *"Write a TypeScript function that creates a workflow run and handles rate limit errors"*
+- *"What fields does `CallDetailResponse` return?"*
+- *"How do I create a voice agent with a Deepgram transcriber and an ElevenLabs voice?"*
+
+## Managing the server
+
+```bash
+# Update to the latest version
+npm update -g @cozmoai/mcp-server
+
+# Remove from a specific IDE (CLI shortcut)
+cozmo mcp remove cursor
+cozmo mcp remove claude-code
+cozmo mcp remove windsurf
+cozmo mcp remove vscode
+```
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Keep secrets out of version control" icon="eye-slash">
+    Use the minimal config (no `env` block) and set `COZMO_API_KEY` in each developer's shell profile. Commit the config file safely.
+  </Card>
+  <Card title="Reload after config changes" icon="rotate-right">
+    Most IDEs require a window reload to pick up MCP config changes. Changes to the config file won't take effect until the IDE is restarted.
+  </Card>
+  <Card title="Keep the server updated" icon="arrow-up">
+    Run `npm update -g @cozmoai/mcp-server` periodically to get the latest API schemas and examples as the Nova API evolves.
+  </Card>
+  <Card title="Use CLAUDE.md or rules files" icon="file-lines">
+    Pair the MCP server with a project-level context file (CLAUDE.md, .windsurf/rules.md) to give your assistant persistent context about your specific integration.
+  </Card>
+</CardGroup>

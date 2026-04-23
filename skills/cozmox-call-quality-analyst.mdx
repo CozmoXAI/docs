@@ -1,0 +1,195 @@
+---
+title: "Call Quality Analyst"
+description: "Analyze Cozmo call transcripts, tool logs, evaluations, and costs into QA reports, coaching notes, and trend dashboards"
+---
+
+## Overview
+
+The `cozmox-call-quality-analyst` skill turns raw Cozmo call data into structured QA reports, coaching notes, and trend analysis. Use it when evaluating agent performance, summarizing call details, inspecting transcripts, finding tool failures, analyzing costs, or producing call-quality dashboards from Cozmo call APIs.
+
+## Install
+
+```bash
+npx skills add CozmoXAI/skills --skill cozmox-call-quality-analyst -a claude-code -y
+```
+
+## Privacy and safety rules
+
+All analysis follows these rules by default:
+
+1. **Minimize PII.** Do not repeat full phone numbers, emails, recording URLs, or transcript passages unless necessary.
+2. **Redact phone and email by default:**
+   - Phone: `+1555•••4567`
+   - Email: `a••@example.com`
+3. **Never include a recording URL** in a report unless the user explicitly requests it.
+4. **Quote transcripts sparingly** — short excerpts only when they support a QA finding. Prefer paraphrase.
+5. **Separate facts from interpretation.** Tool logs and evaluations are evidence; coaching recommendations are interpretation.
+6. **If data is missing, say so.** Do not infer status, outcome, or intent from absent fields.
+
+## Analysis workflow
+
+1. **Identify the source:**
+   - Single call details JSON
+   - Multiple call details JSON files
+   - Live API call: `GET /calls/{call_id}`
+   - List endpoint followed by selected detail fetches
+
+2. **Normalize fields:**
+   - `status`, `direction`, `call_type`, `started_at`, `ended_at`, `duration_seconds`
+   - `agent_name`, `initial_agent_id`, `participating_agent_ids`
+   - `prospect_external_id`, redacted phone/email/name if needed
+   - `summary`, `transcript_text`, `detected_intents`
+   - `tool_logs`, `evaluations`
+   - `cost_usd`, `tokens_input`, `tokens_output`, `tts_characters`, `stt_duration_seconds`
+
+3. Score outcome quality
+4. Identify reliability issues
+5. Identify agent behavior issues
+6. Produce the report in the requested format
+
+## Scoring rubric
+
+Use a 1–5 scale only when enough evidence exists. If the call lacks transcript or evaluation data, provide a qualitative summary instead.
+
+| Dimension | 5 | 3 | 1 |
+|-----------|---|---|---|
+| Goal completion | User goal clearly completed | Partial completion or handoff | Goal missed or abandoned |
+| Conversation control | Clear, concise, natural | Some repetition or ambiguity | Confusing, loops, ignores user |
+| Policy/tool safety | Correct tool use and boundaries | Minor tool uncertainty | Unsafe action or hallucinated tool result |
+| Data capture | Required fields captured accurately | Some fields missing | Key data wrong or absent |
+| User experience | Smooth and respectful | Mixed/friction | Poor, abrupt, or frustrating |
+
+## Tool log analysis
+
+For each tool log entry, inspect:
+
+- Tool name
+- Status
+- Arguments shape
+- Result shape
+- Error message
+- Timing/order relative to transcript if available
+
+Classify each issue as one of:
+
+| Classification | Meaning |
+|----------------|---------|
+| `tool_error` | Tool returned an error or failed status |
+| `bad_arguments` | Malformed, incomplete, or unsafe arguments |
+| `unexpected_result` | Result contradicts agent response |
+| `unnecessary_call` | Tool call did not advance the call |
+| `missing_call` | Transcript indicates the agent should have used a tool but did not |
+
+## Evaluation analysis
+
+For each evaluation item:
+
+- Record `outcome_key`, boolean/result, extracted value, and reasoning
+- Treat evaluator reasoning as evidence, not absolute truth
+- Compare evaluator outputs to transcript and tool logs when available
+- Flag contradictions — for example, a successful outcome flag but a failed call status
+
+## Cost and performance analysis
+
+Report cost only with context:
+
+```
+Cost: $0.42
+Duration: 312s
+Cost/min: $0.081
+Input/output tokens: 12,400 / 1,900
+TTS chars: 7,200
+STT duration: 290s
+```
+
+If a denominator is zero or absent, do not calculate ratios.
+
+## Single-call report template
+
+```markdown
+# Call QA Report
+
+## Snapshot
+- Call ID: <id>
+- Status: <status>
+- Direction/type: <direction>/<call_type>
+- Agent: <agent_name or id>
+- Prospect: <redacted external ID/phone/email>
+- Started/ended: <timestamps>
+- Duration: <duration_seconds>s
+
+## Outcome
+<one paragraph: what happened and whether the call achieved its goal>
+
+## Scores
+| Dimension | Score | Evidence |
+|-----------|------:|---------|
+| Goal completion | 1-5/N.A. | <brief evidence> |
+| Conversation control | 1-5/N.A. | <brief evidence> |
+| Policy/tool safety | 1-5/N.A. | <brief evidence> |
+| Data capture | 1-5/N.A. | <brief evidence> |
+| User experience | 1-5/N.A. | <brief evidence> |
+
+## Tool and workflow issues
+- <issue or "No tool issues visible in the provided data.">
+
+## Coaching notes
+- Keep: <what worked>
+- Improve: <specific behavior>
+- Suggested prompt/tool change: <concrete change>
+
+## Data gaps
+- <missing transcript/evaluations/tool logs/etc.>
+```
+
+## Multi-call trend report template
+
+```markdown
+# Cozmox Call Quality Trend Report
+
+## Dataset
+- Calls analyzed: <n>
+- Date range: <range>
+- Agents/workflows: <names or ids>
+
+## Top findings
+1. <finding with count/percentage>
+2. <finding with count/percentage>
+3. <finding with count/percentage>
+
+## Metrics
+| Metric | Value |
+|--------|------:|
+| Completion/success rate | <percent> |
+| Average duration | <seconds> |
+| Tool error rate | <percent> |
+| Average cost per call | <$ amount> |
+| Average cost per completed call | <$ amount> |
+
+## Root causes
+- <root cause>
+
+## Recommendations
+- <prompt/workflow/tooling changes>
+
+## Follow-up queries
+- <which calls to inspect next>
+```
+
+## Live API retrieval
+
+To fetch call details from the API:
+
+```bash
+# Get a single call
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/calls/$CALL_ID" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+
+# List recent calls
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/calls" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+```
+
+Never print the API key. If generating scripts, load it from the environment.

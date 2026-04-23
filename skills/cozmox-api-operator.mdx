@@ -1,0 +1,206 @@
+---
+title: "API Operator"
+description: "Safely use, test, and code against Cozmo Nova API endpoints — curl, TypeScript, Python, MCP tools, integration tests, and operational runbooks"
+---
+
+## Overview
+
+The `cozmox-api-operator` skill gives your AI agent precise, safety-first knowledge of the Cozmo Nova API. Use it when writing curl commands, TypeScript/Python clients, MCP tools, integration tests, or operational runbooks against org-scoped API endpoints.
+
+The skill's main goal: build correct org-scoped API paths, avoid leaking API keys, prevent accidental writes, and validate foreign IDs before calling any write endpoint.
+
+## Install
+
+```bash
+npx skills add CozmoXAI/skills --skill cozmox-api-operator -a claude-code -y
+```
+
+## Non-negotiable rules this skill enforces
+
+1. Never ask the user to paste a live API key into code, logs, chat, or committed files.
+2. Never accept `org_id` as an end-user input when writing reusable code — always use `COZMOX_ORG_ID` from trusted server config.
+3. Never put `X-API-Key` in browser or client-side code. API calls must run server-side.
+4. Treat `POST`, `PATCH`, and `DELETE` as side-effecting — state the side effect before executing or generating runnable commands.
+5. Before any write that references an existing resource ID, validate that resource through an org-scoped read first.
+6. For Start Agent Session, always validate `agentId` with `GET /agents/{agent_id}` before calling `/agent-sessions/{session_id}/start`.
+7. When the user asks for a live request, prefer a dry-run first unless they explicitly requested execution.
+
+## Environment contract
+
+```bash
+COZMOX_API_BASE_URL="https://v2-nova-api.prod.czmx.in"
+COZMOX_ORG_ID="your-org-uuid"
+COZMOX_API_KEY="czmx_..."
+```
+
+All URLs follow this pattern:
+
+```
+${COZMOX_API_BASE_URL}/api/org/${COZMOX_ORG_ID}/${resource_path}
+```
+
+`resource_path` is always relative — never include `/api/org/{org_id}` inside it.
+
+## Endpoint reference
+
+| Purpose | Method | Path |
+|---------|--------|------|
+| List agents | GET | `/agents` |
+| Create agent | POST | `/agents` |
+| Get agent | GET | `/agents/{agent_id}` |
+| Update agent | PATCH | `/agents/{agent_id}` |
+| Delete agent | DELETE | `/agents/{agent_id}` |
+| List calls | GET | `/calls` |
+| Get call details | GET | `/calls/{call_id}` |
+| List voices | GET | `/voices` |
+| List workflows | GET | `/workflows` |
+| Get workflow | GET | `/workflows/{workflow_id}` |
+| Create workflow run with prospect | POST | `/workflow-runs` |
+| Get agent session | GET | `/agent-sessions/{session_id}` |
+| Start agent session | POST | `/agent-sessions/{session_id}/start` |
+
+## Standard workflow
+
+1. **Classify** the request as read-only, write, or destructive.
+2. **Choose** the endpoint from the map. If no endpoint matches, say the public docs do not expose it — do not invent paths.
+3. **Construct** the org-scoped URL using trusted `COZMOX_ORG_ID`.
+4. **Validate** referenced IDs for write operations:
+   - `agent_id` / `agentId` → `GET /agents/{agent_id}`
+   - `workflow_id` → `GET /workflows/{workflow_id}`
+   - `session_id` for start → generate a new UUID v4 (never reuse an existing session ID for a new start)
+5. **Make the call** with `X-API-Key` header and `Content-Type: application/json` for JSON bodies.
+6. **Return** structured results with IDs, status, and one concrete next step.
+
+## Curl templates
+
+**Read:**
+
+```bash
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agents" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+```
+
+**Create workflow run with prospect:**
+
+```bash
+curl --request POST \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflow-runs" \
+  --header "Content-Type: application/json" \
+  --header "X-API-Key: $COZMOX_API_KEY" \
+  --data '{
+    "workflow_id": "WORKFLOW_UUID",
+    "scheduled_at": "2026-04-22T12:00:00Z",
+    "prospect": {
+      "phone": "+15551234567",
+      "country": "US",
+      "first_name": "Ada",
+      "last_name": "Lovelace",
+      "email": "ada@example.com",
+      "external_id": "crm-123",
+      "timezone": "America/New_York",
+      "custom_data": {}
+    }
+  }'
+```
+
+**Start agent session safely (3-step):**
+
+```bash
+# Step 1 — validate the agent belongs to this org
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agents/$AGENT_ID" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+
+# Step 2 — generate a new session UUID v4
+SESSION_ID="$(node -e 'console.log(crypto.randomUUID())')"
+
+# Step 3 — start the session
+curl --request POST \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agent-sessions/$SESSION_ID/start" \
+  --header "Content-Type: application/json" \
+  --header "X-API-Key: $COZMOX_API_KEY" \
+  --data '{
+    "agentId": "'"$AGENT_ID"'",
+    "instruction": "Start the session using the approved brief.",
+    "title": "Manual launch",
+    "source": "api"
+  }'
+```
+
+## TypeScript fetch wrapper
+
+```typescript
+export type CozmoxConfig = {
+  baseUrl: string;
+  orgId: string;
+  apiKey: string;
+};
+
+export async function cozmoxRequest<T>(
+  config: CozmoxConfig,
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  if (!path.startsWith("/")) path = `/${path}`;
+  if (path.includes("/api/org/")) throw new Error("path must be relative to /api/org/{org_id}");
+
+  const response = await fetch(`${config.baseUrl}/api/org/${config.orgId}${path}`, {
+    method,
+    headers: {
+      "X-API-Key": config.apiKey,
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    throw new Error(`Cozmox API ${method} ${path} failed: ${response.status} ${JSON.stringify(data)}`);
+  }
+  return data as T;
+}
+```
+
+## Bundled CLI script
+
+The skill includes `scripts/cozmox-request.mjs` — a dependency-free Node.js CLI for dry-run and guarded live API calls.
+
+```bash
+# Dry-run a read request (redacts the API key in output)
+node scripts/cozmox-request.mjs --method GET --path /agents --dry-run
+
+# Execute a read request
+node scripts/cozmox-request.mjs --method GET --path /agents
+
+# Execute a write request (requires both env flag and CLI flag)
+COZMOX_ALLOW_WRITES=true node scripts/cozmox-request.mjs \
+  --method POST \
+  --path /workflow-runs \
+  --body-json ./payload.json \
+  --confirm-write true
+```
+
+Writes are blocked unless `COZMOX_ALLOW_WRITES=true` **and** `--confirm-write true` are both present. The API key is always redacted in dry-run output.
+
+## Output format
+
+When reporting API work, the agent uses this structure:
+
+```
+## Action
+What was requested and which endpoint was used.
+
+## Safety checks
+- Org ID came from trusted config: yes/no
+- Referenced resource ownership validated: yes/no/not applicable
+- Write/destructive action confirmed: yes/no/not applicable
+
+## Result
+Status, returned IDs, or summarized records.
+
+## Next step
+One concrete follow-up — checking a session, reviewing call details, or rotating a key.
+```

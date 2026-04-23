@@ -1,0 +1,244 @@
+---
+title: "Session Runner"
+description: "Safely launch Cozmo agent sessions and workflow runs with preflight checks, UUID idempotency, and live launch checklists"
+---
+
+## Overview
+
+The `cozmox-session-runner` skill makes your AI agent safety-first when starting agent sessions or creating workflow runs with prospects. Use it when launching sessions interactively, scheduling campaign runs, preparing payloads, validating agent or workflow IDs, or monitoring launched sessions without causing duplicate or cross-org side effects.
+
+## Install
+
+```bash
+npx skills add CozmoXAI/skills --skill cozmox-session-runner -a claude-code -y
+```
+
+## Choose the right launch type
+
+### Start Agent Session
+
+Use this for interactive or direct agent runs.
+
+```http
+POST /api/org/{org_id}/agent-sessions/{session_id}/start
+```
+
+**Required body fields:**
+
+```json
+{
+  "agentId": "agent uuid",
+  "instruction": "initial user message"
+}
+```
+
+**Optional body fields:**
+
+```json
+{
+  "title": "human-readable label",
+  "source": "caller identifier, such as mcp or api",
+  "prospectId": "existing prospect uuid"
+}
+```
+
+### Create Workflow Run with Prospect
+
+Use this for campaign or workflow execution with prospect creation in one request.
+
+```http
+POST /api/org/{org_id}/workflow-runs
+```
+
+**Required body fields:**
+
+```json
+{
+  "workflow_id": "workflow uuid",
+  "prospect": {
+    "phone": "+15551234567",
+    "country": "US"
+  }
+}
+```
+
+Optional fields include `scheduled_at`, prospect `email`, `external_id`, `first_name`, `last_name`, `timezone`, and `custom_data`.
+
+## Launch safety contract
+
+Before generating or executing any live launch command:
+
+1. Confirm this is a write action and state the side effect.
+2. Use `COZMOX_ORG_ID` from trusted config — never ask the user for a path org unless they are configuring the server.
+3. Validate the agent or workflow under the configured org before launching.
+4. Use a UUID v4 for `session_id`. Generate one if the user did not supply it.
+5. Deduplicate based on external ID or launch intent where possible — if `prospect.external_id` exists, include it.
+6. Never print a live API key.
+7. For scheduled runs, normalize `scheduled_at` to ISO 8601 with timezone. Do not guess local time — ask or use an explicitly provided timezone and date.
+8. After launch, return only the important IDs and next verification command.
+
+## Start-session preflight
+
+Before calling `/agent-sessions/{session_id}/start`, validate the agent first:
+
+```bash
+# Step 1 — validate the agent belongs to this org
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agents/$AGENT_ID" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+
+# Step 2 — generate a new session UUID
+SESSION_ID="$(node -e 'console.log(crypto.randomUUID())')"
+
+# Step 3 — start the session
+curl --request POST \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agent-sessions/$SESSION_ID/start" \
+  --header "Content-Type: application/json" \
+  --header "X-API-Key: $COZMOX_API_KEY" \
+  --data '{
+    "agentId": "'"$AGENT_ID"'",
+    "instruction": "Use the approved brief and ask one clarifying question if needed.",
+    "title": "Support intake test",
+    "source": "api"
+  }'
+```
+
+If the preflight `GET` returns 404, do not start. The skill will respond:
+
+```
+The agent was not found in the configured organization, so I did not start a session.
+```
+
+The skill never reveals whether the ID could belong to another organization.
+
+## Workflow-run preflight
+
+Before calling `/workflow-runs`, validate the workflow first:
+
+```bash
+# Step 1 — validate the workflow belongs to this org
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflows/$WORKFLOW_ID" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+
+# Step 2 — create the run
+curl --request POST \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflow-runs" \
+  --header "Content-Type: application/json" \
+  --header "X-API-Key: $COZMOX_API_KEY" \
+  --data '{
+    "workflow_id": "'"$WORKFLOW_ID"'",
+    "scheduled_at": "2026-04-22T12:00:00Z",
+    "prospect": {
+      "phone": "+15551234567",
+      "country": "US",
+      "email": "ada@example.com",
+      "external_id": "crm-123",
+      "first_name": "Ada",
+      "last_name": "Lovelace",
+      "timezone": "America/New_York",
+      "custom_data": { "campaign": "spring-demo" }
+    }
+  }'
+```
+
+If this returns 404, do not create the run.
+
+## Payload templates
+
+### Session start payload
+
+```json
+{
+  "agentId": "00000000-0000-4000-8000-000000000000",
+  "instruction": "Use the approved brief and ask one clarifying question if needed.",
+  "title": "Support intake test",
+  "source": "mcp"
+}
+```
+
+### Workflow run payload
+
+```json
+{
+  "workflow_id": "00000000-0000-4000-8000-000000000000",
+  "scheduled_at": "2026-04-22T12:00:00Z",
+  "prospect": {
+    "phone": "+15551234567",
+    "country": "US",
+    "email": "ada@example.com",
+    "external_id": "crm-123",
+    "first_name": "Ada",
+    "last_name": "Lovelace",
+    "timezone": "America/New_York",
+    "custom_data": {
+      "campaign": "spring-demo"
+    }
+  }
+}
+```
+
+## Bundled helper script
+
+The skill ships with `scripts/prepare-launch.mjs` — a Node.js script that creates safe launch payload skeletons and generates UUIDs without calling the API.
+
+```bash
+# Generate a session start payload
+node scripts/prepare-launch.mjs session \
+  --agent-id 00000000-0000-4000-8000-000000000000 \
+  --instruction "Start the intake flow"
+
+# Generate a workflow run payload
+node scripts/prepare-launch.mjs workflow \
+  --workflow-id 00000000-0000-4000-8000-000000000000 \
+  --phone +15551234567 \
+  --country US \
+  --external-id crm-123
+```
+
+The script outputs the ready-to-use JSON payload and a suggested `SESSION_ID` UUID v4 without performing any live API calls.
+
+## Live launch checklist
+
+Before executing a live launch, the skill presents this checklist. All items must be `yes` (or `not applicable`) before proceeding:
+
+| Check | Value |
+|-------|-------|
+| Launch type | `session` \| `workflow-run` |
+| Configured org ID | `<first 8 chars>…<last 4 chars>` |
+| Resource validated under org | yes / no |
+| Prospect phone/country present | yes / no / not applicable |
+| `scheduled_at` timezone explicit | yes / no / not applicable |
+| Session UUID v4 | `<uuid>` / not applicable |
+| Write confirmed by user | yes / no |
+
+The launch does not proceed if any required item is `no`.
+
+## Post-launch verification
+
+After starting a session, verify its status:
+
+```bash
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agent-sessions/$SESSION_ID" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+```
+
+For workflow runs, the skill returns the `workflow_run_id` and `external_id` from the response. If there is no documented read endpoint for workflow runs, the skill says so instead of inventing one.
+
+## Result template
+
+```
+## Launched
+Type: session | workflow-run
+ID: <session_id or workflow_run_id>
+External ID: <external_id if present>
+
+## Validations performed
+- Agent/workflow ownership checked under configured org.
+- API key not printed.
+- Duplicate/idempotency handling described.
+
+## Verify
+<safe GET command or dashboard instruction>
+```

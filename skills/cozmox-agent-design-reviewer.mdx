@@ -1,0 +1,196 @@
+---
+title: "Agent Design Reviewer"
+description: "Design and review Cozmo voice agent prompts, workflows, escalation policies, and launch readiness"
+---
+
+## Overview
+
+The `cozmox-agent-design-reviewer` skill turns a rough intent into a launch-ready agent specification, and reviews existing agents against safety and quality criteria. Use it when creating a new agent spec, improving an existing prompt, reviewing behavior from call data, choosing voices, or preparing safe create/update-agent payloads.
+
+## Install
+
+```bash
+npx skills add CozmoXAI/skills --skill cozmox-agent-design-reviewer -a claude-code -y
+```
+
+## Design goals
+
+A well-designed Cozmo voice agent has:
+
+1. A narrow purpose and measurable success criteria
+2. A clear, concise first turn
+3. A short, explicit identity and scope statement
+4. Tool-use rules that say when to call a tool, when not to, and how to handle failures
+5. Escalation and handoff rules
+6. PII and consent boundaries
+7. A fallback strategy for ambiguity, silence, interruptions, and angry users
+8. A test suite of realistic call scenarios
+
+## Agent spec template
+
+Use this template when designing a new agent:
+
+```markdown
+# Agent specification
+
+## Purpose
+<one sentence>
+
+## Success criteria
+- <measurable outcome 1>
+- <measurable outcome 2>
+
+## Audience and context
+- Caller/user type:
+- Channel:
+- Region/language:
+- Compliance constraints:
+
+## Voice and style
+- Tone:
+- Pace:
+- Vocabulary:
+- Things to avoid:
+
+## First turn
+<exact opening message>
+
+## Conversation policy
+- Ask at most one question at a time.
+- Confirm critical fields before submission.
+- Do not claim tool success until the tool returns success.
+- If uncertain, ask a clarifying question instead of guessing.
+
+## Required data capture
+| Field | Required? | Validation | Confirmation wording |
+|-------|-----------|------------|---------------------|
+| phone | yes/no | E.164 | "I have your number as ..." |
+
+## Tool policy
+| Tool | When to call | Required inputs | Success handling | Failure handling |
+|------|-------------|-----------------|-----------------|-----------------|
+
+## Escalation policy
+- Transfer/handoff when:
+- Apology wording:
+- Data to pass to human:
+
+## Guardrails
+- PII:
+- Payments:
+- Medical/legal/financial boundaries:
+- Abuse/safety:
+
+## Test calls
+1. Happy path:
+2. Missing data:
+3. Tool failure:
+4. User correction:
+5. Escalation:
+```
+
+## Review checklist
+
+When reviewing an existing agent or prompt, score each area:
+
+| Area | Check |
+|------|-------|
+| Scope | The agent has one primary job and avoids unrelated work. |
+| First turn | The opening is short, contextual, and asks one clear next step. |
+| Data capture | Required fields, validation rules, and confirmation wording are defined. |
+| Tool use | Tools have explicit preconditions and failure handling. |
+| Truthfulness | The agent does not claim to have done something before tool success. |
+| Recovery | Handles silence, interruption, corrections, and repeated failures. |
+| Escalation | Handoff rules are concrete and user-friendly. |
+| Compliance | PII, consent, recording, payments, and regulated advice boundaries are explicit. |
+| Measurement | Success/failure metrics can be observed in call data. |
+
+## Prompt improvement patterns
+
+Prefer specific operational rules:
+
+```text
+Before booking, repeat the date, time, timezone, and phone number.
+Ask the caller to confirm. Only call the booking tool after confirmation.
+```
+
+Avoid vague personality-only rules:
+
+```text
+Be helpful and book appointments well.
+```
+
+**Tool failure wording:**
+
+```text
+I'm having trouble checking that right now. I can take your details and
+have someone follow up, or you can try again later.
+```
+
+**Escalation wording:**
+
+```text
+I want to make sure this is handled correctly, so I'm going to pass
+this to a specialist with the details we've collected.
+```
+
+## API-aware workflow
+
+When live API access is available:
+
+**1. List voices when choosing a voice:**
+
+```bash
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/voices" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+```
+
+**2. Fetch the existing agent before updating:**
+
+```bash
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agents/$AGENT_ID" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+```
+
+**3. For create/update payloads:**
+- Include only fields supported by the current API
+- Do not invent unsupported properties
+- Before applying updates, present a diff and ask for explicit confirmation
+
+## Launch-readiness report
+
+```markdown
+# Cozmo Agent Launch Review
+
+## Verdict
+Ready | Ready with minor changes | Not ready
+
+## Strengths
+- <specific strength>
+
+## Blockers
+- <blocker and why it matters>
+
+## Recommended changes
+| Priority | Change | Expected impact |
+|----------|--------|----------------|
+| P0 | <must fix> | <impact> |
+| P1 | <should fix> | <impact> |
+
+## Test plan
+- <test scenario>
+
+## Final prompt/spec
+<clean version or patch diff>
+```
+
+## Using call analysis to improve the agent
+
+When call details are available, combine this skill with `cozmox-call-quality-analyst`:
+
+1. Extract recurring failures from transcripts and tool logs
+2. Map each failure to a prompt, workflow, or tool-policy change
+3. Add a regression test call for each failure
+4. Keep the agent prompt shorter after each revision — remove rules that did not affect failures

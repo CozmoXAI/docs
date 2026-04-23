@@ -1,25 +1,28 @@
 ---
 title: "Cursor"
-description: "Add the Cozmo MCP server to Cursor so your AI assistant can generate accurate Nova API integrations"
+description: "Add the Cozmo MCP server to Cursor so your AI assistant can list agents, inspect calls, and trigger workflow runs without leaving the IDE"
 icon: "arrow-pointer"
 ---
 
 ## Prerequisites
 
 - [Cursor](https://cursor.sh) installed
-- Node.js 18 or later
-- A Cozmo API key from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
+- Node.js **20.11** or later
+- A Cozmo API key and Org ID from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
 
-## Step 1 - Install the MCP server
+## Step 1 - Clone and build the MCP server
 
 ```bash
-npm install -g @cozmoai/mcp-server
+git clone https://github.com/CozmoXAI/mcp-server.git ~/cozmox-mcp-server
+cd ~/cozmox-mcp-server
+npm install
+npm run build
 ```
 
-Verify the install:
+Verify the build:
 
 ```bash
-cozmo-mcp --version
+node ~/cozmox-mcp-server/dist/stdio.js --version 2>&1 || echo "Build OK"
 ```
 
 ## Step 2 - Configure Cursor
@@ -32,34 +35,47 @@ mkdir -p .cursor
 
 ```json .cursor/mcp.json
 {
-  "servers": {
-    "cozmo-nova": {
-      "command": "npx",
-      "args": ["@cozmoai/mcp-server"],
+  "mcpServers": {
+    "cozmox": {
+      "command": "node",
+      "args": ["/absolute/path/to/cozmox-mcp-server/dist/stdio.js"],
       "env": {
-        "COZMO_API_KEY": "YOUR_API_KEY",
-        "COZMO_ORG_ID": "YOUR_ORG_ID"
+        "COZMOX_API_BASE_URL": "https://v2-nova-api.prod.czmx.in",
+        "COZMOX_ORG_ID": "YOUR_ORG_ID",
+        "COZMOX_API_KEY": "YOUR_API_KEY",
+        "COZMOX_ENABLE_WRITE_TOOLS": "false",
+        "COZMOX_ENABLE_DESTRUCTIVE_TOOLS": "false"
       }
     }
   }
 }
 ```
 
+Replace `/absolute/path/to/cozmox-mcp-server` with the actual path where you cloned the repo (e.g. `/Users/you/cozmox-mcp-server`).
+
 <Warning>
-  Do not commit your API key to version control. Use an environment variable or `.env` file and add `.cursor/mcp.json` to `.gitignore` if it contains secrets.
+  Do not commit your API key to version control. For team setups, omit the `env` block and have each developer set `COZMOX_API_KEY` and `COZMOX_ORG_ID` in their shell profile.
 </Warning>
 
-For team setups, omit the `env` block and let each developer set `COZMO_API_KEY` in their shell profile:
+**Team-safe version** (no secrets in the file):
 
 ```json .cursor/mcp.json
 {
-  "servers": {
-    "cozmo-nova": {
-      "command": "npx",
-      "args": ["@cozmoai/mcp-server"]
+  "mcpServers": {
+    "cozmox": {
+      "command": "node",
+      "args": ["/absolute/path/to/cozmox-mcp-server/dist/stdio.js"]
     }
   }
 }
+```
+
+Each developer exports in their shell:
+
+```bash
+# ~/.zshrc or ~/.bashrc
+export COZMOX_API_KEY="your_api_key"
+export COZMOX_ORG_ID="your_org_id"
 ```
 
 ## Step 3 - Restart Cursor
@@ -70,144 +86,111 @@ Close and reopen Cursor, or run **Cursor: Reload Window** from the command palet
 
 Open Cursor's AI panel and ask:
 
-> *"What does the `startAgentSession` endpoint require?"*
+> *"Use cozmox_health_check to verify my Cozmo connection"*
 
-If the MCP server is working, the response will include the correct `agentId`, `instruction`, and optional `prospectId` fields from the Nova API spec - not hallucinated information.
+A successful response returns `{ "ok": true, "org_id": "..." }`.
+
+## Available tools
+
+### Read tools (always on)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_context` | Show server config — org ID and which tiers are enabled |
+| `cozmox_health_check` | Verify API key and org connectivity |
+| `cozmox_list_agents` | Paginated agent list; filter by `type` or `search` |
+| `cozmox_get_agent` | Full details for one agent by UUID |
+| `cozmox_list_calls` | Calls list with 12 filters (status, direction, agent, prospect, date range…) |
+| `cozmox_get_call_details` | Full call record — transcript, evaluations, recording metadata, tool logs |
+| `cozmox_list_voices` | Available voices by provider |
+| `cozmox_list_workflows` | Paginated workflow list |
+| `cozmox_get_workflow` | Single workflow with its latest definition |
+| `cozmox_get_agent_session` | Agent session details by UUID |
+
+### Write tools (`COZMOX_ENABLE_WRITE_TOOLS=true`)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_create_agent` | Create a new voice, chat, or video agent |
+| `cozmox_update_agent` | Partial update of an existing agent |
+| `cozmox_create_workflow_run_with_prospect` | Trigger a workflow run with a new or existing prospect |
+| `cozmox_start_agent_session` | Start an agent session with an initial instruction |
+
+### Destructive tools (`COZMOX_ENABLE_DESTRUCTIVE_TOOLS=true`)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_delete_agent` | Permanently delete an agent (requires literal confirmation) |
 
 ## What you can now ask Cursor
 
 <AccordionGroup>
-  <Accordion title="Creating agents">
-    Ask Cursor to generate a function that creates a Cozmo voice agent with specific LLM and voice settings:
+  <Accordion title="Listing and inspecting agents">
+    > *"List all my Cozmo agents and filter by voice type"*
 
-    > *"Write a TypeScript function that creates a voice agent with a GPT-4o LLM and a Deepgram transcriber"*
-
-    Cursor will generate code using the correct Nova API fields - `name`, `type`, `llm_config`, `transcriber_config` - all scoped to the right org endpoint.
+    Cursor calls `cozmox_list_agents` with `{ "type": "voice" }` and returns a paginated list using the correct org-scoped endpoint.
   </Accordion>
 
-  <Accordion title="Starting sessions">
-    Ask for a complete session start flow including idempotent UUID generation:
+  <Accordion title="Inspecting call records">
+    > *"Get the details for call [call_id] and show me the evaluations and transcript"*
 
-    > *"Show me how to start an agent session in Python with error handling and retry logic"*
-
-    Cursor will generate a function using `uuid4()` for idempotency and the `POST /org/{org_id}/agent-sessions/{session_id}/start` endpoint.
+    Cursor calls `cozmox_get_call_details` and returns the full call object including `evaluations[]`, `transcript_text`, `recording_url`, and `summary`.
   </Accordion>
 
-  <Accordion title="Handling webhooks">
-    Ask Cursor to scaffold a webhook handler for call events:
+  <Accordion title="Starting sessions (write tools on)">
+    > *"Start a session for agent [agent_id] with the instruction: follow up on the prospect's demo request"*
 
-    > *"Create an Express webhook handler for Cozmo's `call.completed` event that extracts evaluations and saves the recording URL"*
-
-    Cursor will generate a handler that correctly reads `data.evaluations`, `data.recording_url`, and `data.prospect` from the actual webhook payload shape.
+    Cursor calls `cozmox_start_agent_session`, which first validates the agent belongs to your org, then creates the session with an auto-generated UUID if you don't supply one.
   </Accordion>
 
-  <Accordion title="Triggering workflow runs">
-    Ask for a function to trigger a workflow run for a prospect:
+  <Accordion title="Triggering workflow runs (write tools on)">
+    > *"Create a workflow run for workflow [workflow_id] with prospect phone +19175551234, name Jane Smith"*
 
-    > *"Write a function that creates a workflow run for a new prospect, including custom_data for their CRM account tier"*
-
-    Cursor will use the correct `POST /org/{org_id}/workflow-runs` endpoint with `workflow_id`, `prospect.phone` in E.164 format, and the `custom_data` field.
+    Cursor calls `cozmox_create_workflow_run_with_prospect`, which validates workflow visibility then posts to `POST /workflow-runs`.
   </Accordion>
 </AccordionGroup>
-
-## Example - full session flow
-
-With the MCP server active, you can ask Cursor to generate an entire integration:
-
-> *"Give me a complete Node.js script that: creates a voice agent, starts a session for a prospect with phone +19175551234, and logs the session ID"*
-
-Cursor will produce something like:
-
-```typescript
-import { v4 as uuidv4 } from "uuid";
-
-const API_KEY = process.env.COZMO_API_KEY!;
-const ORG_ID = process.env.COZMO_ORG_ID!;
-const BASE = `https://v2-nova-api.prod.czmx.in/api/org/${ORG_ID}`;
-
-async function main() {
-  // 1. Create agent
-  const agentRes = await fetch(`${BASE}/agents`, {
-    method: "POST",
-    headers: { "X-API-Key": API_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: "Support Agent",
-      type: "voice",
-      prompt_template: "You are a helpful support agent...",
-    }),
-  });
-  const agent = await agentRes.json();
-
-  // 2. Start session with idempotent UUID
-  const sessionId = uuidv4();
-  const sessionRes = await fetch(
-    `${BASE}/agent-sessions/${sessionId}/start`,
-    {
-      method: "POST",
-      headers: { "X-API-Key": API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agentId: agent.id,
-        instruction: "Call the prospect to follow up on their demo request.",
-        title: "Demo follow-up",
-        prospectId: "prospect_uuid_here",
-      }),
-    }
-  );
-  const session = await sessionRes.json();
-  console.log("Session ID:", session.sessionId);
-}
-
-main();
-```
 
 ## Troubleshooting
 
 <AccordionGroup>
   <Accordion title="MCP server not responding">
-    Verify the package is installed:
+    Verify the build output exists:
 
     ```bash
-    npm list -g @cozmoai/mcp-server
+    ls ~/cozmox-mcp-server/dist/stdio.js
     ```
 
-    If missing, reinstall:
+    If missing, rebuild:
 
     ```bash
-    npm install -g @cozmoai/mcp-server
+    cd ~/cozmox-mcp-server && npm run build
     ```
 
     Then reload Cursor.
   </Accordion>
 
-  <Accordion title="Permission errors during install">
-    If you hit permission errors on macOS/Linux:
+  <Accordion title="Permission errors">
+    Ensure Node.js 20.11+ is active:
 
     ```bash
-    # Option 1 - use nvm (recommended)
-    nvm use 18
-    npm install -g @cozmoai/mcp-server
+    node --version   # must be v20.11.0 or later
+    ```
 
-    # Option 2 - fix npm prefix
-    npm config set prefix ~/.npm-global
-    export PATH="$HOME/.npm-global/bin:$PATH"
-    npm install -g @cozmoai/mcp-server
+    If using nvm:
+
+    ```bash
+    nvm use 20
     ```
   </Accordion>
 
   <Accordion title="AI still producing wrong API calls">
-    Make sure `.cursor/mcp.json` is in the **root of the project you have open** in Cursor, not in a parent directory. Cursor loads MCP config per workspace.
+    Make sure `.cursor/mcp.json` is in the **root of the workspace you have open**, not a parent directory. Cursor loads MCP config per workspace.
 
-    Also confirm the server is running by checking Cursor's MCP status panel.
+    Reload the window after any config changes.
   </Accordion>
 
   <Accordion title="Sharing config across the team">
-    Commit `.cursor/mcp.json` to version control without the `env` block. Each developer exports their own `COZMO_API_KEY` in their shell profile:
-
-    ```bash
-    # ~/.zshrc or ~/.bashrc
-    export COZMO_API_KEY="their_own_key"
-    export COZMO_ORG_ID="shared_org_id"
-    ```
+    Commit `.cursor/mcp.json` without the `env` block. Each developer exports `COZMOX_API_KEY` and `COZMOX_ORG_ID` in their shell profile and rebuilds the MCP server locally.
   </Accordion>
 </AccordionGroup>
 
@@ -215,7 +198,7 @@ main();
 
 <CardGroup cols={2}>
   <Card title="Overview" icon="server" href="/mcp/overview">
-    Learn what the Cozmo MCP server provides.
+    Full tool reference, HTTP mode, and Docker.
   </Card>
   <Card title="Making your first call" icon="phone" href="/guides/making-your-first-call">
     End-to-end guide to placing an AI voice call.

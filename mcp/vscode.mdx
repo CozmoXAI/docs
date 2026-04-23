@@ -1,19 +1,22 @@
 ---
 title: "VSCode"
-description: "Add the Cozmo MCP server to VSCode so GitHub Copilot can generate accurate Nova API integrations"
+description: "Add the Cozmo MCP server to VSCode so GitHub Copilot can list agents, inspect calls, and trigger workflow runs"
 icon: "code"
 ---
 
 ## Prerequisites
 
 - [VSCode](https://code.visualstudio.com) 1.99 or later with the [GitHub Copilot extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) installed
-- Node.js 18 or later
-- A Cozmo API key from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
+- Node.js **20.11** or later
+- A Cozmo API key and Org ID from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
 
-## Step 1 - Install the MCP server
+## Step 1 - Clone and build the MCP server
 
 ```bash
-npm install -g @cozmoai/mcp-server
+git clone https://github.com/CozmoXAI/mcp-server.git ~/cozmox-mcp-server
+cd ~/cozmox-mcp-server
+npm install
+npm run build
 ```
 
 ## Step 2 - Configure VSCode
@@ -27,30 +30,37 @@ mkdir -p .vscode
 ```json .vscode/mcp.json
 {
   "servers": {
-    "cozmo-nova": {
-      "command": "npx",
-      "args": ["@cozmoai/mcp-server"],
+    "cozmox": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/absolute/path/to/cozmox-mcp-server/dist/stdio.js"],
       "env": {
-        "COZMO_API_KEY": "YOUR_API_KEY",
-        "COZMO_ORG_ID": "YOUR_ORG_ID"
+        "COZMOX_API_BASE_URL": "https://v2-nova-api.prod.czmx.in",
+        "COZMOX_ORG_ID": "YOUR_ORG_ID",
+        "COZMOX_API_KEY": "YOUR_API_KEY",
+        "COZMOX_ENABLE_WRITE_TOOLS": "false",
+        "COZMOX_ENABLE_DESTRUCTIVE_TOOLS": "false"
       }
     }
   }
 }
 ```
 
+Replace `/absolute/path/to/cozmox-mcp-server` with the actual path where you cloned the repo.
+
 <Warning>
-  Do not commit API keys to version control. For shared workspaces, omit the `env` block and set `COZMO_API_KEY` in each developer's shell environment.
+  Do not commit API keys to version control. For shared workspaces, omit the `env` block and set `COZMOX_API_KEY` and `COZMOX_ORG_ID` in each developer's shell environment.
 </Warning>
 
-**Team-safe version** - commit this, have each developer export their own key:
+**Team-safe version** — commit this, have each developer export their own keys:
 
 ```json .vscode/mcp.json
 {
   "servers": {
-    "cozmo-nova": {
-      "command": "npx",
-      "args": ["@cozmoai/mcp-server"]
+    "cozmox": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/absolute/path/to/cozmox-mcp-server/dist/stdio.js"]
     }
   }
 }
@@ -59,132 +69,107 @@ mkdir -p .vscode
 Each developer exports in their shell:
 
 ```bash
-export COZMO_API_KEY="your_api_key"
-export COZMO_ORG_ID="your_org_id"
+export COZMOX_API_KEY="your_api_key"
+export COZMOX_ORG_ID="your_org_id"
 ```
 
 ## Step 3 - Reload VSCode
 
-Run **Developer: Reload Window** from the command palette (`⇧⌘P` / `Ctrl+Shift+P`). GitHub Copilot will pick up the MCP server on reload.
+Run **Developer: Reload Window** from the command palette (`⇧⌘P` / `Ctrl+Shift+P`). Copilot will pick up the MCP server on reload.
 
 ## Step 4 - Verify
 
 Open Copilot Chat (`⇧⌘I` / `Ctrl+Shift+I`) and ask:
 
-> *"What does the Nova API's `call.completed` webhook payload look like?"*
+> *"Use cozmox_health_check to verify my Cozmo connection"*
 
-A correct answer will include the `data.call_id`, `data.call_result`, `data.evaluations`, `data.transcript`, `data.recording_url`, and nested `data.prospect` fields - all from Cozmo's actual webhook schema.
+A correct response returns `{ "ok": true, "org_id": "..." }` — pulled live from the API.
 
-## Using Copilot Chat with Nova API context
+## Available tools
 
-With the MCP server active, Copilot Chat has access to the full Nova API knowledge. Ask questions directly:
+### Read tools (always on)
 
-```
-How do I create a voice agent with a Deepgram transcriber and GPT-4o?
-```
+| Tool | What it does |
+|------|-------------|
+| `cozmox_context` | Show server config — org ID and which tiers are enabled |
+| `cozmox_health_check` | Verify API key and org connectivity |
+| `cozmox_list_agents` | Paginated agent list; filter by `type` or `search` |
+| `cozmox_get_agent` | Full details for one agent by UUID |
+| `cozmox_list_calls` | Calls list with 12 filters (status, direction, agent, prospect, date range…) |
+| `cozmox_get_call_details` | Full call record — transcript, evaluations, recording metadata, tool logs |
+| `cozmox_list_voices` | Available voices by provider |
+| `cozmox_list_workflows` | Paginated workflow list |
+| `cozmox_get_workflow` | Single workflow with its latest definition |
+| `cozmox_get_agent_session` | Agent session details by UUID |
 
-```
-Write a TypeScript function to start a session for an existing prospect
-```
+### Write tools (`COZMOX_ENABLE_WRITE_TOOLS=true`)
 
-```
-What HTTP status codes does the Nova API return and when?
-```
+| Tool | What it does |
+|------|-------------|
+| `cozmox_create_agent` | Create a new voice, chat, or video agent |
+| `cozmox_update_agent` | Partial update of an existing agent |
+| `cozmox_create_workflow_run_with_prospect` | Trigger a workflow run with a new or existing prospect |
+| `cozmox_start_agent_session` | Start an agent session with an initial instruction |
 
-You can also use it inline while editing - Copilot will automatically use MCP context when completing Nova API code.
+### Destructive tools (`COZMOX_ENABLE_DESTRUCTIVE_TOOLS=true`)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_delete_agent` | Permanently delete an agent (requires literal confirmation) |
 
 ## What Copilot can help you build
 
 <AccordionGroup>
-  <Accordion title="Agent creation with full config">
-    > *"Generate a function that creates a voice agent with LLM config for GPT-4o, a Deepgram transcriber with smart_format enabled, and an ElevenLabs voice"*
+  <Accordion title="Inspecting agents">
+    > *"List all my Cozmo agents and show their types"*
 
-    Copilot will produce code using the correct nested `llm_config`, `transcriber_config`, and `voice_config` schemas from the Nova API spec.
+    Copilot calls `cozmox_list_agents` and returns the paginated list scoped to your configured org.
   </Accordion>
 
-  <Accordion title="Idempotent session starts">
-    > *"Show me how to start a Cozmo session safely so retries don't create duplicate sessions"*
+  <Accordion title="Analyzing calls">
+    > *"Get the details for call [call_id] — I want to see the evaluations and the transcript"*
 
-    Copilot will explain and implement the UUID v4 idempotency pattern for the `POST /org/{org_id}/agent-sessions/{session_id}/start` endpoint.
+    Copilot calls `cozmox_get_call_details` and returns the full call record including `evaluations[]`, `transcript_text`, `recording_url`, and `summary`.
   </Accordion>
 
-  <Accordion title="Webhook handler scaffolding">
-    > *"Scaffold an Express.js webhook handler for all four Cozmo events: call.completed, call.failed, session.completed, session.failed"*
+  <Accordion title="Starting sessions (write tools on)">
+    > *"Start a session for agent [agent_id] with the instruction: schedule a follow-up call"*
 
-    Copilot will generate a handler that correctly branches on the `event` field and reads the right fields from each payload structure.
+    Copilot calls `cozmox_start_agent_session`, which validates agent org ownership then creates the session — returning the session ID for tracking.
   </Accordion>
 
-  <Accordion title="Paginated call listing">
-    > *"Write a function that fetches all calls for my org, handling pagination automatically"*
+  <Accordion title="Triggering workflow runs (write tools on)">
+    > *"Create a workflow run for workflow [workflow_id] with prospect phone +19175551234"*
 
-    Copilot will use `GET /org/{org_id}/calls` with `page` and `size` params, looping through `meta.total_pages` until all records are fetched.
+    Copilot calls `cozmox_create_workflow_run_with_prospect` with the correct `POST /workflow-runs` body.
   </Accordion>
 </AccordionGroup>
-
-## Example - inline Copilot completion
-
-When writing code that calls the Nova API, Copilot will autocomplete with accurate field names. For example, start typing:
-
-```typescript
-// Start a Cozmo agent session
-const sessionId = 
-```
-
-Copilot will suggest `uuidv4()` - because the MCP server tells it the `session_id` must be a client-generated UUID v4.
-
-Or start:
-
-```python
-prospect = {
-    "phone": 
-```
-
-Copilot will suggest a properly formatted E.164 phone string like `"+19175551234"` because the MCP server knows phone must be E.164.
 
 ## Troubleshooting
 
 <AccordionGroup>
   <Accordion title="MCP server not showing in Copilot">
-    Check that the Copilot extension is up to date - MCP support requires VSCode 1.99 or later. Update via the VSCode Extensions panel.
+    Check that the Copilot extension is up to date (MCP support requires VSCode 1.99+). Verify `.vscode/mcp.json` is in the **root of the open workspace**, not a subdirectory.
 
-    Then verify `.vscode/mcp.json` is in the **root of the open workspace folder**, not inside a subdirectory.
-
-    Reload the window after any config changes:
+    Reload the window:
 
     ```
     ⇧⌘P → Developer: Reload Window
     ```
   </Accordion>
 
-  <Accordion title="npx not found when VSCode launches">
-    VSCode may not inherit your shell's PATH. Set the full path to npx in the config:
+  <Accordion title="node not found when VSCode launches">
+    VSCode may not inherit your shell's PATH. Use the full path to the node binary:
 
     ```bash
-    which npx   # e.g. /Users/you/.nvm/versions/node/v18.20.0/bin/npx
+    which node   # e.g. /Users/you/.nvm/versions/node/v20.11.0/bin/node
     ```
 
-    Then use the full path:
-
-    ```json
-    {
-      "servers": {
-        "cozmo-nova": {
-          "command": "/Users/you/.nvm/versions/node/v18.20.0/bin/npx",
-          "args": ["@cozmoai/mcp-server"]
-        }
-      }
-    }
-    ```
-  </Accordion>
-
-  <Accordion title="Copilot still generating wrong API calls">
-    Make sure `.vscode/mcp.json` is at the root of the open workspace. Copilot MCP context is workspace-scoped.
-
-    Reload the window after any changes to the config file, then start a fresh Copilot Chat session.
+    Then use that full path in the `command` field of `.vscode/mcp.json`.
   </Accordion>
 
   <Accordion title="Environment variables not picked up">
-    If you set `COZMO_API_KEY` in your shell profile but VSCode doesn't see it, add the `env` block explicitly to `.vscode/mcp.json` for local development and add the file to `.gitignore`.
+    If `COZMOX_API_KEY` set in your shell profile isn't visible to VSCode, add the `env` block explicitly to `.vscode/mcp.json` for local development and add the file to `.gitignore`.
   </Accordion>
 </AccordionGroup>
 
@@ -192,9 +177,9 @@ Copilot will suggest a properly formatted E.164 phone string like `"+19175551234
 
 <CardGroup cols={2}>
   <Card title="Overview" icon="server" href="/mcp/overview">
-    See the full list of what the Cozmo MCP server provides.
+    Full tool reference, HTTP mode, and Docker.
   </Card>
   <Card title="SDKs" icon="box" href="/sdk/overview">
-    Install the official Python, TypeScript, or Go SDK.
+    Install the official Python or TypeScript SDK.
   </Card>
 </CardGroup>

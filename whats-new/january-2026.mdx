@@ -1,0 +1,176 @@
+---
+title: "January 2026"
+description: "Cozmo platform launch — Agents, Calls, Voices, Workflows, Prospects, and webhook events"
+---
+
+## January 20, 2026
+
+### Platform launch
+
+<Badge>New</Badge>
+
+The Cozmo Nova API is now open for access. Build and deploy AI voice agents, manage outbound call campaigns, and integrate call results into your product with a REST API and real-time webhook events.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Make your first API call in under five minutes.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/introduction">
+    Full reference for every endpoint with interactive examples.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    API key setup and organization scoping.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    Receive real-time call and session events.
+  </Card>
+</CardGroup>
+
+### Agents
+
+<Badge>New</Badge>
+
+Create and manage AI voice agents. Each agent has a system prompt, a voice, and optional tool integrations. Agents are typed as `voice`, `chat`, or `video` and can be updated at any time without interrupting running sessions.
+
+```bash
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/agents" \
+  -H "X-API-Key: $COZMOX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Outbound Sales Rep",
+    "type": "voice",
+    "prompt": "You are a friendly outbound sales agent for Acme Corp..."
+  }'
+```
+
+Full CRUD: list, create, get, update (`PATCH`), and delete. Agents support partial updates so you can modify a single field without resubmitting the full record.
+
+[Agents concept](/concepts/agents)
+
+### Calls
+
+<Badge>New</Badge>
+
+Retrieve completed call records with the full post-call dataset: transcript, recording URL, AI summary, sentiment, evaluation results, cost breakdown (USD, tokens, TTS characters, STT duration), and the prospect record.
+
+Calls are created automatically when a workflow run connects to a prospect. The Calls API is read-only at launch.
+
+```bash
+# List recent calls
+curl "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/calls" \
+  -H "X-API-Key: $COZMOX_API_KEY"
+
+# Get full call details including transcript
+curl "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/calls/$CALL_ID" \
+  -H "X-API-Key: $COZMOX_API_KEY"
+```
+
+[Calls concept](/concepts/calls)
+
+### Voices
+
+<Badge>New</Badge>
+
+Browse available voices from all configured TTS providers. The response includes voice ID, name, language, gender, and provider. Use voice IDs when creating or updating agents.
+
+```bash
+curl "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/voices" \
+  -H "X-API-Key: $COZMOX_API_KEY"
+```
+
+### Workflows
+
+<Badge>New</Badge>
+
+Workflows define the outbound calling logic for a campaign: which agent to use, call timing windows, retry policies, and inter-call delays. Create a Workflow Run to execute a workflow for a specific prospect.
+
+[Workflows concept](/concepts/workflows)
+
+### Workflow Runs
+
+<Badge>New</Badge>
+
+Trigger a workflow for a prospect by creating a Workflow Run. Include the prospect inline — no need to create a prospect record first.
+
+```bash
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/workflow-runs" \
+  -H "X-API-Key: $COZMOX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow_id": "WORKFLOW_UUID",
+    "scheduled_at": "2026-01-21T09:00:00Z",
+    "prospect": {
+      "phone": "+15551234567",
+      "country": "US",
+      "first_name": "Jane",
+      "last_name": "Doe",
+      "email": "jane@example.com",
+      "external_id": "crm-456",
+      "timezone": "America/New_York"
+    }
+  }'
+```
+
+Set `external_id` to your CRM's contact ID. It comes back in every webhook payload as `prospect.ExternalId`, making CRM lookups trivial.
+
+### Prospects
+
+<Badge>New</Badge>
+
+Prospect records store contact information and custom metadata. Create prospects directly, or embed them in Workflow Run requests for a single-step trigger. Full CRUD: list, create, get, update, and delete.
+
+Fields: `phone` (E.164), `email`, `first_name`, `last_name`, `external_id`, `country`, `timezone`, and `custom_data` for arbitrary key-value metadata.
+
+[Prospects concept](/concepts/prospects)
+
+### Rate limits
+
+<Badge>New</Badge>
+
+The Nova API enforces rate limits per API key:
+
+| Limit | Value |
+|-------|-------|
+| Requests per second | 10 |
+| Requests per minute | 300 |
+| Requests per hour | 5,000 |
+
+Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. Requests that exceed the limit receive `429 Too Many Requests` with a `Retry-After` header.
+
+[Rate limits](/rate-limits)
+
+### Webhook events — `call.completed` and `call.failed`
+
+<Badge>New</Badge>
+
+Receive real-time HTTP `POST` callbacks when calls finish. All events are signed with HMAC-SHA256 via the `X-Cozmo-Signature` header.
+
+**`call.completed`** fires when a call finishes and post-call analysis is ready. The payload includes:
+
+- `call_id`, `call_result`, `transcript`, `recording_url`, `summary`, `sentiment`
+- `dnc_requested` — set to `true` if the prospect asked to be placed on the Do Not Call list
+- `evaluations` — post-call outcome analysis with keys, extracted values, boolean results, and AI reasoning
+- `prospect` — full prospect record including your `external_id` for CRM lookup
+- `campaign_count` — number of times this prospect has been contacted in the current campaign
+
+**`call.failed`** fires when a call cannot be completed due to no answer, busy line, SIP error, or validation failure.
+
+Call result types: `FINISHED`, `FAILED`, `FAILED_VALIDATION`, `FAILED_SIP`, `ANALYSIS_FAILED`, `NO_ANSWER`, `BUSY`, `CANCELLED`
+
+Retry policy: up to 4 delivery attempts with exponential backoff (immediate, 30s, 5min, 30min). Return `5xx` to trigger a retry. Return `4xx` to reject permanently.
+
+Always verify the `X-Cozmo-Signature` header before processing any payload. Use timing-safe comparison (`crypto.timingSafeEqual` in Node.js, `hmac.compare_digest` in Python) to prevent timing attacks.
+
+[Full webhook reference](/webhooks)
+
+### Developer documentation
+
+<Badge>New</Badge>
+
+The Cozmo developer documentation is live. It covers:
+
+- **Getting Started** — API key setup, quickstart guide, and rate limits
+- **Core Concepts** — agents, sessions, calls, prospects, and workflows with full lifecycle explanations
+- **Guides** — making your first call, managing prospects, and error handling patterns
+- **API Reference** — interactive reference for every endpoint rendered from the OpenAPI spec
+- **Webhooks** — complete payload schemas, HMAC signature verification, and production-ready integration patterns in Node.js, Python, and Go

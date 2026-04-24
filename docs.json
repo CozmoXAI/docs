@@ -123,6 +123,24 @@
             ]
           }
         ]
+      },
+      {
+        "tab": "What's New",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["whats-new/index"]
+          },
+          {
+            "group": "2026",
+            "pages": [
+              "whats-new/april-2026",
+              "whats-new/march-2026",
+              "whats-new/february-2026",
+              "whats-new/january-2026"
+            ]
+          }
+        ]
       }
     ]
   },

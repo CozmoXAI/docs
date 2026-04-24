@@ -1,0 +1,251 @@
+---
+title: "April 2026"
+description: "Agent Sessions, MCP Server, Agent Skills, E2E Testing, analytics, quality rules, and session webhooks"
+---
+
+## April 23, 2026
+
+### API Reference — complete endpoint coverage
+
+<Badge>Improved</Badge>
+
+The API Reference now covers every endpoint in the Nova API. New additions:
+
+**E2E Testing** — full CRUD for scenarios, run lifecycle management, batch runs across multiple agents, Cekura sync, and status polling. Attach and detach Cekura scenarios to individual agents via `POST /agents/{agent_id}/scenarios`.
+
+**Analytics** — two new read endpoints: `GET /analytics/batches` returns per-batch call performance metrics, and `GET /analytics/calls/by-hour` returns hourly call distribution data for charts and reporting.
+
+**Unit Tests** — `PUT /unit-tests/{test_id}` updates an individual unit test in place. `POST /agents/{agent_id}/run-tests` runs all unit tests for an agent in a single request.
+
+**Organization management** — `GET /me/organizations` lists all organizations for the authenticated user. `POST /invitations/{invitation_id}/accept` accepts a pending organization invitation programmatically.
+
+All paths are documented in the interactive **API Reference** tab with full request and response schemas.
+
+## April 22, 2026
+
+### Agent Skills — six portable instruction sets for AI coding assistants
+
+<Badge>New</Badge>
+
+[Agent Skills](/skills/overview) are installable `SKILL.md` files that give any AI coding assistant expert knowledge of Cozmo: correct endpoint paths, org-scoped auth patterns, safe write workflows, and security audit procedures. Works with Claude Code, Cursor, Windsurf, Codex, and GitHub Copilot.
+
+Install any skill with one command:
+
+```bash
+npx skills add CozmoXAI/skills --skill cozmox-api-operator -a claude-code -y
+
+# Install all six at once
+npx skills add CozmoXAI/skills --skill '*' -a claude-code -y
+```
+
+Six skills ship at launch:
+
+| Skill | What it does |
+|-------|-------------|
+| [`cozmox-api-operator`](/skills/cozmox-api-operator) | Safely call org-scoped endpoints in curl, TypeScript, and Python with preflight ID validation |
+| [`cozmox-mcp-toolsmith`](/skills/cozmox-mcp-toolsmith) | Build and review a secure MCP server with read/write/destructive gates and org pinning |
+| [`cozmox-session-runner`](/skills/cozmox-session-runner) | Launch agent sessions and workflow runs with preflight checklists and UUID idempotency |
+| [`cozmox-call-quality-analyst`](/skills/cozmox-call-quality-analyst) | Turn call transcripts, evaluations, and tool logs into QA reports and coaching notes |
+| [`cozmox-agent-design-reviewer`](/skills/cozmox-agent-design-reviewer) | Design voice agent prompts, escalation policies, and produce launch-readiness reports |
+| [`cozmox-tenant-isolation-auditor`](/skills/cozmox-tenant-isolation-auditor) | Audit Go, sqlc, Postgres, and Temporal code for cross-org access and security lapses |
+
+Every skill enforces the same safety contract: `COZMOX_ORG_ID` is never a user-supplied argument, API keys stay server-side, and writes require explicit confirmation.
+
+[Agent Skills overview](/skills/overview)
+
+## April 17, 2026
+
+### Session webhooks — `session.completed` and `session.failed`
+
+<Badge>New</Badge>
+
+Two new webhook event types are now available alongside the existing call events:
+
+| Event | Fires when |
+|-------|------------|
+| `session.completed` | An agent session reaches `COMPLETED` or `STOPPED` status |
+| `session.failed` | An agent session reaches `FAILED` or `CANCELLED` status |
+
+Both payloads carry the full session record including `session_id`, `organization_id`, `status`, `root_agent_id`, `prospect_id`, `call_id`, `channel`, `started_at`, `ended_at`, `duration_seconds`, `last_event_sequence`, and `metadata`.
+
+Use `last_event_sequence` to detect out-of-order delivery and `session_id` as your idempotency key.
+
+All four event types share the same HMAC-SHA256 signing mechanism via the `X-Cozmo-Signature` header and the same 4-attempt retry policy with exponential backoff.
+
+[Webhook events reference](/webhooks)
+
+### Documentation defaults to dark mode
+
+<Badge>Improved</Badge>
+
+The developer documentation now opens in dark mode by default. Switch to light mode at any time with the theme toggle in the top-right.
+
+## April 15, 2026
+
+### Agent Sessions API
+
+<Badge>New</Badge>
+
+The Agent Sessions API is now available. Start multi-turn sessions programmatically, track lifecycle status, and receive webhook events when sessions complete or fail.
+
+Sessions are started with a client-generated UUID v4, making every launch idempotent. Pass the same UUID twice and the API returns the existing session rather than creating a duplicate.
+
+```bash
+# Generate a session ID and start the session in one go
+SESSION_ID=$(node -e 'console.log(crypto.randomUUID())')
+
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/agent-sessions/$SESSION_ID/start" \
+  -H "X-API-Key: $COZMOX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "YOUR_AGENT_UUID",
+    "instruction": "Follow up on the demo request from this morning.",
+    "title": "Demo follow-up",
+    "source": "api"
+  }'
+```
+
+Supported channels: `voice`, `telegram`, `whatsapp`, `slack`, `chat`.
+
+Retrieve session details at any point:
+
+```bash
+curl "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/agent-sessions/$SESSION_ID" \
+  -H "X-API-Key: $COZMOX_API_KEY"
+```
+
+[Sessions concept](/concepts/sessions) · [API Reference](/api-reference/introduction)
+
+<Warning>
+  **Breaking change:** `POST /org/{org_id}/agent-sessions` (Create Session) has been removed. Use `POST /org/{org_id}/agent-sessions/{session_id}/start` with a client-generated UUID v4 instead.
+</Warning>
+
+### MCP Server
+
+<Badge>New</Badge>
+
+The [Cozmo MCP Server](/mcp/overview) connects AI coding assistants directly to your Cozmo org. `COZMOX_ORG_ID` is pinned server-side so the model can never cross organization boundaries.
+
+Three tool tiers give you control over what the model can do:
+
+| Tier | Default | How to enable |
+|------|---------|--------------|
+| Read | Always on | Nothing required |
+| Write | Off | `COZMOX_ENABLE_WRITE_TOOLS=true` |
+| Destructive | Off | `COZMOX_ENABLE_DESTRUCTIVE_TOOLS=true` |
+
+**Read tools (always available):** `cozmox_context`, `cozmox_health_check`, `cozmox_list_agents`, `cozmox_get_agent`, `cozmox_list_calls`, `cozmox_get_call_details`, `cozmox_list_voices`, `cozmox_list_workflows`, `cozmox_get_workflow`, `cozmox_get_agent_session`
+
+**Write tools (opt-in):** `cozmox_create_agent`, `cozmox_update_agent`, `cozmox_create_workflow_run_with_prospect`, `cozmox_start_agent_session`
+
+**Destructive tools (opt-in):** `cozmox_delete_agent` — requires the literal confirmation string `"delete this agent"` as a parameter
+
+Two transport modes: **stdio** for local IDEs and **HTTP** for hosted remote MCP accessible to your whole team. Docker image included.
+
+[MCP overview](/mcp/overview) · [Cursor](/mcp/cursor) · [Claude Code](/mcp/claude-code) · [Windsurf](/mcp/windsurf) · [VSCode](/mcp/vscode)
+
+### E2E Testing API
+
+<Badge>New</Badge>
+
+End-to-end testing for voice agents is now available via the API, powered by Cekura. Create test scenarios that define expected conversation behavior, then run them against your agents to catch regressions before they reach production.
+
+**Scenarios** describe a test case: the simulated user persona, conversation goals, and success criteria.
+
+```bash
+# Create a scenario
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/e2e/scenarios" \
+  -H "X-API-Key: $COZMOX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Demo booking — happy path",
+    "description": "Caller successfully books a demo on first attempt"
+  }'
+```
+
+**Runs** execute a scenario against a live agent and return pass/fail results with full conversation logs.
+
+```bash
+# Run all scenarios attached to an agent
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/e2e/runs/agent" \
+  -H "X-API-Key: $COZMOX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "YOUR_AGENT_UUID"}'
+```
+
+Available endpoints: scenario CRUD, run CRUD, batch runs across multiple agents, per-agent run, Cekura sync, and status polling.
+
+### Quality Rules
+
+<Badge>New</Badge>
+
+Define automated quality rules that evaluate every call against your standards. Quality rules run post-call and flag calls that don't meet your criteria, surfacing them in the dashboard for review.
+
+```bash
+# Create a quality rule
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/quality-rules" \
+  -H "X-API-Key: $COZMOX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Verify booking confirmation",
+    "description": "Agent must confirm the date, time, and phone number before ending the call"
+  }'
+```
+
+Manage quality rules via full CRUD: `GET`, `POST`, `PATCH`, and `DELETE` at `/org/{org_id}/quality-rules` and `/org/{org_id}/quality-rules/{rule_id}`.
+
+### Call evaluations
+
+<Badge>New</Badge>
+
+Evaluation definitions let you configure custom post-call analysis criteria. The evaluations engine scores each call against your definitions and returns structured results — boolean outcomes, extracted values, and AI reasoning.
+
+Manage evaluation definitions at `/org/{org_id}/evals` and trigger evaluation runs at `/org/{org_id}/evals/{eval_id}/runs`.
+
+### Analytics
+
+<Badge>New</Badge>
+
+Two new analytics endpoints:
+
+`GET /org/{org_id}/analytics/batches` returns performance metrics broken down by batch: call counts, completion rates, cost, and average duration. Use this to compare campaign performance across workflow runs.
+
+`GET /org/{org_id}/analytics/calls/by-hour` returns hourly call volume distribution. Use this to identify peak usage windows and optimize scheduling.
+
+### Organization member management
+
+<Badge>New</Badge>
+
+Manage your organization's members programmatically:
+
+- `GET /org/{org_id}/members` — list all members with their roles
+- `GET /org/{org_id}/members/{user_id}` — get a specific member
+- `PUT /org/{org_id}/members/{user_id}/role` — update a member's role
+
+### Email templates
+
+<Badge>New</Badge>
+
+Create and manage email templates for your organization. Templates support variable substitution and can be referenced in workflow configurations.
+
+Full CRUD at `/org/{org_id}/email-templates` and `/org/{org_id}/email-templates/{template_id}`.
+
+### FAQs
+
+<Badge>New</Badge>
+
+Store structured FAQ content that agents can reference during calls. Attach FAQs to agents to give them grounded, accurate answers to common questions without modifying the agent prompt.
+
+Full CRUD at `/org/{org_id}/faqs` and `/org/{org_id}/faqs/{faq_id}`.
+
+### File uploads
+
+<Badge>New</Badge>
+
+Upload files to your organization and retrieve signed URLs for use in agent configurations and workflow contexts. Manage files at `/org/{org_id}/files/{file_id}`.
+
+### Web call support
+
+<Badge>New</Badge>
+
+`POST /org/{org_id}/webcall` initiates a browser-based voice session. Use this to embed voice agent interactions directly in your web application without requiring a phone number.

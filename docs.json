@@ -118,6 +118,7 @@
               "skills/cozmox-api-operator",
               "skills/cozmox-mcp-toolsmith",
               "skills/cozmox-session-runner",
+              "skills/cozmox-workflow-builder",
               "skills/cozmox-workflow-runner",
               "skills/cozmox-call-quality-analyst",
               "skills/cozmox-agent-design-reviewer",

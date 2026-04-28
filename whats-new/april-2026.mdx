@@ -23,7 +23,7 @@ All paths are documented in the interactive **API Reference** tab with full requ
 
 ## April 22, 2026
 
-### Agent Skills — six portable instruction sets for AI coding assistants
+### Agent Skills — portable instruction sets for AI coding assistants
 
 <Badge>New</Badge>
 
@@ -34,18 +34,19 @@ Install any skill with one command:
 ```bash
 npx skills add CozmoXAI/skills --skill cozmox-api-operator -a claude-code -y
 
-# Install all six at once
+# Install all at once
 npx skills add CozmoXAI/skills --skill '*' -a claude-code -y
 ```
 
-Seven skills ship at launch:
+Eight skills ship at launch:
 
 | Skill | What it does |
 |-------|-------------|
-| [`cozmox-api-operator`](/skills/cozmox-api-operator) | Safely call org-scoped endpoints in curl, TypeScript, and Python with preflight ID validation |
+| [`cozmox-api-operator`](/skills/cozmox-api-operator) | Create and manage agents via the API with full field coverage — produces `agent_id` for the Workflow Builder |
 | [`cozmox-mcp-toolsmith`](/skills/cozmox-mcp-toolsmith) | Build and review a secure MCP server with read/write/destructive gates and org pinning |
-| [`cozmox-session-runner`](/skills/cozmox-session-runner) | Create and configure agents via the API with full field coverage — produces `agent_id` for the Workflow Runner |
-| [`cozmox-workflow-runner`](/skills/cozmox-workflow-runner) | Trigger workflow runs with prospect payloads, scheduling, and preflight validation — composes with the Agent Builder |
+| [`cozmox-session-runner`](/skills/cozmox-session-runner) | Create and configure agents via the API with full field coverage — produces `agent_id` for the Workflow Builder |
+| [`cozmox-workflow-builder`](/skills/cozmox-workflow-builder) | Discover and validate API-triggered workflows — produces `workflow_id` for the Workflow Runner |
+| [`cozmox-workflow-runner`](/skills/cozmox-workflow-runner) | Trigger workflow runs with prospect payloads, scheduling, and preflight validation |
 | [`cozmox-call-quality-analyst`](/skills/cozmox-call-quality-analyst) | Turn call transcripts, evaluations, and tool logs into QA reports and coaching notes |
 | [`cozmox-agent-design-reviewer`](/skills/cozmox-agent-design-reviewer) | Design voice agent prompts, escalation policies, and produce launch-readiness reports |
 | [`cozmox-tenant-isolation-auditor`](/skills/cozmox-tenant-isolation-auditor) | Audit Go, sqlc, Postgres, and Temporal code for cross-org access and security lapses |

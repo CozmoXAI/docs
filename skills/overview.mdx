@@ -13,10 +13,11 @@ Each skill is a folder containing a `SKILL.md` plus optional helper scripts. The
 
 | Skill | Purpose |
 |-------|---------|
-| [`cozmox-api-operator`](/skills/cozmox-api-operator) | Safely call and code against org-scoped Nova API endpoints — curl, TypeScript, Python, integration tests, runbooks |
+| [`cozmox-api-operator`](/skills/cozmox-api-operator) | Create and manage Cozmo agents via the API with org-scoped auth, TypeScript/Python wrappers, and full field coverage — produces `agent_id` |
 | [`cozmox-mcp-toolsmith`](/skills/cozmox-mcp-toolsmith) | Build and review a secure Cozmo MCP server with read/write/destructive tool gates and org pinning |
-| [`cozmox-session-runner`](/skills/cozmox-session-runner) | Create and configure agents via the API with full field coverage — produces `agent_id` for use by the Workflow Runner |
-| [`cozmox-workflow-runner`](/skills/cozmox-workflow-runner) | Trigger workflow runs with prospect creation, scheduling, and preflight validation — consumes `agent_id` from the Agent Builder |
+| [`cozmox-session-runner`](/skills/cozmox-session-runner) | Create and configure agents via the API with full field coverage — produces `agent_id` for use by the Workflow Builder |
+| [`cozmox-workflow-builder`](/skills/cozmox-workflow-builder) | Discover and validate API-triggered workflows — produces `workflow_id` for the Workflow Runner |
+| [`cozmox-workflow-runner`](/skills/cozmox-workflow-runner) | Trigger workflow runs with prospect creation, scheduling, and preflight validation — consumes `workflow_id` from the Workflow Builder |
 | [`cozmox-call-quality-analyst`](/skills/cozmox-call-quality-analyst) | Analyze call transcripts, evaluations, tool logs, and costs into QA reports and coaching notes |
 | [`cozmox-agent-design-reviewer`](/skills/cozmox-agent-design-reviewer) | Design and review voice agent prompts, workflows, escalation policies, and launch readiness |
 | [`cozmox-tenant-isolation-auditor`](/skills/cozmox-tenant-isolation-auditor) | Audit Go/sqlc/Postgres/Temporal API code for cross-org access, missing ownership checks, and security lapses |
@@ -87,13 +88,16 @@ node scripts/validate-skills.mjs
 
 <CardGroup cols={2}>
   <Card title="API Operator" icon="code" href="/skills/cozmox-api-operator">
-    Curl, TypeScript, Python, and safe write workflows for Nova API endpoints.
+    Create and manage agents via the API with full field coverage. Produces agent_id.
   </Card>
   <Card title="MCP Toolsmith" icon="server" href="/skills/cozmox-mcp-toolsmith">
     Build and review secure MCP servers with read/write/destructive gates.
   </Card>
   <Card title="Agent Builder" icon="play" href="/skills/cozmox-session-runner">
-    Create and configure agents with full field coverage. Produces agent IDs for the Workflow Runner.
+    Create and configure agents with full field coverage. Produces agent_id for the Workflow Builder.
+  </Card>
+  <Card title="Workflow Builder" icon="diagram-project" href="/skills/cozmox-workflow-builder">
+    Discover and validate API-triggered workflows. Produces workflow_id for the Workflow Runner.
   </Card>
   <Card title="Workflow Runner" icon="bolt" href="/skills/cozmox-workflow-runner">
     Trigger workflow runs with prospect payloads, scheduling, and preflight validation.

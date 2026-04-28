@@ -112,6 +112,7 @@ paths:
       summary: Get agent session
       tags:
         - Agent Sessions
+      x-hidden: true
   /org/{org_id}/agent-sessions/{session_id}/start:
     post:
       description: >
@@ -174,6 +175,7 @@ paths:
       summary: Start agent session
       tags:
         - Agent Sessions
+      x-hidden: true
   /org/{org_id}/agents:
     get:
       description: Get a paginated list of agents for the organization
@@ -950,7 +952,11 @@ paths:
         - Voices
   /org/{org_id}/workflow-runs:
     post:
-      description: Create a new workflow run with prospect creation in a single operation (API endpoint)
+      description: >
+        Trigger a run of a static, pre-configured workflow for a specific prospect.
+        Only workflows with trigger_type api can be started this way — schedule and
+        inbound workflows run automatically and cannot be triggered via this endpoint.
+        The prospect is created inline or matched by external_id if a record already exists.
       operationId: createWorkflowRunWithProspect
       parameters:
         - description: Organization ID
@@ -16090,22 +16096,26 @@ components:
       type: object
     workflow-batches.CreateWorkflowRunWithProspectRequest:
       properties:
-        prospect:
-          $ref: '#/components/schemas/workflow-batches.ProspectDataForWorkflow'
-        scheduled_at:
-          type: string
         workflow_id:
           type: string
+          description: UUID of the workflow to run. Must belong to the org and have trigger_type api.
+        scheduled_at:
+          type: string
+          description: ISO 8601 UTC timestamp to defer the run (e.g. 2026-05-01T09:00:00Z). Omit to run immediately subject to the workflow's calling-hour rules.
+        prospect:
+          $ref: '#/components/schemas/workflow-batches.ProspectDataForWorkflow'
       required:
         - prospect
         - workflow_id
       type: object
     workflow-batches.CreateWorkflowRunWithProspectResponse:
       properties:
-        external_id:
-          type: string
         workflow_run_id:
           type: string
+          description: ID of the workflow run. Use this to look up the call result once the run completes.
+        external_id:
+          type: string
+          description: The external_id of the prospect record used or created for this run.
       type: object
     workflow-batches.PaginatedBatchesResponse:
       properties:
@@ -16147,23 +16157,29 @@ components:
       type: object
     workflow-batches.ProspectDataForWorkflow:
       properties:
+        phone:
+          type: string
+          description: Prospect phone number in E.164 format (e.g. +15551234567).
         country:
           type: string
-        custom_data:
-          additionalProperties: true
-          type: object
+          description: ISO 3166-1 alpha-2 country code (e.g. US, GB). Strongly recommended — used with the workflow's calling-hour rules.
+        first_name:
+          type: string
+          description: Available as {{prospect_first_name}} in the agent prompt.
+        last_name:
+          type: string
         email:
           type: string
         external_id:
           type: string
-        first_name:
-          type: string
-        last_name:
-          type: string
-        phone:
-          type: string
+          description: Your CRM or internal contact ID. Deduplicates prospect records — if a prospect with this ID already exists it is reused rather than duplicated.
         timezone:
           type: string
+          description: IANA timezone (e.g. America/New_York). Used with calling-hour rules to determine the earliest valid call time.
+        custom_data:
+          additionalProperties: true
+          type: object
+          description: Arbitrary key-value data passed to the agent during the call.
       required:
         - phone
       type: object

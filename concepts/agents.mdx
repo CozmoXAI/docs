@@ -374,7 +374,7 @@ The `llm_config` block controls which language model powers the agent and how it
 ```
 
 <ResponseField name="provider" type="string" required>
-  LLM provider. Supported values: `openai`, `anthropic`, `google`, `groq`, `cerebras`.
+  LLM provider. Supported values: `openai`, `anthropic`, `google`, `groq`, `azure-openai`, `cerebras`, `togetherai`, `xai`, `mistral`, `openrouter`.
 </ResponseField>
 
 <ResponseField name="model" type="string" required>
@@ -417,16 +417,16 @@ The `llm_config` block controls which language model powers the agent and how it
 
 <AccordionGroup>
   <Accordion title="OpenAI">
-    **Supported models:** `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-3.5-turbo`
+    **Supported models:** `gpt-5.1`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `gpt-realtime`, `realtime-preview`
 
     OpenAI-specific parameters: `presence_penalty`, `frequency_penalty`.
 
-    `gpt-4o` is the recommended default for voice agents - it balances latency and quality well. Use `gpt-4o-mini` for cost-sensitive, high-volume deployments.
+    `gpt-4.1` is the recommended default for voice agents. Use `gpt-4o-mini` for cost-sensitive, high-volume deployments.
 
     ```json
     {
       "provider": "openai",
-      "model": "gpt-4o",
+      "model": "gpt-4.1",
       "temperature": 0.7,
       "max_tokens": 200,
       "presence_penalty": 0.1
@@ -435,16 +435,16 @@ The `llm_config` block controls which language model powers the agent and how it
   </Accordion>
 
   <Accordion title="Anthropic">
-    **Supported models:** `claude-3-5-sonnet-20241022`, `claude-3-5-haiku-20241022`, `claude-3-opus-20240229`
+    **Supported models:** `claude-opus-4-1`, `claude-opus-4`, `claude-sonnet-4`, `claude-3-7-sonnet`, `claude-3-5-haiku`, `claude-3-haiku`
 
     Anthropic-specific parameter: `top_k` (limits sampling pool to the top k tokens).
 
-    Claude Sonnet is excellent for nuanced conversations requiring careful reasoning. Haiku is faster and cheaper, well-suited as a fallback.
+    Claude Sonnet 4 is excellent for nuanced conversations requiring careful reasoning. Haiku is faster and cheaper, well-suited as a fallback.
 
     ```json
     {
       "provider": "anthropic",
-      "model": "claude-3-5-sonnet-20241022",
+      "model": "claude-sonnet-4",
       "temperature": 0.6,
       "max_tokens": 200,
       "top_k": 40
@@ -453,14 +453,14 @@ The `llm_config` block controls which language model powers the agent and how it
   </Accordion>
 
   <Accordion title="Google">
-    **Supported models:** `gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-2.0-flash`
+    **Supported models:** `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`
 
-    Gemini models support very long context windows - useful for agents with large system prompts or extensive tool definitions.
+    Gemini models support very long context windows — useful for agents with large system prompts or extensive tool definitions.
 
     ```json
     {
       "provider": "google",
-      "model": "gemini-2.0-flash",
+      "model": "gemini-2.5-flash",
       "temperature": 0.7,
       "max_tokens": 200
     }
@@ -468,9 +468,9 @@ The `llm_config` block controls which language model powers the agent and how it
   </Accordion>
 
   <Accordion title="Groq">
-    **Supported models:** `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`
+    **Supported models:** `llama-3.1-8b-instant`, `llama-3.3-70b-versatile`, `gpt-oss-120b`, `gpt-oss-20b`
 
-    Groq delivers very low inference latency making it an excellent fallback to reduce conversation lag when primary providers are slow.
+    Groq delivers very low inference latency, making it an excellent fallback to reduce conversation lag when primary providers are slow.
 
     ```json
     {
@@ -482,15 +482,90 @@ The `llm_config` block controls which language model powers the agent and how it
     ```
   </Accordion>
 
-  <Accordion title="Cerebras">
-    **Supported models:** `llama3.1-70b`, `llama3.1-8b`
+  <Accordion title="Azure OpenAI">
+    **Supported models:** `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `gpt-4o-realtime-preview`, `o1`, `o1-mini`, `o3`, `o3-mini`, `o4`
 
-    Cerebras provides ultra-low latency inference on Llama models. Best used as a primary provider when latency is the top priority, or as a fast fallback.
+    Use Azure OpenAI for enterprise deployments requiring data residency, private networking, or compliance controls.
+
+    ```json
+    {
+      "provider": "azure-openai",
+      "model": "gpt-4.1",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Cerebras">
+    **Supported models:** `llama-3.1-8b`, `openai-gpt-oss`, `qwen-3-235b-instruct`, `z.ai-glm-4.7`
+
+    Cerebras provides ultra-low latency inference. Best used as a primary provider when latency is the top priority, or as a fast fallback.
 
     ```json
     {
       "provider": "cerebras",
-      "model": "llama3.1-70b",
+      "model": "llama-3.1-8b",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="TogetherAI">
+    **Supported models:** `glm-5.1`, `minimax-m2.7`, `gemma-4-31b`, `qwen-3.5-397b`
+
+    TogetherAI hosts a wide range of open-source models with competitive pricing and low latency.
+
+    ```json
+    {
+      "provider": "togetherai",
+      "model": "qwen-3.5-397b",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="xAI">
+    **Supported models:** `grok-4-20-reasoning`, `grok-4-20`, `grok-4-1-fast-reasoning`, `grok-4-1-fast`
+
+    xAI's Grok models offer strong reasoning capabilities. The `-reasoning` variants include extended chain-of-thought processing.
+
+    ```json
+    {
+      "provider": "xai",
+      "model": "grok-4-1-fast",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Mistral">
+    **Supported models:** `magistral-medium`, `magistral-small`, `mistral-large`, `mistral-medium`, `mistral-small`, `mistral-tiny`
+
+    Mistral models excel at European language tasks and offer strong multilingual performance.
+
+    ```json
+    {
+      "provider": "mistral",
+      "model": "mistral-large",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="OpenRouter">
+    **Supported models:** Multiple models via router
+
+    OpenRouter provides access to a wide range of models from various providers through a single API. Useful for routing between providers based on availability and cost.
+
+    ```json
+    {
+      "provider": "openrouter",
+      "model": "your-chosen-model",
       "temperature": 0.7,
       "max_tokens": 200
     }
@@ -556,11 +631,11 @@ For voice agents, the transcriber converts the prospect's speech to text in real
 ```
 
 <ResponseField name="provider" type="string" required>
-  STT provider. Supported values: `deepgram`, `elevenlabs`, `speechmatics`, `openai`, `groq`.
+  STT provider. Supported values: `deepgram`, `elevenlabs`, `speechmatics`, `openai`, `groq`, `sarvam`, `assemblyai`, `azure`, `gladia`, `google`, `cartesia`, `soniox`.
 </ResponseField>
 
 <ResponseField name="model" type="string">
-  Provider-specific model identifier. For Deepgram: `nova-3`, `nova-2`. For OpenAI: `whisper-1`. For Groq: `whisper-large-v3`.
+  Provider-specific model identifier. For Deepgram: `flux`, `nova-3`, `nova-3-general`, `nova-3-medical`, `nova-2`, `nova-2-general`, `nova-2-phonecall`, and more. For OpenAI: `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1`. For Groq: `whisper-large-v3`, `whisper-large-v3-turbo`. For ElevenLabs: `scribe-v2-realtime`. For Sarvam: `saaras-3`. For AssemblyAI: `universal-streaming-english`, `universal-streaming-multilingual`, `u3-rt-pro`. For Google: `chirp-2`, `chirp-3`. For Cartesia: `ink-whisper`. For Speechmatics: `enhanced`, `standard`. For Soniox: `stt-rt-v4`.
 </ResponseField>
 
 <ResponseField name="language" type="string">
@@ -587,11 +662,18 @@ For voice agents, the transcriber converts the prospect's speech to text in real
 
 | Provider | Best for | Notes |
 |----------|----------|-------|
-| `deepgram` | English, low latency | Recommended default. `nova-3` has excellent accuracy. |
-| `elevenlabs` | Multilingual | Good accuracy across European languages. |
-| `speechmatics` | Accents, dialects | Strong on non-native English speakers. |
-| `openai` | High accuracy | Higher latency than streaming providers, better as fallback. |
-| `groq` | Speed | Very low latency on Whisper-based models. |
+| `deepgram` | English, low latency | Recommended default. `nova-3` and `flux` for highest accuracy. |
+| `elevenlabs` | Real-time multilingual | `scribe-v2-realtime` for streaming transcription. |
+| `speechmatics` | Accents, dialects | `enhanced` mode for strongest accuracy on non-native speakers. |
+| `openai` | High accuracy | `gpt-4o-transcribe` for best quality; `whisper-1` as a reliable fallback. |
+| `groq` | Speed | `whisper-large-v3-turbo` for very low latency. |
+| `sarvam` | Indian languages | `saaras-3` optimized for Hindi and Indic language calls. |
+| `assemblyai` | Streaming, multilingual | `u3-rt-pro` for real-time pro-grade transcription. |
+| `google` | Broad language support | `chirp-3` for latest accuracy improvements. |
+| `cartesia` | Ultra-low latency | `ink-whisper` for latency-sensitive pipelines. |
+| `soniox` | Real-time accuracy | `stt-rt-v4` for real-time streaming. |
+| `gladia` | Multilingual | Broad language coverage with speaker diarization. |
+| `azure` | Enterprise | Azure Speech Services with compliance and regional data residency. |
 
 ---
 
@@ -610,7 +692,7 @@ The voice configuration controls the TTS voice the agent speaks in.
 ```
 
 <ResponseField name="provider" type="string" required>
-  TTS provider. Supported values: `elevenlabs`, `cartesia`, `openai`, `cambai`, `sarvam`, `inworld`, `minimax`.
+  TTS provider. Supported values: `elevenlabs`, `cartesia`, `openai`, `cambai`, `sarvam`, `inworld`, `minimax`, `mistral`.
 </ResponseField>
 
 <ResponseField name="voice_id" type="string" required>
@@ -618,7 +700,7 @@ The voice configuration controls the TTS voice the agent speaks in.
 </ResponseField>
 
 <ResponseField name="model" type="string">
-  Provider-specific model. For ElevenLabs: `eleven_turbo_v2_5` (low latency), `eleven_multilingual_v2` (multilingual). For OpenAI: `tts-1`, `tts-1-hd`.
+  Provider-specific model. For ElevenLabs: `eleven-v3`, `eleven-flash-v2.5` (lowest latency), `eleven-turbo-v2.5`, `eleven-multilingual-v2`. For Cartesia: `sonic-3`, `sonic-turbo`, `sonic-2`, `sonic`. For OpenAI: `gpt-4o-mini`, `realtime`. For CambAI: `mars-pro`, `mars-flash`, `mars-instruct`. For Sarvam: `bulbul-v3`, `bulbul-v2`. For Inworld: `inworld-tts-1.5-max`, `inworld-tts-1.5-mini`, `inworld-tts-1-max`, `inworld-tts-1`. For MiniMax: `speech-2.8-hd`, `speech-2.8-turbo`, `speech-2.6-hd`, `speech-2.6-turbo`. For Mistral: `voxtral-4b-tts`.
 </ResponseField>
 
 <ResponseField name="language" type="string">
@@ -642,13 +724,14 @@ curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/voices?provider=elevenla
 
 | Provider | Best for | Notes |
 |----------|----------|-------|
-| `elevenlabs` | Natural, expressive voices | Industry-leading quality. `eleven_turbo_v2_5` for lowest latency. |
-| `cartesia` | Ultra-low latency | Fastest TTS available, good for latency-sensitive use cases. |
-| `openai` | Consistent quality | Simple, clean voices. `tts-1-hd` for higher quality. |
-| `cambai` | Indian English | Optimized for South Asian accents and languages. |
-| `sarvam` | Indian languages | Hindi, Tamil, Bengali, and other Indic languages. |
-| `inworld` | Character voices | Game-style character voices with emotion control. |
-| `minimax` | Chinese | High-quality Mandarin and Chinese regional voices. |
+| `elevenlabs` | Natural, expressive voices | `eleven-v3` for highest quality; `eleven-flash-v2.5` for lowest latency. |
+| `cartesia` | Ultra-low latency | `sonic-3` for best quality; `sonic-turbo` for fastest streaming. |
+| `openai` | Consistent quality | `gpt-4o-mini` for clean, reliable output. |
+| `cambai` | Multilingual | `mars-pro` for highest quality; `mars-flash` for low latency. |
+| `sarvam` | Indian languages | `bulbul-v3` for Hindi, Tamil, Bengali, and other Indic languages. |
+| `inworld` | Character voices | `inworld-tts-1.5-max` for most expressive character voices. |
+| `minimax` | Multilingual | `speech-2.8-hd` for highest quality across languages. |
+| `mistral` | Voice synthesis | `voxtral-4b-tts` for Mistral-native TTS. |
 
 ---
 
@@ -1098,19 +1181,21 @@ These are resolved from the prospect record at runtime.
 
 | Use case | Recommended model |
 |----------|-------------------|
-| Sales / SDR calls | `gpt-4o` or `claude-3-5-sonnet-20241022` |
+| Sales / SDR calls | `gpt-4.1` or `claude-sonnet-4` |
 | High-volume, simple scripts | `gpt-4o-mini` or `groq/llama-3.3-70b-versatile` |
-| Multi-step reasoning, complex objection handling | `claude-3-5-sonnet-20241022` or `gpt-4o` |
-| Lowest possible latency | `cerebras/llama3.1-70b` or `cartesia` TTS |
-| Multilingual campaigns | `google/gemini-1.5-pro` + `elevenlabs` multilingual |
+| Multi-step reasoning, complex objection handling | `claude-sonnet-4` or `gpt-4.1` |
+| Lowest possible latency | `cerebras/llama-3.1-8b` or `cartesia` TTS |
+| Multilingual campaigns | `google/gemini-2.5-flash` + `elevenlabs` multilingual |
 | Cost-optimized fallback | `groq/llama-3.1-8b-instant` |
+| Enterprise / compliance | `azure-openai/gpt-4.1` |
+| Advanced reasoning | `claude-opus-4` or `xai/grok-4-20-reasoning` |
 
 ### Voice selection tips
 
 - Match the voice accent and language to your target market. An American-English voice for a market where prospects speak British English creates friction.
 - Preview voices using the `/voices` endpoint before committing.
-- ElevenLabs `eleven_turbo_v2_5` is the best balance of quality and latency for most voice agents.
-- For non-English markets, use `eleven_multilingual_v2` (ElevenLabs) or a provider like Sarvam (Indian languages) or Minimax (Chinese).
+- ElevenLabs `eleven-flash-v2.5` is the best balance of quality and latency for most voice agents.
+- For non-English markets, use `eleven-multilingual-v2` (ElevenLabs), Sarvam `bulbul-v3` (Indian languages), or MiniMax `speech-2.8-hd` (multilingual).
 
 ### LLM fallback strategy for production
 
@@ -1119,11 +1204,11 @@ Always configure at least two providers. A recommended production setup:
 ```json
 {
   "provider": "openai",
-  "model": "gpt-4o",
+  "model": "gpt-4.1",
   "fallbacks": [
     {
       "provider": "anthropic",
-      "model": "claude-3-5-sonnet-20241022"
+      "model": "claude-sonnet-4"
     },
     {
       "provider": "groq",

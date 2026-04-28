@@ -101,31 +101,44 @@ Get your API key from [Dashboard - Organization Settings](https://dash.prod.czmx
   <Tab title="LLM">
     | Provider | Models |
     |----------|--------|
-    | `openai` | gpt-4o, gpt-4o-mini, gpt-4-turbo |
-    | `anthropic` | claude-3-5-sonnet-20241022, claude-3-haiku |
-    | `google` | gemini-1.5-pro, gemini-1.5-flash |
-    | `groq` | llama-3.1-70b-versatile, llama-3.1-8b-instant |
-    | `cerebras` | llama3.1-70b, llama3.1-8b |
+    | `openai` | gpt-5.1, gpt-5, gpt-5-mini, gpt-5-nano, gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, gpt-4o, gpt-4o-mini, gpt-realtime, realtime-preview |
+    | `anthropic` | claude-opus-4-1, claude-opus-4, claude-sonnet-4, claude-3-7-sonnet, claude-3-5-haiku, claude-3-haiku |
+    | `google` | gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite |
+    | `groq` | llama-3.1-8b-instant, llama-3.3-70b-versatile, gpt-oss-120b, gpt-oss-20b |
+    | `azure-openai` | gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, gpt-4o, gpt-4o-mini, gpt-4o-realtime-preview, o1, o1-mini, o3, o3-mini, o4 |
+    | `cerebras` | llama-3.1-8b, openai-gpt-oss, qwen-3-235b-instruct, z.ai-glm-4.7 |
+    | `togetherai` | glm-5.1, minimax-m2.7, gemma-4-31b, qwen-3.5-397b |
+    | `xai` | grok-4-20-reasoning, grok-4-20, grok-4-1-fast-reasoning, grok-4-1-fast |
+    | `mistral` | magistral-medium, magistral-small, mistral-large, mistral-medium, mistral-small, mistral-tiny |
+    | `openrouter` | Multiple models via router |
   </Tab>
   <Tab title="Speech-to-Text">
-    | Provider | Strengths |
-    |----------|-----------|
-    | `deepgram` | Low latency, nova-3 model, keyword boosting |
-    | `elevenlabs` | High accuracy, 30+ languages |
-    | `speechmatics` | Enterprise accuracy, financial/legal vocabulary |
-    | `openai` | Whisper model, broad language support |
-    | `groq` | Ultra-low latency inference |
+    | Provider | Models |
+    |----------|--------|
+    | `deepgram` | flux, nova-3, nova-3-general, nova-3-medical, nova-2, nova-2-general, nova-2-medical, nova-2-phonecall, nova-2-meeting, nova-2-finance, nova-2-conversationalai, nova-2-voicemail, nova-2-video, nova-2-drivethru, nova-2-automotive, whisper-large, whisper-medium, whisper-small, whisper-base, whisper-tiny |
+    | `elevenlabs` | scribe-v2-realtime |
+    | `speechmatics` | enhanced, standard |
+    | `openai` | gpt-4o-transcribe, gpt-4o-mini-transcribe, whisper-1 |
+    | `groq` | whisper-large-v3, whisper-large-v3-turbo |
+    | `sarvam` | saaras-3 |
+    | `assemblyai` | universal-streaming-english, universal-streaming-multilingual, u3-rt-pro |
+    | `azure` | — |
+    | `gladia` | — |
+    | `google` | chirp-2, chirp-3 |
+    | `cartesia` | ink-whisper |
+    | `soniox` | stt-rt-v4 |
   </Tab>
   <Tab title="Text-to-Speech">
-    | Provider | Voices |
+    | Provider | Models |
     |----------|--------|
-    | `elevenlabs` | 1,000+ voices, voice cloning |
-    | `cartesia` | Ultra-low latency streaming |
-    | `openai` | alloy, echo, fable, nova, onyx, shimmer |
-    | `cambai` | Multilingual, natural cadence |
-    | `sarvam` | Indian language specialization |
-    | `inworld` | Expressive characters |
-    | `minimax` | High-quality multilingual |
+    | `elevenlabs` | eleven-v3, eleven-flash-v2.5, eleven-turbo-v2.5, eleven-multilingual-v2 |
+    | `cartesia` | sonic-3, sonic-turbo, sonic-2, sonic |
+    | `openai` | gpt-4o-mini, realtime |
+    | `cambai` | mars-pro, mars-flash, mars-instruct |
+    | `sarvam` | bulbul-v3, bulbul-v2 |
+    | `inworld` | inworld-tts-1.5-max, inworld-tts-1.5-mini, inworld-tts-1-max, inworld-tts-1 |
+    | `minimax` | speech-2.8-hd, speech-2.8-turbo, speech-2.6-hd, speech-2.6-turbo |
+    | `mistral` | voxtral-4b-tts |
   </Tab>
 </Tabs>
 

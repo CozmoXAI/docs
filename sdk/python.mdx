@@ -6,11 +6,11 @@ description: "Official Cozmo AI Python SDK - sync and async clients, full type h
 ## Installation
 
 ```bash
-pip install cozmoai
+pip install cozmoxai
 # or with poetry
-poetry add cozmoai
+poetry add cozmoxai
 # or with uv
-uv add cozmoai
+uv add cozmoxai
 ```
 
 **Requirements:** Python 3.8+
@@ -20,8 +20,8 @@ uv add cozmoai
 Set your credentials as environment variables:
 
 ```bash
-export COZMO_API_KEY="your_api_key_here"
-export COZMO_ORG_ID="your_org_id_here"
+export COZMOAI_API_KEY="your_api_key_here"
+export COZMOAI_ORG_ID="your_org_id_here"
 ```
 
 Or use a `.env` file with `python-dotenv`:
@@ -38,18 +38,21 @@ load_dotenv()
 ## Initialize the client
 
 ```python
-from cozmoai import CozmoAI
+import os
+from cozmoxai import Cozmoai
 
-# Reads COZMO_API_KEY and COZMO_ORG_ID from environment automatically
-client = CozmoAI()
+client = Cozmoai(
+    api_key=os.environ["COZMOAI_API_KEY"],
+    base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+)
 ```
 
 Pass credentials explicitly if you prefer:
 
 ```python
-client = CozmoAI(
+client = Cozmoai(
     api_key="your_api_key",
-    org_id="your_org_id",
+    base_url="https://v2-nova-api.prod.czmx.in/api/org/your_org_id",
 )
 ```
 
@@ -73,7 +76,7 @@ print(f"Total: {agents.meta.total}")
 ### Create an agent
 
 ```python
-from cozmoai.types import LLMConfig, TranscriberConfig, VoiceConfig, GreetingConfig
+from cozmoxai.types import LlmConfigParam, TranscriberConfigParam, VoiceConfigParam, GreetingConfigParam
 
 agent = client.agents.create(
     name="Sales Agent",
@@ -100,27 +103,27 @@ agent = client.agents.create(
 # Configure after creation with update
 agent = client.agents.update(
     agent_id=agent.id,
-    llm_config=LLMConfig(
+    llm_config=LlmConfigParam(
         provider="openai",
         model="gpt-4o",
         temperature=0.7,
         max_tokens=512,
         system_prompt="You are a helpful enterprise sales assistant.",
         fallbacks=[
-            LLMConfig(provider="anthropic", model="claude-3-5-sonnet-20241022")
+            LlmConfigParam(provider="anthropic", model="claude-3-5-sonnet-20241022")
         ],
     ),
-    transcriber_config=TranscriberConfig(
+    transcriber_config=TranscriberConfigParam(
         provider="deepgram",
         model="nova-3",
         language="en-US",
     ),
-    voice_config=VoiceConfig(
+    voice_config=VoiceConfigParam(
         provider="elevenlabs",
         voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel
         model="eleven_turbo_v2",
     ),
-    greeting_config=GreetingConfig(
+    greeting_config=GreetingConfigParam(
         agent_speaks_first=True,
         greeting="Hi {{prospect_first_name}}, this is Alex from Acme. Do you have a moment?",
         pause_before_first_message=800,
@@ -132,7 +135,7 @@ agent = client.agents.update(
 ### Get an agent
 
 ```python
-agent = client.agents.get(agent_id="agt_01j9xyz")
+agent = client.agents.retrieve(agent_id="00000000-0000-0000-0000-000000000001")
 print(agent.name, agent.type, agent.created_at)
 ```
 
@@ -142,10 +145,10 @@ All fields are optional - only pass what you want to change:
 
 ```python
 agent = client.agents.update(
-    agent_id="agt_01j9xyz",
+    agent_id="00000000-0000-0000-0000-000000000001",
     name="Updated Sales Agent",
     prompt_template="New system prompt...",
-    llm_config=LLMConfig(
+    llm_config=LlmConfigParam(
         provider="anthropic",
         model="claude-3-5-sonnet-20241022",
         temperature=0.5,
@@ -153,21 +156,10 @@ agent = client.agents.update(
 )
 ```
 
-### Clone an agent
-
-```python
-# Clone all settings from an existing agent
-agent = client.agents.create(
-    name="Sales Agent - Copy",
-    type="voice",
-    copy_from_agent_id="agt_existing123",
-)
-```
-
 ### Delete an agent
 
 ```python
-client.agents.delete(agent_id="agt_01j9xyz")
+client.agents.delete(agent_id="00000000-0000-0000-0000-000000000001")
 ```
 
 ---
@@ -185,10 +177,10 @@ session_id = str(uuid.uuid4())
 
 session = client.agent_sessions.start(
     session_id=session_id,
-    agent_id="agt_01j9xyz",
+    agent_id="00000000-0000-0000-0000-000000000001",
     instruction="Follow up with this prospect about their demo request from last week.",
     title="Demo follow-up",
-    prospect_id="prospect_uuid",  # optional - link to existing prospect
+    prospect_id="00000000-0000-0000-0000-000000000002",  # optional - link to existing prospect
     source="api",
 )
 
@@ -198,7 +190,7 @@ print(session.session_id)  # same as session_id you passed
 ### Get a session
 
 ```python
-session = client.agent_sessions.get(session_id="550e8400-e29b-41d4-a716-446655440000")
+session = client.agent_sessions.retrieve(session_id="550e8400-e29b-41d4-a716-446655440000")
 
 print(session.status)        # PENDING | ACTIVE | COMPLETED | STOPPED | FAILED | CANCELLED
 print(session.channel)       # voice | chat | telegram | whatsapp
@@ -222,17 +214,11 @@ for call in calls.data:
 calls = client.calls.list(
     status="completed",
     direction="outbound",
-    agent_id="agt_01j9xyz",
+    agent_id="00000000-0000-0000-0000-000000000001",
     start_date="2026-04-01",
     end_date="2026-04-30",
     page=1,
     size=50,
-)
-
-# Filter by evaluation outcome (e.g. interested prospects only)
-calls = client.calls.list(
-    evaluation_key="INTERESTED",
-    evaluation_value="true",
 )
 ```
 
@@ -256,7 +242,7 @@ for call in iter_all_calls(client, status="completed", start_date="2026-04-01"):
 ### Get call details
 
 ```python
-call = client.calls.get(call_id="call_17546d2d")
+call = client.calls.retrieve(call_id="00000000-0000-0000-0000-000000000003")
 
 # Transcript
 print(call.transcript_text)
@@ -286,11 +272,13 @@ print(f"Tokens: {call.tokens_input} in / {call.tokens_output} out")
 
 ### List available voices
 
+The `provider` parameter is required.
+
 ```python
 # List ElevenLabs voices
 voices = client.voices.list(provider="elevenlabs")
-for voice in voices.data:
-    print(voice.voice_id, voice.name, voice.language)
+for voice in voices.voices:
+    print(voice.id, voice.name, voice.language)
 
 # With pagination cursor (ElevenLabs / Cartesia native pagination)
 voices = client.voices.list(provider="cartesia", next_page=voices.meta.next_page)
@@ -315,7 +303,7 @@ for wf in workflows.data:
 ### Get a workflow
 
 ```python
-workflow = client.workflows.get(workflow_id="wf_abc123")
+workflow = client.workflows.retrieve(workflow_id="00000000-0000-0000-0000-000000000004")
 print(workflow.name, workflow.is_active, workflow.trigger_type)
 ```
 
@@ -323,11 +311,32 @@ print(workflow.name, workflow.is_active, workflow.trigger_type)
 
 ## Workflow Runs
 
+The `workflow_runs` resource is not yet available in the SDK. Use the REST API directly:
+
 ### Create a workflow run
 
 ```python
-run = client.workflow_runs.create(
-    workflow_id="wf_abc123",
+import os
+import requests
+
+def create_workflow_run(workflow_id: str, prospect: dict, scheduled_at=None):
+    org_id = os.environ["COZMOAI_ORG_ID"]
+    api_key = os.environ["COZMOAI_API_KEY"]
+
+    body = {"workflow_id": workflow_id, "prospect": prospect}
+    if scheduled_at:
+        body["scheduled_at"] = scheduled_at.isoformat()
+
+    response = requests.post(
+        f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs",
+        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+        json=body,
+    )
+    response.raise_for_status()
+    return response.json()
+
+run = create_workflow_run(
+    workflow_id="00000000-0000-0000-0000-000000000004",
     prospect={
         "phone": "+19175551234",
         "first_name": "Jane",
@@ -344,8 +353,8 @@ run = client.workflow_runs.create(
     },
 )
 
-print(run.workflow_run_id)
-print(run.external_id)
+print(run["workflow_run_id"])
+print(run["external_id"])
 ```
 
 ### Schedule a future run
@@ -353,8 +362,8 @@ print(run.external_id)
 ```python
 from datetime import datetime, timezone
 
-run = client.workflow_runs.create(
-    workflow_id="wf_abc123",
+run = create_workflow_run(
+    workflow_id="00000000-0000-0000-0000-000000000004",
     prospect={"phone": "+19175551234", "first_name": "Jane"},
     scheduled_at=datetime(2026, 5, 1, 9, 0, 0, tzinfo=timezone.utc),
 )
@@ -368,10 +377,15 @@ For use with `asyncio`, `FastAPI`, or any async framework:
 
 ```python
 import asyncio
-from cozmoai import AsyncCozmoAI
+import os
+import uuid
+from cozmoxai import AsyncCozmoai
 
 async def main():
-    client = AsyncCozmoAI()
+    client = AsyncCozmoai(
+        api_key=os.environ["COZMOAI_API_KEY"],
+        base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+    )
 
     # All methods are identical to the sync client but return coroutines
     agents = await client.agents.list()
@@ -381,7 +395,7 @@ async def main():
         agent_id=agent.id,
         instruction="Hello world",
     )
-    await client.aclose()
+    await client.close()
 
 asyncio.run(main())
 ```
@@ -389,20 +403,25 @@ asyncio.run(main())
 ### FastAPI integration
 
 ```python
+import os
 import uuid
+import httpx
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from cozmoai import AsyncCozmoAI
+from cozmoxai import AsyncCozmoai
 
-client: AsyncCozmoAI
+client: AsyncCozmoai
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global client
-    client = AsyncCozmoAI()
+    client = AsyncCozmoai(
+        api_key=os.environ["COZMOAI_API_KEY"],
+        base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+    )
     yield
-    await client.aclose()
+    await client.close()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -414,17 +433,26 @@ class TriggerRequest(BaseModel):
 
 @app.post("/trigger-call")
 async def trigger_call(body: TriggerRequest):
+    org_id = os.environ["COZMOAI_ORG_ID"]
+    api_key = os.environ["COZMOAI_API_KEY"]
     try:
-        run = await client.workflow_runs.create(
-            workflow_id="wf_abc123",
-            prospect={
-                "phone": body.phone,
-                "first_name": body.first_name,
-                "last_name": body.last_name,
-                "external_id": body.external_id,
-            },
-        )
-        return {"workflow_run_id": run.workflow_run_id}
+        async with httpx.AsyncClient() as http:
+            response = await http.post(
+                f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs",
+                headers={"X-API-Key": api_key},
+                json={
+                    "workflow_id": "00000000-0000-0000-0000-000000000004",
+                    "prospect": {
+                        "phone": body.phone,
+                        "first_name": body.first_name,
+                        "last_name": body.last_name,
+                        "external_id": body.external_id,
+                    },
+                },
+            )
+            response.raise_for_status()
+            run = response.json()
+        return {"workflow_run_id": run["workflow_run_id"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 ```
@@ -433,27 +461,29 @@ async def trigger_call(body: TriggerRequest):
 
 ```python
 import asyncio
-from cozmoai import AsyncCozmoAI
+import os
+import httpx
 
 async def bulk_trigger(prospects: list[dict], workflow_id: str, concurrency: int = 50):
-    client = AsyncCozmoAI()
+    org_id = os.environ["COZMOAI_ORG_ID"]
+    api_key = os.environ["COZMOAI_API_KEY"]
     semaphore = asyncio.Semaphore(concurrency)
-    results = []
 
     async def trigger_one(prospect: dict):
         async with semaphore:
-            return await client.workflow_runs.create(
-                workflow_id=workflow_id,
-                prospect=prospect,
-            )
+            async with httpx.AsyncClient() as http:
+                response = await http.post(
+                    f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs",
+                    headers={"X-API-Key": api_key},
+                    json={"workflow_id": workflow_id, "prospect": prospect},
+                )
+                response.raise_for_status()
+                return response.json()
 
-    try:
-        results = await asyncio.gather(
-            *[trigger_one(p) for p in prospects],
-            return_exceptions=True,
-        )
-    finally:
-        await client.aclose()
+    results = await asyncio.gather(
+        *[trigger_one(p) for p in prospects],
+        return_exceptions=True,
+    )
 
     successes = [r for r in results if not isinstance(r, Exception)]
     failures = [r for r in results if isinstance(r, Exception)]
@@ -468,27 +498,31 @@ async def bulk_trigger(prospects: list[dict], workflow_id: str, concurrency: int
 The SDK raises specific exception types for different error categories:
 
 ```python
-from cozmoai import CozmoAI
-from cozmoai.exceptions import (
-    AuthenticationError,    # 401 - invalid or missing API key
-    NotFoundError,          # 404 - resource not found
-    RateLimitError,         # 429 - rate limit exceeded
-    BadRequestError,        # 400 - validation error
-    APIStatusError,         # any other 4xx/5xx
-    APIConnectionError,     # network/connection error
+import os
+from cozmoxai import (
+    Cozmoai,
+    AuthenticationError,
+    NotFoundError,
+    RateLimitError,
+    BadRequestError,
+    APIStatusError,
+    APIConnectionError,
 )
 
-client = CozmoAI()
+client = Cozmoai(
+    api_key=os.environ["COZMOAI_API_KEY"],
+    base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+)
 
 try:
-    agent = client.agents.get(agent_id="agt_does_not_exist")
+    agent = client.agents.retrieve(agent_id="00000000-0000-0000-0000-000000000000")
 except NotFoundError as e:
     print(f"Agent not found: {e.message}")
 except RateLimitError as e:
     reset_ts = e.response.headers.get("X-Rate-Limit-Reset")
     print(f"Rate limited. Reset at {reset_ts}")
 except AuthenticationError:
-    print("Invalid API key - check COZMO_API_KEY")
+    print("Invalid API key - check COZMOAI_API_KEY")
 except BadRequestError as e:
     print(f"Validation error: {e.message}")
 except APIStatusError as e:
@@ -517,7 +551,7 @@ def with_retry(fn, max_retries=3):
             time.sleep(2 ** attempt)
     raise RuntimeError("Max retries exceeded")
 
-agent = with_retry(lambda: client.agents.get("agt_abc123"))
+agent = with_retry(lambda: client.agents.retrieve("00000000-0000-0000-0000-000000000001"))
 ```
 
 ---
@@ -547,27 +581,24 @@ while True:
 
 ---
 
-## TypeScript types
+## Types
 
 All response objects are Pydantic models with full field documentation:
 
 ```python
-from cozmoai.types import (
+from cozmoxai.types import (
     AgentResponse,
-    AgentListItemResponse,
-    SessionResponse,
-    CallDetailResponse,
-    CallEvaluationResponse,
-    WorkflowResponse,
-    CreateWorkflowRunResponse,
+    AgentSessionResponse,
+    CallRetrieveResponse,
+    WorkflowRetrieveResponse,
 )
 
 # Access fields with dot notation and full IDE completion
-call: CallDetailResponse = client.calls.get(call_id="call_abc")
+call: CallRetrieveResponse = client.calls.retrieve(call_id="00000000-0000-0000-0000-000000000003")
 print(call.transcript_text)     # str | None
 print(call.recording_url)       # str | None
 print(call.cost_usd)            # str
-print(call.evaluations)         # list[CallEvaluationResponse]
+print(call.evaluations)         # list
 ```
 
 ---

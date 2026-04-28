@@ -1,6 +1,6 @@
 ---
 title: "Quickstart"
-description: "Go from zero to a running agent session in under 10 minutes"
+description: "Go from zero to a triggered workflow call in under 10 minutes"
 ---
 
 ## Before you begin
@@ -204,7 +204,7 @@ response = requests.post(
 
 agent = response.json()
 print(f"Created agent: {agent['id']}")
-# Save this ID - you need it for Step 3
+# Attach this agent to a workflow in the Dashboard
 AGENT_ID = agent["id"]
 ```
 
@@ -261,7 +261,7 @@ const response = await fetch(
 
 const agent = await response.json();
 console.log(`Created agent: ${agent.id}`);
-// Save this ID - you need it for Step 3
+// Attach this agent to a workflow in the Dashboard
 const AGENT_ID = agent.id;
 ```
 
@@ -355,262 +355,13 @@ func main() {
 }
 ```
 
-Save the `id` - you'll need it in Step 3.
+Save the `id` — attach this agent to a workflow in the Dashboard before Step 4.
 
 ---
 
-## Step 3 - Start a session
+## Step 3 - Set up a webhook
 
-A session runs your agent against a prospect. You provide a client-generated UUID v4 as the `session_id` - this makes the operation idempotent.
-
-<CodeGroup>
-
-```bash cURL
-# Generate a UUID: uuidgen (macOS/Linux) or PowerShell [guid]::NewGuid()
-SESSION_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
-
-curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agent-sessions/${SESSION_ID}/start" \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agentId": "agt-01j9xyz-abc123",
-    "instruction": "Call Jane Doe at +19175551234. She submitted a support ticket about a billing issue on her account (ticket #4521). Help her understand why she was charged twice in March.",
-    "title": "Support follow-up - Jane Doe - Ticket #4521",
-    "prospectId": "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e"
-  }'
-```
-
-```python Python
-import os
-import uuid
-import requests
-
-COZMO_API_KEY = os.environ["COZMO_API_KEY"]
-COZMO_ORG_ID = os.environ["COZMO_ORG_ID"]
-AGENT_ID = "agt-01j9xyz-abc123"    # from Step 2
-PROSPECT_ID = "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e"  # existing prospect UUID
-
-session_id = str(uuid.uuid4())  # generate a UUID v4
-
-response = requests.post(
-    f"https://v2-nova-api.prod.czmx.in/api/org/{COZMO_ORG_ID}/agent-sessions/{session_id}/start",
-    headers={
-        "X-API-Key": COZMO_API_KEY,
-        "Content-Type": "application/json",
-    },
-    json={
-        "agentId": AGENT_ID,
-        "instruction": (
-            "Call Jane Doe at +19175551234. "
-            "She submitted a support ticket about a billing issue on her account (ticket #4521). "
-            "Help her understand why she was charged twice in March."
-        ),
-        "title": "Support follow-up - Jane Doe - Ticket #4521",
-        "prospectId": PROSPECT_ID,
-    },
-)
-
-data = response.json()
-print(f"Session started: {data['sessionId']}")
-SESSION_ID = data["sessionId"]
-```
-
-```typescript TypeScript
-import { v4 as uuidv4 } from "uuid";
-
-const COZMO_API_KEY = process.env.COZMO_API_KEY!;
-const COZMO_ORG_ID = process.env.COZMO_ORG_ID!;
-const AGENT_ID = "agt-01j9xyz-abc123";       // from Step 2
-const PROSPECT_ID = "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e";
-
-const sessionId = uuidv4();  // generate a UUID v4
-
-const response = await fetch(
-  `https://v2-nova-api.prod.czmx.in/api/org/${COZMO_ORG_ID}/agent-sessions/${sessionId}/start`,
-  {
-    method: "POST",
-    headers: {
-      "X-API-Key": COZMO_API_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      agentId: AGENT_ID,
-      instruction:
-        "Call Jane Doe at +19175551234. " +
-        "She submitted a support ticket about a billing issue on her account (ticket #4521). " +
-        "Help her understand why she was charged twice in March.",
-      title: "Support follow-up - Jane Doe - Ticket #4521",
-      prospectId: PROSPECT_ID,
-    }),
-  }
-);
-
-const data = await response.json();
-console.log(`Session started: ${data.sessionId}`);
-const SESSION_ID = data.sessionId;
-```
-
-```go Go
-package main
-
-import (
-    "bytes"
-    "encoding/json"
-    "fmt"
-    "io"
-    "net/http"
-    "os"
-
-    "github.com/google/uuid"
-)
-
-func main() {
-    apiKey := os.Getenv("COZMO_API_KEY")
-    orgID := os.Getenv("COZMO_ORG_ID")
-    agentID := "agt-01j9xyz-abc123"
-    prospectID := "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e"
-
-    sessionID := uuid.New().String() // generate a UUID v4
-
-    payload := map[string]string{
-        "agentId":     agentID,
-        "instruction": "Call Jane Doe at +19175551234. She submitted a support ticket about a billing issue (ticket #4521). Help her understand why she was charged twice in March.",
-        "title":       "Support follow-up - Jane Doe - Ticket #4521",
-        "prospectId":  prospectID,
-    }
-
-    body, _ := json.Marshal(payload)
-    req, _ := http.NewRequest(
-        "POST",
-        fmt.Sprintf(
-            "https://v2-nova-api.prod.czmx.in/api/org/%s/agent-sessions/%s/start",
-            orgID,
-            sessionID,
-        ),
-        bytes.NewReader(body),
-    )
-    req.Header.Set("X-API-Key", apiKey)
-    req.Header.Set("Content-Type", "application/json")
-
-    resp, err := http.DefaultClient.Do(req)
-    if err != nil {
-        panic(err)
-    }
-    defer resp.Body.Close()
-
-    respBody, _ := io.ReadAll(resp.Body)
-    fmt.Printf("Response: %s\n", respBody)
-}
-```
-
-</CodeGroup>
-
-**Expected response:**
-
-```json
-{
-  "sessionId": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-<Info>
-  The `session_id` in the URL is client-generated and must be a UUID v4. Calling start with the same ID twice is safe - only one session is created and the same `sessionId` is returned. This makes it safe to retry on network failure.
-</Info>
-
----
-
-## Step 4 - Retrieve the session
-
-Poll the session to check status, or use webhooks (Step 5) to receive completion events without polling.
-
-<CodeGroup>
-
-```bash cURL
-curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agent-sessions/{session_id}" \
-  -H "X-API-Key: YOUR_API_KEY"
-```
-
-```python Python
-response = requests.get(
-    f"https://v2-nova-api.prod.czmx.in/api/org/{COZMO_ORG_ID}/agent-sessions/{SESSION_ID}",
-    headers={"X-API-Key": COZMO_API_KEY},
-)
-
-session = response.json()
-print(f"Status: {session['status']}")  # PENDING | ACTIVE | COMPLETED | FAILED
-```
-
-```typescript TypeScript
-const response = await fetch(
-  `https://v2-nova-api.prod.czmx.in/api/org/${COZMO_ORG_ID}/agent-sessions/${SESSION_ID}`,
-  {
-    headers: { "X-API-Key": COZMO_API_KEY },
-  }
-);
-
-const session = await response.json();
-console.log(`Status: ${session.status}`); // PENDING | ACTIVE | COMPLETED | FAILED
-```
-
-```go Go
-req, _ := http.NewRequest(
-    "GET",
-    fmt.Sprintf(
-        "https://v2-nova-api.prod.czmx.in/api/org/%s/agent-sessions/%s",
-        orgID,
-        sessionID,
-    ),
-    nil,
-)
-req.Header.Set("X-API-Key", apiKey)
-
-resp, _ := http.DefaultClient.Do(req)
-defer resp.Body.Close()
-
-body, _ := io.ReadAll(resp.Body)
-fmt.Println(string(body))
-```
-
-</CodeGroup>
-
-**Expected response:**
-
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "organization_id": "d1e2f3a4-b5c6-7890-1234-567890abcdef",
-  "root_agent_id": "agt-01j9xyz-abc123",
-  "prospect_id": "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
-  "call_id": null,
-  "case_id": "A3X7B2",
-  "title": "Support follow-up - Jane Doe - Ticket #4521",
-  "channel": "voice",
-  "status": "ACTIVE",
-  "started_at": "2026-04-21T10:01:00Z",
-  "ended_at": null,
-  "last_event_sequence": 5,
-  "metadata": {},
-  "created_at": "2026-04-21T10:01:00Z",
-  "updated_at": "2026-04-21T10:01:15Z"
-}
-```
-
-Session statuses:
-
-| Status | Description |
-|--------|-------------|
-| `PENDING` | Created, agent not yet triggered |
-| `ACTIVE` | Agent is running |
-| `COMPLETED` | Agent finished successfully |
-| `STOPPED` | Manually stopped |
-| `FAILED` | Unrecoverable error |
-| `CANCELLED` | Cancelled before starting |
-
----
-
-## Step 5 - Set up a webhook
-
-Instead of polling, receive a push notification the moment a session or call ends. Configure your endpoint in **Dashboard - Organization Settings - Webhooks**, then implement a handler:
+Receive a push notification the moment a call or session ends. Configure your endpoint in **Dashboard - Organization Settings - Webhooks**, then implement a handler:
 
 <CodeGroup>
 
@@ -797,9 +548,9 @@ See [CLI - Webhook Testing](/cli/webhook) for the full setup guide.
 
 ---
 
-## Step 6 - Trigger a workflow run
+## Step 4 - Trigger a workflow run
 
-For production outreach at scale, use workflows instead of direct sessions. A workflow run creates both the session and any associated calls according to your campaign configuration:
+A workflow run triggers your agent against a prospect, creating the session and placing the call according to your campaign configuration:
 
 <CodeGroup>
 
@@ -935,7 +686,7 @@ Workflow runs also support scheduling. Add `"scheduled_at": "2026-04-22T09:00:00
 
 <CardGroup cols={2}>
   <Card title="Agents" icon="robot" href="/concepts/agents">
-    Configure LLM providers, voices, transcriberss, and fallbacks for your agent.
+    Configure LLM providers, voices, transcribers, and fallbacks for your agent.
   </Card>
   <Card title="Sessions" icon="messages" href="/concepts/sessions">
     Understand session lifecycle, channels, and idempotency.

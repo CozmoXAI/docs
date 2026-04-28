@@ -1,11 +1,11 @@
 ---
-title: "Session Runner"
-description: "Safely launch Cozmo agent sessions and workflow runs with preflight checks, UUID idempotency, and live launch checklists"
+title: "Agent Builder"
+description: "Create and configure Cozmo AI agents via the API with full field coverage, safe preflight validation, and composable output for the Workflow Runner skill"
 ---
 
 ## Overview
 
-The `cozmox-session-runner` skill makes your AI agent safety-first when starting agent sessions or creating workflow runs with prospects. Use it when launching sessions interactively, scheduling campaign runs, preparing payloads, validating agent or workflow IDs, or monitoring launched sessions without causing duplicate or cross-org side effects.
+The `cozmox-session-runner` skill makes your AI coding assistant an expert at creating and configuring Cozmo agents. Use it to generate correct `POST /agents` payloads with every field — LLM, transcriber, voice, greeting, VAD, interruption settings — validate the agent under your org, and hand off the resulting agent ID to the Workflow Runner skill.
 
 ## Install
 
@@ -13,232 +13,236 @@ The `cozmox-session-runner` skill makes your AI agent safety-first when starting
 npx skills add CozmoXAI/skills --skill cozmox-session-runner -a claude-code -y
 ```
 
-## Choose the right launch type
+## Compose with the Workflow Runner
 
-### Start Agent Session
+This skill produces an `agent_id`. Pass it to [`cozmox-workflow-runner`](/skills/cozmox-workflow-runner) to trigger calls:
 
-Use this for interactive or direct agent runs.
+```
+cozmox-session-runner  →  agent_id
+                                 ↓
+               cozmox-workflow-runner  →  workflow_run_id
+```
+
+## Create agent — endpoint
 
 ```http
-POST /api/org/{org_id}/agent-sessions/{session_id}/start
+POST /api/org/{org_id}/agents
 ```
 
-**Required body fields:**
+## Full request shape
 
 ```json
 {
-  "agentId": "agent uuid",
-  "instruction": "initial user message"
+  "name": "string — required, human-readable label shown in Dashboard",
+  "type": "voice | chat | video — required, cannot change after creation",
+  "prompt_template": "string — system prompt, supports {{prospect_name}}, {{prospect_first_name}}, {{prospect_phone}}",
+  "copy_from_agent_id": "string — clone all settings from this agent ID; any field you specify overrides the copy",
+
+  "llm_config": {
+    "provider": "openai | anthropic | google | groq | cerebras — required",
+    "model": "string — required, provider-specific model ID",
+    "temperature": "number 0–2, default 0.7 — lower = more deterministic",
+    "max_tokens": "integer ≥1 — keep 150–250 for voice to stay concise",
+    "top_p": "number 0–1 — nucleus sampling",
+    "top_k": "integer — Anthropic only, limits token sampling pool",
+    "presence_penalty": "number −2.0–2.0 — OpenAI only, reduces repetition",
+    "parallel_tool_calls": "boolean — allow multiple tool calls per turn, default false",
+    "system_prompt": "string — appended to prompt_template, use for compliance boilerplate",
+    "fallbacks": [
+      {
+        "provider": "string",
+        "model": "string",
+        "temperature": "number",
+        "max_tokens": "integer"
+      }
+    ]
+  },
+
+  "transcriber_config": {
+    "provider": "deepgram | elevenlabs | speechmatics | openai | groq — required",
+    "model": "string — e.g. nova-3 (Deepgram), whisper-1 (OpenAI), whisper-large-v3 (Groq)",
+    "language": "BCP-47 string — e.g. en-US, es-ES, ar, hi-IN; omit for auto-detect",
+    "endpointing_ms": "integer — silence ms before committing speech, recommended 200–400, default 300",
+    "smart_format": "boolean — Deepgram only, formats numbers/dates/punctuation, default false",
+    "keywords": ["string — domain terms to boost recognition, e.g. product names"],
+    "fallbacks": [
+      { "provider": "string", "model": "string", "language": "string" }
+    ]
+  },
+
+  "voice_config": {
+    "provider": "elevenlabs | cartesia | openai | cambai | sarvam | inworld | minimax — required",
+    "voice_id": "string — required, get from GET /voices?provider=elevenlabs",
+    "model": "string — e.g. eleven_turbo_v2_5 (low latency), eleven_multilingual_v2, tts-1-hd",
+    "language": "string — language code for multilingual voices, e.g. en, es, ar, hi",
+    "emotion": "string — speaking style hint e.g. friendly, professional, empathetic (provider support varies)"
+  },
+
+  "greeting_config": {
+    "agent_speaks_first": "boolean — true for outbound, false for inbound (prospect speaks first)",
+    "greeting": "string — static opener, supports {{prospect_name}}; e.g. Hi {{prospect_name}}, this is Alex...",
+    "welcome_message_is_generated": "boolean — true = LLM generates opener dynamically instead of static greeting",
+    "pause_before_first_message": "integer ms — wait after connect before speaking, recommended 500–1200, default 1000",
+    "voice_mail_message": "string — left when voicemail detected, keep under 30s of audio"
+  },
+
+  "goodbye_config": {
+    "enabled": "boolean — deliver a closing message before hanging up",
+    "message": "string — closing line, supports {{prospect_name}}"
+  },
+
+  "extra_config": {
+    "allow_interruptions": "boolean — prospect can interrupt mid-utterance, default true",
+    "interruption_sensitivity": "number 0–1 — 0 = hard to interrupt, 1 = yields on any sound, default 0.5",
+    "min_words": "integer — words before interruption is recognized, prevents mm-hmm from cutting in, default 2",
+    "turn_detector": "server_vad | silence_based — algorithm for detecting end-of-turn, default server_vad",
+    "response_delay_ms": "integer — ms of silence after prospect stops before agent responds, default 100"
+  },
+
+  "vad_config": {
+    "activation_threshold": "number 0–1 — confidence to classify audio as speech, default 0.5",
+    "min_silence_duration": "integer ms — silence required to end a speech segment, default 300",
+    "min_speech_duration": "integer ms — minimum speech to trigger VAD, filters noise/clicks, default 100",
+    "sample_rate": "integer Hz — default 16000; telephony typically uses 8000"
+  },
+
+  "background_sound": "office | call_center | cafe | none — ambient sound preset, default none",
+  "background_sound_volume": "number 0–1 — volume relative to agent voice, default 0.3"
 }
 ```
 
-**Optional body fields:**
+## Safety contract
 
-```json
-{
-  "title": "human-readable label",
-  "source": "caller identifier, such as mcp or api",
-  "prospectId": "existing prospect uuid"
-}
-```
+Before generating or executing any agent creation command:
 
-### Create Workflow Run with Prospect
+1. Use `COZMOX_ORG_ID` from environment — never ask the user to supply an org ID.
+2. Never print a live `COZMOX_API_KEY`.
+3. For cloning, validate the source agent exists under the configured org before generating the payload.
+4. After creation, return the `agent_id` and the next verification command.
+5. State the side effect before making any write call.
 
-Use this for campaign or workflow execution with prospect creation in one request.
-
-```http
-POST /api/org/{org_id}/workflow-runs
-```
-
-**Required body fields:**
-
-```json
-{
-  "workflow_id": "workflow uuid",
-  "prospect": {
-    "phone": "+15551234567",
-    "country": "US"
-  }
-}
-```
-
-Optional fields include `scheduled_at`, prospect `email`, `external_id`, `first_name`, `last_name`, `timezone`, and `custom_data`.
-
-## Launch safety contract
-
-Before generating or executing any live launch command:
-
-1. Confirm this is a write action and state the side effect.
-2. Use `COZMOX_ORG_ID` from trusted config — never ask the user for a path org unless they are configuring the server.
-3. Validate the agent or workflow under the configured org before launching.
-4. Use a UUID v4 for `session_id`. Generate one if the user did not supply it.
-5. Deduplicate based on external ID or launch intent where possible — if `prospect.external_id` exists, include it.
-6. Never print a live API key.
-7. For scheduled runs, normalize `scheduled_at` to ISO 8601 with timezone. Do not guess local time — ask or use an explicitly provided timezone and date.
-8. After launch, return only the important IDs and next verification command.
-
-## Start-session preflight
-
-Before calling `/agent-sessions/{session_id}/start`, validate the agent first:
+## Preflight — validate org before writing
 
 ```bash
-# Step 1 — validate the agent belongs to this org
+# Confirm the org is reachable and your key is valid
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agents?page=1&size=1" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+```
+
+If this returns `401` or `403`, do not proceed. Report the auth failure to the user.
+
+## Minimal create payload (voice agent)
+
+```bash
+curl --request POST \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agents" \
+  --header "Content-Type: application/json" \
+  --header "X-API-Key: $COZMOX_API_KEY" \
+  --data '{
+    "name": "Sales Agent — US Market",
+    "type": "voice",
+    "prompt_template": "You are Alex, a friendly sales representative for Acme Corp. Your goal is to qualify {{prospect_name}} and schedule a demo. Be concise — this is a phone call. Ask one question at a time.",
+    "llm_config": {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "temperature": 0.7,
+      "max_tokens": 200,
+      "fallbacks": [
+        { "provider": "anthropic", "model": "claude-3-5-sonnet-20241022" }
+      ]
+    },
+    "transcriber_config": {
+      "provider": "deepgram",
+      "model": "nova-3",
+      "language": "en-US",
+      "endpointing_ms": 300,
+      "smart_format": true
+    },
+    "voice_config": {
+      "provider": "elevenlabs",
+      "voice_id": "21m00Tcm4TlvDq8ikWAM",
+      "model": "eleven_turbo_v2_5"
+    },
+    "greeting_config": {
+      "agent_speaks_first": true,
+      "greeting": "Hi, is this {{prospect_name}}? This is Alex from Acme Corp — do you have two minutes?",
+      "pause_before_first_message": 800,
+      "voice_mail_message": "Hi {{prospect_name}}, this is Alex from Acme. I will try you again soon."
+    }
+  }'
+```
+
+## Clone an existing agent
+
+```bash
+curl --request POST \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agents" \
+  --header "Content-Type: application/json" \
+  --header "X-API-Key: $COZMOX_API_KEY" \
+  --data '{
+    "name": "Sales Agent — B Variant",
+    "copy_from_agent_id": "'"$SOURCE_AGENT_ID"'",
+    "prompt_template": "Alternate opener that leads with value proposition first..."
+  }'
+```
+
+All fields from the source agent are copied. Only the fields you specify override the clone.
+
+## Update an agent (PATCH)
+
+`PATCH` only changes the fields you send. All other settings remain unchanged.
+
+```bash
+curl --request PATCH \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agents/$AGENT_ID" \
+  --header "Content-Type: application/json" \
+  --header "X-API-Key: $COZMOX_API_KEY" \
+  --data '{
+    "prompt_template": "Updated prompt...",
+    "llm_config": {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "temperature": 0.5,
+      "max_tokens": 180
+    }
+  }'
+```
+
+## Post-create verification
+
+```bash
 curl --request GET \
   --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agents/$AGENT_ID" \
   --header "X-API-Key: $COZMOX_API_KEY"
-
-# Step 2 — generate a new session UUID
-SESSION_ID="$(node -e 'console.log(crypto.randomUUID())')"
-
-# Step 3 — start the session
-curl --request POST \
-  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agent-sessions/$SESSION_ID/start" \
-  --header "Content-Type: application/json" \
-  --header "X-API-Key: $COZMOX_API_KEY" \
-  --data '{
-    "agentId": "'"$AGENT_ID"'",
-    "instruction": "Use the approved brief and ask one clarifying question if needed.",
-    "title": "Support intake test",
-    "source": "api"
-  }'
 ```
 
-If the preflight `GET` returns 404, do not start. The skill will respond:
+## Browsing available voices
 
-```
-The agent was not found in the configured organization, so I did not start a session.
-```
-
-The skill never reveals whether the ID could belong to another organization.
-
-## Workflow-run preflight
-
-Before calling `/workflow-runs`, validate the workflow first:
-
-```bash
-# Step 1 — validate the workflow belongs to this org
-curl --request GET \
-  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflows/$WORKFLOW_ID" \
-  --header "X-API-Key: $COZMOX_API_KEY"
-
-# Step 2 — create the run
-curl --request POST \
-  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflow-runs" \
-  --header "Content-Type: application/json" \
-  --header "X-API-Key: $COZMOX_API_KEY" \
-  --data '{
-    "workflow_id": "'"$WORKFLOW_ID"'",
-    "scheduled_at": "2026-04-22T12:00:00Z",
-    "prospect": {
-      "phone": "+15551234567",
-      "country": "US",
-      "email": "ada@example.com",
-      "external_id": "crm-123",
-      "first_name": "Ada",
-      "last_name": "Lovelace",
-      "timezone": "America/New_York",
-      "custom_data": { "campaign": "spring-demo" }
-    }
-  }'
-```
-
-If this returns 404, do not create the run.
-
-## Payload templates
-
-### Session start payload
-
-```json
-{
-  "agentId": "00000000-0000-4000-8000-000000000000",
-  "instruction": "Use the approved brief and ask one clarifying question if needed.",
-  "title": "Support intake test",
-  "source": "mcp"
-}
-```
-
-### Workflow run payload
-
-```json
-{
-  "workflow_id": "00000000-0000-4000-8000-000000000000",
-  "scheduled_at": "2026-04-22T12:00:00Z",
-  "prospect": {
-    "phone": "+15551234567",
-    "country": "US",
-    "email": "ada@example.com",
-    "external_id": "crm-123",
-    "first_name": "Ada",
-    "last_name": "Lovelace",
-    "timezone": "America/New_York",
-    "custom_data": {
-      "campaign": "spring-demo"
-    }
-  }
-}
-```
-
-## Bundled helper script
-
-The skill ships with `scripts/prepare-launch.mjs` — a Node.js script that creates safe launch payload skeletons and generates UUIDs without calling the API.
-
-```bash
-# Generate a session start payload
-node scripts/prepare-launch.mjs session \
-  --agent-id 00000000-0000-4000-8000-000000000000 \
-  --instruction "Start the intake flow"
-
-# Generate a workflow run payload
-node scripts/prepare-launch.mjs workflow \
-  --workflow-id 00000000-0000-4000-8000-000000000000 \
-  --phone +15551234567 \
-  --country US \
-  --external-id crm-123
-```
-
-The script outputs the ready-to-use JSON payload and a suggested `SESSION_ID` UUID v4 without performing any live API calls.
-
-## Live launch checklist
-
-Before executing a live launch, the skill presents this checklist. All items must be `yes` (or `not applicable`) before proceeding:
-
-| Check | Value |
-|-------|-------|
-| Launch type | `session` \| `workflow-run` |
-| Configured org ID | `<first 8 chars>…<last 4 chars>` |
-| Resource validated under org | yes / no |
-| Prospect phone/country present | yes / no / not applicable |
-| `scheduled_at` timezone explicit | yes / no / not applicable |
-| Session UUID v4 | `<uuid>` / not applicable |
-| Write confirmed by user | yes / no |
-
-The launch does not proceed if any required item is `no`.
-
-## Post-launch verification
-
-After starting a session, verify its status:
+Before setting `voice_config.voice_id`, list available voices:
 
 ```bash
 curl --request GET \
-  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/agent-sessions/$SESSION_ID" \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/voices?provider=elevenlabs" \
   --header "X-API-Key: $COZMOX_API_KEY"
 ```
-
-For workflow runs, the skill returns the `workflow_run_id` and `external_id` from the response. If there is no documented read endpoint for workflow runs, the skill says so instead of inventing one.
 
 ## Result template
 
 ```
-## Launched
-Type: session | workflow-run
-ID: <session_id or workflow_run_id>
-External ID: <external_id if present>
+## Agent created
+ID: <agent_id>
+Name: <name>
+Type: <voice|chat|video>
+Org: <first 8 chars>…<last 4 chars>
 
 ## Validations performed
-- Agent/workflow ownership checked under configured org.
+- Org reachable under configured COZMOX_ORG_ID.
 - API key not printed.
-- Duplicate/idempotency handling described.
 
 ## Verify
-<safe GET command or dashboard instruction>
+GET /api/org/{org_id}/agents/<agent_id>
+
+## Next step
+Pass this agent_id to cozmox-workflow-runner to trigger calls.
 ```

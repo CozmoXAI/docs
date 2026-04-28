@@ -1,6 +1,6 @@
 ---
 title: "Agent Skills"
-description: "Portable, installable instruction sets that give AI coding assistants expert knowledge of the Cozmo API, MCP server, session runner, call analysis, agent design, and security auditing"
+description: "Portable, installable instruction sets that give AI coding assistants expert knowledge of the Cozmo API, MCP server, agent building, workflow running, call analysis, agent design, and security auditing"
 ---
 
 ## What are Agent Skills?
@@ -15,7 +15,8 @@ Each skill is a folder containing a `SKILL.md` plus optional helper scripts. The
 |-------|---------|
 | [`cozmox-api-operator`](/skills/cozmox-api-operator) | Safely call and code against org-scoped Nova API endpoints — curl, TypeScript, Python, integration tests, runbooks |
 | [`cozmox-mcp-toolsmith`](/skills/cozmox-mcp-toolsmith) | Build and review a secure Cozmo MCP server with read/write/destructive tool gates and org pinning |
-| [`cozmox-session-runner`](/skills/cozmox-session-runner) | Safely launch agent sessions and workflow runs with preflight checks, UUID idempotency, and launch checklists |
+| [`cozmox-session-runner`](/skills/cozmox-session-runner) | Create and configure agents via the API with full field coverage — produces `agent_id` for use by the Workflow Runner |
+| [`cozmox-workflow-runner`](/skills/cozmox-workflow-runner) | Trigger workflow runs with prospect creation, scheduling, and preflight validation — consumes `agent_id` from the Agent Builder |
 | [`cozmox-call-quality-analyst`](/skills/cozmox-call-quality-analyst) | Analyze call transcripts, evaluations, tool logs, and costs into QA reports and coaching notes |
 | [`cozmox-agent-design-reviewer`](/skills/cozmox-agent-design-reviewer) | Design and review voice agent prompts, workflows, escalation policies, and launch readiness |
 | [`cozmox-tenant-isolation-auditor`](/skills/cozmox-tenant-isolation-auditor) | Audit Go/sqlc/Postgres/Temporal API code for cross-org access, missing ownership checks, and security lapses |
@@ -70,7 +71,7 @@ Every skill in this bundle enforces the same safety contract:
 - `COZMOX_ORG_ID` is never a user-supplied argument. Agents read it from trusted environment or server config.
 - API keys stay server-side. No skill will ask the user to paste a live key into code, logs, or chat.
 - Read-only operations are preferred. Writes require explicit user intent and a confirmation step.
-- Before starting an agent session, the agent ID is always validated with `GET /agents/{agent_id}` under the configured org.
+- Before writing agents or triggering workflow runs, the resource is always validated under the configured org.
 - Destructive operations require a second confirmation and should normally route through the MCP server's destructive-tool gate.
 
 ## Validate the bundle
@@ -91,8 +92,11 @@ node scripts/validate-skills.mjs
   <Card title="MCP Toolsmith" icon="server" href="/skills/cozmox-mcp-toolsmith">
     Build and review secure MCP servers with read/write/destructive gates.
   </Card>
-  <Card title="Session Runner" icon="play" href="/skills/cozmox-session-runner">
-    Safe agent session launches and workflow runs with preflight checklists.
+  <Card title="Agent Builder" icon="play" href="/skills/cozmox-session-runner">
+    Create and configure agents with full field coverage. Produces agent IDs for the Workflow Runner.
+  </Card>
+  <Card title="Workflow Runner" icon="bolt" href="/skills/cozmox-workflow-runner">
+    Trigger workflow runs with prospect payloads, scheduling, and preflight validation.
   </Card>
   <Card title="Call Quality Analyst" icon="chart-bar" href="/skills/cozmox-call-quality-analyst">
     QA reports, coaching notes, and trend analysis from call data.

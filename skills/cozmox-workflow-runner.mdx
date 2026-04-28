@@ -1,0 +1,192 @@
+---
+title: "Workflow Runner"
+description: "Trigger Cozmo workflow runs with prospect creation in one request — safe preflight, scheduling, and composable with the Agent Builder skill"
+---
+
+## Overview
+
+The `cozmox-workflow-runner` skill makes your AI coding assistant safe and correct when triggering outbound call campaigns via `POST /workflow-runs`. Use it to validate workflow IDs, compose prospect payloads with `custom_data`, schedule runs at the right local time, and hand back `workflow_run_id` for downstream tracking.
+
+This skill consumes the `agent_id` produced by [`cozmox-session-runner`](/skills/cozmox-session-runner). Agents are configured there; workflows are triggered here.
+
+## Install
+
+```bash
+npx skills add CozmoXAI/skills --skill cozmox-workflow-runner -a claude-code -y
+```
+
+## Compose with the Agent Builder
+
+```
+cozmox-session-runner  →  agent_id (used when configuring the workflow in the Dashboard)
+                                 ↓
+               cozmox-workflow-runner  →  workflow_run_id
+```
+
+You do not pass `agent_id` directly to workflow runs — the workflow already has an agent configured. Use `cozmox-session-runner` to create the agent, then attach it to the workflow in the Dashboard.
+
+## Trigger a workflow run — endpoint
+
+```http
+POST /api/org/{org_id}/workflow-runs
+```
+
+Only `api`-triggered workflows accept runs from this endpoint. `schedule` and `inbound` workflows run automatically and cannot be triggered via the API.
+
+## Full request shape
+
+```json
+{
+  "workflow_id": "string — required, UUID of the workflow to run",
+  "scheduled_at": "ISO 8601 UTC string — optional, e.g. 2026-05-01T09:00:00Z; omit to run immediately per workflow calling-hour rules",
+
+  "prospect": {
+    "phone": "string — required, E.164 format e.g. +15551234567",
+    "country": "string — ISO 3166-1 alpha-2 e.g. US, GB, AE — strongly recommended for calling-hours compliance",
+    "first_name": "string — available as {{prospect_first_name}} in agent prompt",
+    "last_name": "string",
+    "email": "string",
+    "external_id": "string — your CRM/internal contact ID; deduplicates prospect records across runs",
+    "timezone": "string — IANA e.g. America/New_York, Europe/London; used with calling-hour rules",
+    "custom_data": {
+      "any_key": "any value — arbitrary JSON available to the agent during the call"
+    }
+  }
+}
+```
+
+## Safety contract
+
+Before generating or executing any workflow run command:
+
+1. Use `COZMOX_ORG_ID` from environment — never ask the user to supply an org ID.
+2. Validate the workflow belongs to the configured org before triggering.
+3. Confirm this is a write action and state the side effect (a live call will be placed).
+4. Always include `external_id` in the prospect object to prevent duplicate prospect records.
+5. For `scheduled_at`, ask for an explicit date and timezone — never guess local time.
+6. Never print a live `COZMOX_API_KEY`.
+7. After triggering, return `workflow_run_id` and `external_id` only.
+
+## Preflight — validate workflow before triggering
+
+```bash
+# Step 1 — confirm the workflow belongs to this org and is active
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflows/$WORKFLOW_ID" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+```
+
+If the response `is_active` is `false` or the status is `404`, do not trigger. The skill responds:
+
+```
+The workflow was not found or is inactive in the configured organization.
+No run was created.
+```
+
+Also confirm `trigger_type` is `api`. If it is `schedule` or `inbound`, do not trigger via the API.
+
+## Trigger a run — minimal payload
+
+```bash
+curl --request POST \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflow-runs" \
+  --header "Content-Type: application/json" \
+  --header "X-API-Key: $COZMOX_API_KEY" \
+  --data '{
+    "workflow_id": "'"$WORKFLOW_ID"'",
+    "prospect": {
+      "phone": "+15551234567",
+      "country": "US",
+      "external_id": "crm-contact-789"
+    }
+  }'
+```
+
+## Trigger a run — full payload
+
+```bash
+curl --request POST \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflow-runs" \
+  --header "Content-Type: application/json" \
+  --header "X-API-Key: $COZMOX_API_KEY" \
+  --data '{
+    "workflow_id": "'"$WORKFLOW_ID"'",
+    "scheduled_at": "2026-05-01T09:00:00Z",
+    "prospect": {
+      "phone": "+15551234567",
+      "country": "US",
+      "first_name": "Ada",
+      "last_name": "Lovelace",
+      "email": "ada@example.com",
+      "external_id": "crm-contact-789",
+      "timezone": "America/New_York",
+      "custom_data": {
+        "deal_stage": "proposal",
+        "deal_value_usd": 48000,
+        "product_interest": "Enterprise Plan",
+        "company": "Acme Corp",
+        "previous_calls": 2,
+        "demo_requested_at": "2026-04-15"
+      }
+    }
+  }'
+```
+
+## Scheduling rules
+
+- Always pass `scheduled_at` in UTC.
+- Pass the prospect's `timezone` so Nova can apply calling-hour constraints. The call fires at whichever is later: your `scheduled_at` or the next valid calling-hour window.
+- If the user gives a local time, convert to UTC using their explicit timezone before generating the payload. Do not assume the user's local timezone.
+
+## Prospect deduplication
+
+When `external_id` is provided, Nova matches an existing prospect with that ID rather than creating a duplicate record. Always include it:
+
+```json
+{ "external_id": "crm-contact-789" }
+```
+
+If no prospect with this `external_id` exists in the org, a new record is created automatically.
+
+## Live launch checklist
+
+Before triggering, the skill presents this checklist. All items must be confirmed:
+
+| Check | Value |
+|-------|-------|
+| Workflow validated under org | yes / no |
+| `trigger_type` | `api` — must not be `schedule` or `inbound` |
+| Workflow is active | yes / no |
+| Prospect `phone` in E.164 | yes / no |
+| `external_id` included | yes / no |
+| `scheduled_at` timezone explicit | yes / no / immediate |
+| Write confirmed by user | yes / no |
+
+The run does not proceed if any required item is `no`.
+
+## List active API-triggered workflows
+
+```bash
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflows?is_active=true&trigger_type=api" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+```
+
+## Result template
+
+```
+## Workflow run triggered
+workflow_run_id: <workflow_run_id>
+external_id: <prospect external_id>
+Org: <first 8 chars>…<last 4 chars>
+
+## Validations performed
+- Workflow ownership and active status checked.
+- trigger_type confirmed as api.
+- API key not printed.
+- external_id included for prospect deduplication.
+
+## Verify
+Receive call.completed or call.failed webhook at your configured endpoint.
+Dashboard: https://dash.prod.czmx.in
+```

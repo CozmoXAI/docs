@@ -1,6 +1,6 @@
 ---
 title: "API Reference"
-description: "Complete reference for the Cozmo Nova API - create agents, trigger workflow runs, inspect calls, and manage sessions programmatically"
+description: "Complete reference for the Cozmo Nova API - create agents, trigger workflow runs, inspect calls, and manage your org programmatically"
 ---
 
 ## Overview
@@ -10,7 +10,6 @@ The Cozmo Nova API is a REST API for building AI voice and chat workflows. With 
 - Create and configure AI agents (voice, chat, video)
 - Create and manage prospects, lists, tags, and bulk imports
 - Trigger outbound workflow runs for individual prospects
-- Start agent sessions directly via API or SDK
 - Retrieve call transcripts, recordings, evaluations, histories, and tool logs
 - Manage webhook endpoints, API keys, tools, SIP trunks, and phone numbers
 - Query analytics, audit logs, integrations, quality rules, and knowledge resources
@@ -131,35 +130,9 @@ Agents are the AI entities that handle calls and chat sessions. Each agent has a
 
 ---
 
-### Agent Sessions
-
-A session represents a single run of an agent - one conversation with one prospect. Start a session by POSTing to `/{session_id}/start` with a client-generated UUID v4. The UUID makes the call idempotent: retrying with the same ID will not create a duplicate session.
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/org/{org_id}/agent-sessions/{session_id}/start` | Start a session |
-| `GET` | `/org/{org_id}/agent-sessions/{session_id}` | Get session status |
-
-**Session statuses:** `PENDING` - `ACTIVE` - `COMPLETED` - `STOPPED` - `FAILED` - `CANCELLED`
-
-```bash
-SESSION_ID=$(python3 -c "import uuid; print(uuid.uuid4())")
-
-curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agent-sessions/${SESSION_ID}/start" \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agentId": "agent_abc123",
-    "instruction": "Follow up about the demo we scheduled.",
-    "prospectId": "prospect_xyz"
-  }'
-```
-
----
-
 ### Calls
 
-Calls are the voice call records produced by workflow runs and sessions. Each call includes a full transcript, AI-generated summary, evaluations (outcome scores), tool invocation logs, and a signed recording URL.
+Calls are the voice call records produced by workflow runs. Each call includes a full transcript, AI-generated summary, evaluations (outcome scores), tool invocation logs, and a signed recording URL.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|

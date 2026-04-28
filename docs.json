@@ -106,6 +106,7 @@
       },
       {
         "tab": "Agent Skills",
+        "hidden": true,
         "groups": [
           {
             "group": "Overview",
@@ -117,6 +118,7 @@
               "skills/cozmox-api-operator",
               "skills/cozmox-mcp-toolsmith",
               "skills/cozmox-session-runner",
+              "skills/cozmox-workflow-runner",
               "skills/cozmox-call-quality-analyst",
               "skills/cozmox-agent-design-reviewer",
               "skills/cozmox-tenant-isolation-auditor"

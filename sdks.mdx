@@ -14,7 +14,7 @@ Cozmo AI provides official SDKs generated from the Nova API OpenAPI specificatio
 
 <CardGroup cols={3}>
   <Card title="Python" icon="python">
-    `pip install cozmoai`
+    `pip install cozmoxai`
   </Card>
   <Card title="TypeScript" icon="js">
     `npm install cozmoai`
@@ -393,7 +393,7 @@ const sessionId = crypto.randomUUID(); // Generate before request
 const result = await client.agentSessions.start({
   orgId: ORG_ID,
   sessionId,
-  agentId: "agt_01j9xyz",
+  agentId: "00000000-0000-0000-0000-000000000001",
   instruction: "Follow up with this prospect about their Q2 enterprise demo request.",
   title: "Q2 demo follow-up - Jane Doe",
   prospectId: "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
@@ -412,7 +412,7 @@ console.log("Status:", session.status, "Case ID:", session.case_id);
 // Immediate run
 const run = await client.workflowRuns.create({
   orgId: ORG_ID,
-  workflowId: "wf_abc123",
+  workflowId: "00000000-0000-0000-0000-000000000004",
   prospect: {
     phone: "+19175551234",
     firstName: "Jane",
@@ -434,7 +434,7 @@ const scheduledAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(); // 
 
 const scheduledRun = await client.workflowRuns.create({
   orgId: ORG_ID,
-  workflowId: "wf_abc123",
+  workflowId: "00000000-0000-0000-0000-000000000004",
   scheduledAt,
   prospect: {
     phone: "+19175551234",
@@ -504,7 +504,7 @@ async function triggerBulkRuns(prospects: object[]) {
       limit(() =>
         client.workflowRuns.create({
           orgId: ORG_ID,
-          workflowId: "wf_abc123",
+          workflowId: "00000000-0000-0000-0000-000000000004",
           prospect,
         })
       )
@@ -721,7 +721,7 @@ sessionID := uuid.New().String() // Generate before request
 
 // Start session
 result, err := client.AgentSessions.Start(ctx, orgID, sessionID, &cozmoai.StartSessionRequest{
-    AgentID:     "agt_01j9xyz",
+    AgentID:     "00000000-0000-0000-0000-000000000001",
     Instruction: "Follow up with this prospect about their Q2 enterprise demo request.",
     Title:       "Q2 demo follow-up - Jane Doe",
     ProspectID:  "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
@@ -745,7 +745,7 @@ fmt.Println("Status:", session.Status, "Case ID:", session.CaseID)
 ```go
 // Create run
 run, err := client.WorkflowRuns.Create(ctx, orgID, &cozmoai.CreateWorkflowRunRequest{
-    WorkflowID: "wf_abc123",
+    WorkflowID: "00000000-0000-0000-0000-000000000004",
     Prospect: cozmoai.ProspectData{
         Phone:      "+19175551234",
         FirstName:  "Jane",
@@ -770,7 +770,7 @@ import "time"
 
 scheduledAt := time.Now().UTC().Add(4 * time.Hour).Format(time.RFC3339)
 run, err = client.WorkflowRuns.Create(ctx, orgID, &cozmoai.CreateWorkflowRunRequest{
-    WorkflowID:  "wf_abc123",
+    WorkflowID:  "00000000-0000-0000-0000-000000000004",
     ScheduledAt: scheduledAt,
     Prospect: cozmoai.ProspectData{
         Phone:      "+19175551234",

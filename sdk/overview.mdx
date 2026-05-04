@@ -9,7 +9,7 @@ Cozmo AI publishes official server SDKs for the three most common backend langua
 
 <CardGroup cols={3}>
   <Card title="Python" icon="python" href="/sdk/python">
-    `pip install cozmoai`
+    `pip install cozmoxai`
 
     Full type hints, sync and async clients, Pydantic models.
   </Card>
@@ -39,38 +39,41 @@ Every SDK wraps the raw Nova REST API with:
 
 | Resource | Methods |
 |----------|---------|
-| `agents` | `list`, `create`, `get`, `update`, `delete` |
-| `agentSessions` | `start`, `get` |
-| `calls` | `list`, `get` |
+| `agents` | `list`, `create`, `retrieve`, `update`, `delete` |
+| `agentSessions` | `start`, `retrieve` |
+| `calls` | `list`, `retrieve` |
 | `voices` | `list` |
-| `workflows` | `list`, `get` |
-| `workflowRuns` | `create` |
+| `workflows` | `list`, `retrieve` |
+
+<Note>
+  `workflow_runs` is not yet available as an SDK resource. Use the REST API directly: `POST /org/{org_id}/workflow-runs`. See the [Python SDK](/sdk/python#workflow-runs) page for a helper function.
+</Note>
 
 ## Quick comparison
 
 | | Python | TypeScript | Go |
 |-|--------|------------|-----|
-| Package name | `cozmoai` | `cozmoai` | - |
-| Package manager | pip / poetry | npm / yarn / pnpm | - |
+| Package name | `cozmoxai` | `cozmoai` | - |
+| Package manager | pip / poetry / uv | npm / yarn / pnpm | - |
 | Sync client | Yes | No (Promise-based) | - |
-| Async client | Yes (`AsyncCozmoAI`) | Yes (native async/await) | - |
+| Async client | Yes (`AsyncCozmoai`) | Yes (native async/await) | - |
 | Type system | Type hints + Pydantic | Full TypeScript types | - |
 | Min version | Python 3.8+ | Node 18+ / Bun 1.0+ | Coming soon |
 
 ## Authentication
 
-All SDKs read `COZMO_API_KEY` from the environment by default. You can also pass it explicitly:
+All SDKs read credentials from the environment by default. Pass `base_url` explicitly to scope requests to your org:
 
 <CodeGroup>
 
 ```python Python
-from cozmoai import CozmoAI
+import os
+from cozmoxai import Cozmoai
 
-# Reads COZMO_API_KEY and COZMO_ORG_ID from environment
-client = CozmoAI()
-
-# Or pass explicitly
-client = CozmoAI(api_key="YOUR_API_KEY")
+client = Cozmoai(
+    api_key=os.environ["COZMOAI_API_KEY"],
+    base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+)
 ```
 
 ```typescript TypeScript
@@ -87,19 +90,35 @@ const client = new CozmoAI({ apiKey: "YOUR_API_KEY" });
 
 ## Environment setup
 
-Set these environment variables before using any SDK:
+<CodeGroup>
 
-```bash
+```bash Python
+export COZMOAI_API_KEY="your_api_key_here"
+export COZMOAI_ORG_ID="your_org_id_here"
+```
+
+```bash TypeScript
 export COZMO_API_KEY="your_api_key_here"
 export COZMO_ORG_ID="your_org_id_here"
 ```
 
+</CodeGroup>
+
 Or use a `.env` file (load with `python-dotenv`, `dotenv`, or `godotenv`):
 
-```bash
+<CodeGroup>
+
+```bash Python .env
+COZMOAI_API_KEY=your_api_key_here
+COZMOAI_ORG_ID=your_org_id_here
+```
+
+```bash TypeScript .env
 COZMO_API_KEY=your_api_key_here
 COZMO_ORG_ID=your_org_id_here
 ```
+
+</CodeGroup>
 
 ## Not using a supported language?
 
@@ -109,7 +128,7 @@ If your stack uses a language not listed above, use the [REST API](/api-referenc
 
 <CardGroup cols={2}>
   <Card title="Python SDK" icon="python" href="/sdk/python">
-    Installation, full reference, async usage, FastAPI patterns.
+    Installation, full reference, async usage, and workflow run patterns.
   </Card>
   <Card title="TypeScript SDK" icon="js" href="/sdk/typescript">
     Installation, full reference, types, Next.js patterns.

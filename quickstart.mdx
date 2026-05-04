@@ -103,7 +103,7 @@ func main() {
 If you receive `401 Unauthorized`, double-check your API key and org ID.
 
 <Tip>
-  Store your credentials in environment variables: `COZMO_API_KEY` and `COZMO_ORG_ID`. Never hardcode them in source files or commit them to version control.
+  Store your credentials in environment variables and never hardcode them in source files or commit them to version control. The Python SDK reads `COZMOAI_API_KEY` and `COZMOAI_ORG_ID`; the TypeScript SDK reads `COZMO_API_KEY` and `COZMO_ORG_ID`.
 </Tip>
 
 ---
@@ -155,8 +155,8 @@ curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
 import os
 import requests
 
-COZMO_API_KEY = os.environ["COZMO_API_KEY"]
-COZMO_ORG_ID = os.environ["COZMO_ORG_ID"]
+COZMO_API_KEY = os.environ["COZMOAI_API_KEY"]
+COZMO_ORG_ID = os.environ["COZMOAI_ORG_ID"]
 
 response = requests.post(
     f"https://v2-nova-api.prod.czmx.in/api/org/{COZMO_ORG_ID}/agents",
@@ -209,7 +209,7 @@ AGENT_ID = agent["id"]
 ```
 
 ```typescript TypeScript
-const COZMO_API_KEY = process.env.COZMO_API_KEY!;
+const COZMO_API_KEY = process.env.COZMO_API_KEY!;  // TypeScript SDK reads COZMO_API_KEY
 const COZMO_ORG_ID = process.env.COZMO_ORG_ID!;
 
 const response = await fetch(
@@ -346,7 +346,7 @@ func main() {
 
 ```json
 {
-  "id": "agt-01j9xyz-abc123",
+  "id": "fec4a264-6c53-49e8-a577-705a7cf30b48",
   "name": "Support Agent",
   "type": "voice",
   "organization_id": "d1e2f3a4-b5c6-7890-1234-567890abcdef",
@@ -559,7 +559,7 @@ curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs \
   -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "workflow_id": "wf_abc123",
+    "workflow_id": "00000000-0000-0000-0000-000000000004",
     "prospect": {
       "phone": "+19175551234",
       "first_name": "Jane",
@@ -582,7 +582,7 @@ response = requests.post(
         "Content-Type": "application/json",
     },
     json={
-        "workflow_id": "wf_abc123",
+        "workflow_id": "00000000-0000-0000-0000-000000000004",
         "prospect": {
             "phone": "+19175551234",
             "first_name": "Jane",
@@ -611,7 +611,7 @@ const response = await fetch(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      workflow_id: "wf_abc123",
+      workflow_id: "00000000-0000-0000-0000-000000000004",
       prospect: {
         phone: "+19175551234",
         first_name: "Jane",
@@ -633,7 +633,7 @@ console.log(`Workflow run: ${run.workflow_run_id}`);
 
 ```go Go
 payload := map[string]interface{}{
-    "workflow_id": "wf_abc123",
+    "workflow_id": "00000000-0000-0000-0000-000000000004",
     "prospect": map[string]interface{}{
         "phone":       "+19175551234",
         "first_name":  "Jane",
@@ -669,7 +669,7 @@ fmt.Println(string(respBody))
 
 ```json
 {
-  "workflow_run_id": "run_xyz789",
+  "workflow_run_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "external_id": "crm_789"
 }
 ```

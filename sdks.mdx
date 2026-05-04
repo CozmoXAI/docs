@@ -29,19 +29,26 @@ Cozmo AI provides official SDKs generated from the Nova API OpenAPI specificatio
 ### Installation
 
 ```bash
-pip install cozmoai
+pip install cozmoxai
+# or with poetry
+poetry add cozmoxai
+# or with uv
+uv add cozmoxai
 ```
 
 ### Environment variable setup
 
-Create a `.env` file in your project root:
-
-```bash .env
-COZMO_API_KEY=your_api_key_here
-ORG_ID=your_org_id_here
+```bash
+export COZMOAI_API_KEY="your_api_key_here"
+export COZMOAI_ORG_ID="your_org_id_here"
 ```
 
-Load it using `python-dotenv`:
+Or use a `.env` file:
+
+```bash .env
+COZMOAI_API_KEY=your_api_key_here
+COZMOAI_ORG_ID=your_org_id_here
+```
 
 ```bash
 pip install python-dotenv
@@ -49,33 +56,35 @@ pip install python-dotenv
 
 ```python
 from dotenv import load_dotenv
-load_dotenv()  # Call before creating the client
+load_dotenv()
 ```
 
 ### Client initialization
 
 ```python
-from cozmoai import CozmoAI
+import os
+from cozmoxai import Cozmoai
 
-# Preferred: reads COZMO_API_KEY from environment automatically
-client = CozmoAI()
-
-# Explicit key (for testing or when env vars are not available)
-client = CozmoAI(api_key="YOUR_API_KEY")
+client = Cozmoai(
+    api_key=os.environ["COZMOAI_API_KEY"],
+    base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+)
 ```
 
 ### Complete agent CRUD example
 
 ```python
 import os
-from cozmoai import CozmoAI
+from cozmoxai import Cozmoai
+from cozmoxai.types import LlmConfigParam, TranscriberConfigParam, VoiceConfigParam, GreetingConfigParam
 
-client = CozmoAI()
-ORG_ID = os.environ["ORG_ID"]
+client = Cozmoai(
+    api_key=os.environ["COZMOAI_API_KEY"],
+    base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+)
 
 # Create an agent
 agent = client.agents.create(
-    org_id=ORG_ID,
     name="Outbound Sales Agent",
     type="voice",
     prompt_template=(
@@ -88,44 +97,41 @@ print("Created agent:", agent.id)
 
 # Configure LLM, voice, and transcriber
 client.agents.update(
-    org_id=ORG_ID,
     agent_id=agent.id,
-    llm_config={
-        "provider": "openai",
-        "model": "gpt-4o",
-        "temperature": 0.7,
-        "max_tokens": 512,
-    },
-    transcriber_config={
-        "provider": "deepgram",
-        "model": "nova-3",
-        "language": "en-US",
-        "endpointing_ms": 300,
-        "smart_format": True,
-    },
-    voice_config={
-        "provider": "elevenlabs",
-        "voice_id": "21m00Tcm4TlvDq8ikWAM",
-        "model": "eleven_turbo_v2",
-    },
-    greeting_config={
-        "agent_speaks_first": True,
-        "greeting": "Hi {{prospect_name}}, this is Alex from Acme Corp!",
-        "pause_before_first_message": 800,
-    },
+    llm_config=LlmConfigParam(
+        provider="openai",
+        model="gpt-4o",
+        temperature=0.7,
+        max_tokens=512,
+    ),
+    transcriber_config=TranscriberConfigParam(
+        provider="deepgram",
+        model="nova-3",
+        language="en-US",
+    ),
+    voice_config=VoiceConfigParam(
+        provider="elevenlabs",
+        voice_id="21m00Tcm4TlvDq8ikWAM",
+        model="eleven_turbo_v2",
+    ),
+    greeting_config=GreetingConfigParam(
+        agent_speaks_first=True,
+        greeting="Hi {{prospect_name}}, this is Alex from Acme Corp!",
+        pause_before_first_message=800,
+    ),
 )
 
 # List agents
-agents = client.agents.list(org_id=ORG_ID, page=1, size=20)
+agents = client.agents.list(page=1, size=20)
 for a in agents.data:
     print(a.id, a.name, a.type)
 
-# Get a single agent
-agent = client.agents.get(org_id=ORG_ID, agent_id=agent.id)
+# Retrieve a single agent
+agent = client.agents.retrieve(agent_id=agent.id)
 print(agent.name, agent.updated_at)
 
 # Delete an agent
-client.agents.delete(org_id=ORG_ID, agent_id=agent.id)
+client.agents.delete(agent_id=agent.id)
 ```
 
 ### Session examples
@@ -137,9 +143,8 @@ session_id = str(uuid.uuid4())
 
 # Start a session
 result = client.agent_sessions.start(
-    org_id=ORG_ID,
     session_id=session_id,
-    agent_id="agt_01j9xyz",
+    agent_id="00000000-0000-0000-0000-000000000001",
     instruction="Follow up with this prospect about their Q2 enterprise demo request.",
     title="Q2 demo follow-up - Jane Doe",
     prospect_id="5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
@@ -147,29 +152,36 @@ result = client.agent_sessions.start(
 )
 print("Session ID:", result.session_id)
 
-# Get session
-session = client.agent_sessions.get(org_id=ORG_ID, session_id=session_id)
-print("Status:", session.status, "Case ID:", session.case_id)
-
-# Create session without starting (advanced)
-session = client.agent_sessions.create(
-    org_id=ORG_ID,
-    root_agent_id="agt_01j9xyz",
-    prospect_id="5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
-    channel="voice",
-    title="Outbound call - Q2 check-in",
-    external_refs={"crm_contact_id": "crm_789"},
-    metadata={"campaign": "q2-outreach"},
-)
+# Retrieve a session
+session = client.agent_sessions.retrieve(session_id=session_id)
+print("Status:", session.status)
 ```
 
 ### Workflow run examples
 
+The `workflow_runs` resource is not yet in the SDK. Use the REST API directly:
+
 ```python
-# Create a workflow run
-run = client.workflow_runs.create(
-    org_id=ORG_ID,
-    workflow_id="wf_abc123",
+import os
+import requests
+from datetime import datetime, timezone, timedelta
+
+def create_workflow_run(workflow_id: str, prospect: dict, scheduled_at=None):
+    org_id = os.environ["COZMOAI_ORG_ID"]
+    api_key = os.environ["COZMOAI_API_KEY"]
+    body = {"workflow_id": workflow_id, "prospect": prospect}
+    if scheduled_at:
+        body["scheduled_at"] = scheduled_at.isoformat()
+    response = requests.post(
+        f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs",
+        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+        json=body,
+    )
+    response.raise_for_status()
+    return response.json()
+
+run = create_workflow_run(
+    workflow_id="00000000-0000-0000-0000-000000000004",
     prospect={
         "phone": "+19175551234",
         "first_name": "Jane",
@@ -177,28 +189,16 @@ run = client.workflow_runs.create(
         "email": "jane.doe@example.com",
         "external_id": "crm_contact_789",
         "timezone": "America/New_York",
-        "custom_data": {
-            "demo_requested_at": "2026-04-15",
-            "product_interest": "Enterprise Plan",
-            "deal_value_usd": 48000,
-        },
+        "custom_data": {"product_interest": "Enterprise Plan"},
     },
 )
-print("Run ID:", run.workflow_run_id)
+print("Run ID:", run["workflow_run_id"])
 
 # Scheduled run
-from datetime import datetime, timezone, timedelta
-
-run = client.workflow_runs.create(
-    org_id=ORG_ID,
-    workflow_id="wf_abc123",
-    scheduled_at=(datetime.now(timezone.utc) + timedelta(hours=4)).isoformat(),
-    prospect={
-        "phone": "+19175551234",
-        "first_name": "Jane",
-        "external_id": "crm_contact_789",
-        "timezone": "America/New_York",
-    },
+run = create_workflow_run(
+    workflow_id="00000000-0000-0000-0000-000000000004",
+    prospect={"phone": "+19175551234", "first_name": "Jane", "external_id": "crm_789"},
+    scheduled_at=datetime.now(timezone.utc) + timedelta(hours=4),
 )
 ```
 
@@ -207,17 +207,17 @@ run = client.workflow_runs.create(
 ```python
 # List calls with filters
 calls = client.calls.list(
-    org_id=ORG_ID,
-    status="FINISHED",
-    started_after="2026-04-01T00:00:00Z",
+    status="completed",
+    start_date="2026-04-01",
+    end_date="2026-04-30",
     page=1,
     size=50,
 )
 for call in calls.data:
     print(call.id, call.duration_seconds, call.cost_usd)
 
-# Get full call details
-call = client.calls.get(org_id=ORG_ID, call_id="call_17546d2d")
+# Retrieve full call details
+call = client.calls.retrieve(call_id="00000000-0000-0000-0000-000000000003")
 print("Summary:", call.summary)
 print("Recording:", call.recording_url)
 
@@ -231,110 +231,37 @@ for tool in call.tool_logs or []:
 ### Error handling
 
 ```python
-from cozmoai import CozmoAI
-from cozmoai.exceptions import (
+import os
+from cozmoxai import (
+    Cozmoai,
     AuthenticationError,
     NotFoundError,
     RateLimitError,
     BadRequestError,
-    APIError,
+    APIStatusError,
+    APIConnectionError,
 )
 
-client = CozmoAI()
+client = Cozmoai(
+    api_key=os.environ["COZMOAI_API_KEY"],
+    base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+)
 
 try:
-    run = client.workflow_runs.create(
-        org_id=ORG_ID,
-        workflow_id="wf_abc123",
-        prospect={"phone": "+19175551234"},
-    )
+    agent = client.agents.retrieve(agent_id="00000000-0000-0000-0000-000000000000")
 except AuthenticationError:
-    print("Invalid API key - check COZMO_API_KEY")
+    print("Invalid API key - check COZMOAI_API_KEY")
+except NotFoundError as e:
+    print(f"Not found: {e.message}")
 except BadRequestError as e:
-    print(f"Validation error: {e.message}")  # e.g. "phone must be in E.164 format"
-except NotFoundError:
-    print("Workflow not found - check workflow_id")
+    print(f"Validation error: {e.message}")
 except RateLimitError as e:
-    print(f"Rate limited. Retry after: {e.retry_after}")
-except APIError as e:
+    reset_ts = e.response.headers.get("X-Rate-Limit-Reset")
+    print(f"Rate limited. Reset at {reset_ts}")
+except APIStatusError as e:
     print(f"API error {e.status_code}: {e.message}")
-```
-
-### Using in a FastAPI service
-
-```python
-# main.py
-import os
-import uuid
-import logging
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
-from pydantic import BaseModel
-from cozmoai import CozmoAI
-
-log = logging.getLogger(__name__)
-nova: CozmoAI = None
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global nova
-    nova = CozmoAI()  # Reads COZMO_API_KEY from env
-    log.info("Nova client initialized")
-    yield
-
-
-app = FastAPI(lifespan=lifespan)
-ORG_ID = os.environ["ORG_ID"]
-
-
-class TriggerCallRequest(BaseModel):
-    workflow_id: str
-    phone: str
-    first_name: str
-    external_id: str
-    custom_data: dict = {}
-
-
-@app.post("/trigger-call")
-async def trigger_call(body: TriggerCallRequest):
-    try:
-        run = nova.workflow_runs.create(
-            org_id=ORG_ID,
-            workflow_id=body.workflow_id,
-            prospect={
-                "phone": body.phone,
-                "first_name": body.first_name,
-                "external_id": body.external_id,
-                "custom_data": body.custom_data,
-            },
-        )
-        return {"workflow_run_id": run.workflow_run_id}
-    except Exception as e:
-        log.error("trigger_call_failed", extra={"error": str(e)})
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/webhook/cozmo")
-async def receive_webhook(request: Request, background: BackgroundTasks):
-    payload = await request.json()
-    background.add_task(process_webhook, payload)
-    return {"ok": True}
-
-
-async def process_webhook(payload: dict):
-    event = payload.get("event")
-    data = payload.get("data", {})
-
-    if event == "call.completed":
-        call_id = data.get("call_id")
-        if call_id:
-            call = nova.calls.get(org_id=ORG_ID, call_id=call_id)
-            log.info("call_completed", extra={
-                "call_id": call_id,
-                "duration": call.duration_seconds,
-                "cost": call.cost_usd,
-            })
+except APIConnectionError as e:
+    print(f"Network error: {e}")
 ```
 
 ---
@@ -355,7 +282,7 @@ pnpm add cozmoai
 
 ```bash .env
 COZMO_API_KEY=your_api_key_here
-ORG_ID=your_org_id_here
+COZMO_ORG_ID=your_org_id_here
 ```
 
 ### Client initialization
@@ -994,10 +921,12 @@ See the [API Reference](/api-reference) for the complete endpoint list with inte
 
 ## Environment variable reference
 
-| Variable | Description |
-|----------|-------------|
-| `COZMO_API_KEY` | Your Nova API key (required) |
-| `ORG_ID` | Your organization UUID (required for most operations) |
+| Variable | SDK | Description |
+|----------|-----|-------------|
+| `COZMOAI_API_KEY` | Python | Your Nova API key (required) |
+| `COZMOAI_ORG_ID` | Python | Your organization UUID (required) |
+| `COZMO_API_KEY` | TypeScript | Your Nova API key (required) |
+| `COZMO_ORG_ID` | TypeScript | Your organization UUID (required) |
 
 <Warning>
   Never commit API keys to source control. Use environment variables, a secrets manager (AWS Secrets Manager, HashiCorp Vault, Doppler), or a `.env` file excluded from git via `.gitignore`.

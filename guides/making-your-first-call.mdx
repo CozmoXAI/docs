@@ -1,0 +1,1060 @@
+---
+title: "Making Your First Call"
+description: "A complete end-to-end walkthrough of placing an AI voice call using the Nova API - from agent creation to CRM update"
+---
+
+## Overview
+
+This guide walks through the complete flow for placing an AI voice call with Nova:
+
+1. Create a voice agent
+2. Configure the agent (LLM, voice, transcriber)
+3. Find your workflow
+4. Trigger a workflow run for a prospect
+5. Monitor via webhook
+6. Inspect the call record
+
+By the end you will have a fully working integration that places calls, captures results, and feeds data back to your system.
+
+## Prerequisites
+
+Before starting, make sure you have:
+
+- A Cozmo AI account with an active organization
+- An API key from [Dashboard - Organization Settings](https://dash.prod.czmx.in)
+- A phone number provisioned in your organization (configured in the Dashboard)
+- A workflow created in the Dashboard with `trigger_type: api`
+- Your `org_id` (shown in the Dashboard and in the URL of every Dashboard page)
+
+<Info>
+  Your `org_id` is a UUID that scopes all API resources. It appears in Dashboard URLs as `dash.prod.czmx.in/org/YOUR_ORG_ID/...`.
+</Info>
+
+## Step 1 - Create a voice agent
+
+An agent defines how your AI behaves on the call - its personality, goals, and response style. Create one via the API or the Dashboard.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Outbound Sales Agent",
+    "type": "voice",
+    "prompt_template": "You are a friendly outbound sales agent for Acme Corp. Your goal is to reconnect with prospects who requested a demo and schedule a follow-up meeting. The prospect'\''s name is {{prospect_name}}. Be concise and respectful of their time. If they ask to be removed from the list, always honor the request immediately."
+  }'
+```
+
+```python Python
+import requests
+import os
+
+ORG_ID = "your-org-id"
+API_KEY = os.environ["NOVA_API_KEY"]
+
+response = requests.post(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/agents",
+    headers={"X-API-Key": API_KEY, "Content-Type": "application/json"},
+    json={
+        "name": "Outbound Sales Agent",
+        "type": "voice",
+        "prompt_template": (
+            "You are a friendly outbound sales agent for Acme Corp. "
+            "Your goal is to reconnect with prospects who requested a demo "
+            "and schedule a follow-up meeting. The prospect's name is {{prospect_name}}. "
+            "Be concise and respectful of their time."
+        ),
+    },
+)
+response.raise_for_status()
+agent = response.json()
+print("Agent ID:", agent["id"])
+```
+
+```typescript TypeScript
+const ORG_ID = "your-org-id";
+const API_KEY = process.env.NOVA_API_KEY!;
+
+const response = await fetch(
+  `https://v2-nova-api.prod.czmx.in/api/org/${ORG_ID}/agents`,
+  {
+    method: "POST",
+    headers: {
+      "X-API-Key": API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: "Outbound Sales Agent",
+      type: "voice",
+      prompt_template:
+        "You are a friendly outbound sales agent for Acme Corp. " +
+        "Your goal is to reconnect with prospects who requested a demo " +
+        "and schedule a follow-up meeting. The prospect's name is {{prospect_name}}. " +
+        "Be concise and respectful of their time.",
+    }),
+  }
+);
+
+const agent = await response.json();
+console.log("Agent ID:", agent.id);
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "log"
+    "net/http"
+    "os"
+)
+
+func main() {
+    orgID := "your-org-id"
+    apiKey := os.Getenv("NOVA_API_KEY")
+
+    payload, _ := json.Marshal(map[string]string{
+        "name": "Outbound Sales Agent",
+        "type": "voice",
+        "prompt_template": "You are a friendly outbound sales agent for Acme Corp. " +
+            "Your goal is to reconnect with prospects who requested a demo " +
+            "and schedule a follow-up meeting. The prospect's name is {{prospect_name}}. " +
+            "Be concise and respectful of their time.",
+    })
+
+    req, _ := http.NewRequest("POST",
+        fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/agents", orgID),
+        bytes.NewReader(payload),
+    )
+    req.Header.Set("X-API-Key", apiKey)
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer resp.Body.Close()
+
+    var agent map[string]interface{}
+    json.NewDecoder(resp.Body).Decode(&agent)
+    fmt.Println("Agent ID:", agent["id"])
+}
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "id": "agt_01j9xyz",
+  "name": "Outbound Sales Agent",
+  "type": "voice",
+  "created_at": "2026-04-21T09:00:00Z"
+}
+```
+
+Save the `id` - you will reference it in your workflow.
+
+## Step 2 - Configure the agent
+
+After creation, configure the LLM, voice, and transcriber settings. These control how the agent thinks, speaks, and listens.
+
+<CodeGroup>
+
+```bash cURL
+curl -X PUT https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents/{agent_id} \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "llm_config": {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "temperature": 0.7,
+      "max_tokens": 512
+    },
+    "transcriber_config": {
+      "provider": "deepgram",
+      "model": "nova-3",
+      "language": "en-US",
+      "endpointing_ms": 300,
+      "smart_format": true,
+      "keywords": ["Acme", "demo", "enterprise"]
+    },
+    "voice_config": {
+      "provider": "elevenlabs",
+      "voice_id": "21m00Tcm4TlvDq8ikWAM",
+      "model": "eleven_turbo_v2"
+    },
+    "greeting_config": {
+      "agent_speaks_first": true,
+      "greeting": "Hi, is this {{prospect_name}}? This is Alex calling from Acme Corp.",
+      "pause_before_first_message": 800,
+      "voice_mail_message": "Hi {{prospect_name}}, this is Alex from Acme. I will try you again soon."
+    }
+  }'
+```
+
+```python Python
+agent_id = "agt_01j9xyz"
+
+response = requests.put(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/agents/{agent_id}",
+    headers={"X-API-Key": API_KEY},
+    json={
+        "llm_config": {
+            "provider": "openai",
+            "model": "gpt-4o",
+            "temperature": 0.7,
+            "max_tokens": 512,
+        },
+        "transcriber_config": {
+            "provider": "deepgram",
+            "model": "nova-3",
+            "language": "en-US",
+            "endpointing_ms": 300,
+            "smart_format": True,
+            "keywords": ["Acme", "demo", "enterprise"],
+        },
+        "voice_config": {
+            "provider": "elevenlabs",
+            "voice_id": "21m00Tcm4TlvDq8ikWAM",
+            "model": "eleven_turbo_v2",
+        },
+        "greeting_config": {
+            "agent_speaks_first": True,
+            "greeting": "Hi, is this {{prospect_name}}? This is Alex calling from Acme Corp.",
+            "pause_before_first_message": 800,
+        },
+    },
+)
+response.raise_for_status()
+print("Agent configured successfully")
+```
+
+```typescript TypeScript
+const agentId = "agt_01j9xyz";
+
+await fetch(
+  `https://v2-nova-api.prod.czmx.in/api/org/${ORG_ID}/agents/${agentId}`,
+  {
+    method: "PUT",
+    headers: {
+      "X-API-Key": API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      llm_config: {
+        provider: "openai",
+        model: "gpt-4o",
+        temperature: 0.7,
+        max_tokens: 512,
+      },
+      transcriber_config: {
+        provider: "deepgram",
+        model: "nova-3",
+        language: "en-US",
+        endpointing_ms: 300,
+        smart_format: true,
+        keywords: ["Acme", "demo", "enterprise"],
+      },
+      voice_config: {
+        provider: "elevenlabs",
+        voice_id: "21m00Tcm4TlvDq8ikWAM",
+        model: "eleven_turbo_v2",
+      },
+      greeting_config: {
+        agent_speaks_first: true,
+        greeting: "Hi, is this {{prospect_name}}? This is Alex calling from Acme Corp.",
+        pause_before_first_message: 800,
+      },
+    }),
+  }
+);
+```
+
+```go Go
+agentID := "agt_01j9xyz"
+
+config := map[string]interface{}{
+    "llm_config": map[string]interface{}{
+        "provider":    "openai",
+        "model":       "gpt-4o",
+        "temperature": 0.7,
+        "max_tokens":  512,
+    },
+    "transcriber_config": map[string]interface{}{
+        "provider":       "deepgram",
+        "model":          "nova-3",
+        "language":       "en-US",
+        "endpointing_ms": 300,
+        "smart_format":   true,
+        "keywords":       []string{"Acme", "demo", "enterprise"},
+    },
+    "voice_config": map[string]interface{}{
+        "provider": "elevenlabs",
+        "voice_id": "21m00Tcm4TlvDq8ikWAM",
+        "model":    "eleven_turbo_v2",
+    },
+}
+
+body, _ := json.Marshal(config)
+req, _ := http.NewRequest("PUT",
+    fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/agents/%s", orgID, agentID),
+    bytes.NewReader(body),
+)
+req.Header.Set("X-API-Key", apiKey)
+req.Header.Set("Content-Type", "application/json")
+http.DefaultClient.Do(req)
+```
+
+</CodeGroup>
+
+## Step 3 - Find your workflow
+
+List your active workflows to get the `id` you'll use when triggering runs:
+
+<CodeGroup>
+
+```bash cURL
+curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflows?is_active=true&trigger_type=api" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+```python Python
+response = requests.get(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/workflows",
+    headers={"X-API-Key": API_KEY},
+    params={"is_active": True, "trigger_type": "api"},
+)
+workflows = response.json()["data"]
+for wf in workflows:
+    print(f"{wf['id']}  {wf['name']}  (v{wf['version']})")
+```
+
+```typescript TypeScript
+const res = await fetch(
+  `https://v2-nova-api.prod.czmx.in/api/org/${ORG_ID}/workflows?is_active=true&trigger_type=api`,
+  { headers: { "X-API-Key": API_KEY } }
+);
+const { data } = await res.json();
+data.forEach((wf: any) => console.log(wf.id, wf.name, `v${wf.version}`));
+```
+
+```go Go
+resp, _ := http.Get(
+    fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/workflows?is_active=true&trigger_type=api", orgID),
+)
+// add X-API-Key header via http.NewRequest in production
+var result map[string]interface{}
+json.NewDecoder(resp.Body).Decode(&result)
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "wf_abc123",
+      "name": "Q2 Outbound Sales",
+      "is_active": true,
+      "trigger_type": "api",
+      "version": 3
+    }
+  ]
+}
+```
+
+Note the `id` of the workflow you want to trigger.
+
+## Step 4 - Trigger a workflow run
+
+A workflow run triggers the entire call flow for a specific prospect. Pass `custom_data` to give the agent context about this prospect that it can use during the conversation.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow_id": "wf_abc123",
+    "prospect": {
+      "phone": "+19175551234",
+      "first_name": "Jane",
+      "last_name": "Doe",
+      "email": "jane.doe@example.com",
+      "external_id": "crm_contact_789",
+      "custom_data": {
+        "demo_requested_at": "2026-04-15",
+        "product_interest": "Enterprise Plan",
+        "company": "Acme Corp",
+        "deal_value_usd": 48000
+      }
+    }
+  }'
+```
+
+```python Python
+response = requests.post(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/workflow-runs",
+    headers={"X-API-Key": API_KEY},
+    json={
+        "workflow_id": "wf_abc123",
+        "prospect": {
+            "phone": "+19175551234",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "email": "jane.doe@example.com",
+            "external_id": "crm_contact_789",
+            "custom_data": {
+                "demo_requested_at": "2026-04-15",
+                "product_interest": "Enterprise Plan",
+                "company": "Acme Corp",
+                "deal_value_usd": 48000,
+            },
+        },
+    },
+)
+response.raise_for_status()
+run = response.json()
+print("Workflow run ID:", run["workflow_run_id"])
+# Store run["workflow_run_id"] - you'll need it to match sessions later
+```
+
+```typescript TypeScript
+const response = await fetch(
+  `https://v2-nova-api.prod.czmx.in/api/org/${ORG_ID}/workflow-runs`,
+  {
+    method: "POST",
+    headers: {
+      "X-API-Key": API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      workflow_id: "wf_abc123",
+      prospect: {
+        phone: "+19175551234",
+        first_name: "Jane",
+        last_name: "Doe",
+        email: "jane.doe@example.com",
+        external_id: "crm_contact_789",
+        custom_data: {
+          demo_requested_at: "2026-04-15",
+          product_interest: "Enterprise Plan",
+          company: "Acme Corp",
+          deal_value_usd: 48000,
+        },
+      },
+    }),
+  }
+);
+
+const run = await response.json();
+console.log("Workflow run ID:", run.workflow_run_id);
+```
+
+```go Go
+payload, _ := json.Marshal(map[string]interface{}{
+    "workflow_id": "wf_abc123",
+    "prospect": map[string]interface{}{
+        "phone":       "+19175551234",
+        "first_name":  "Jane",
+        "last_name":   "Doe",
+        "email":       "jane.doe@example.com",
+        "external_id": "crm_contact_789",
+        "custom_data": map[string]interface{}{
+            "demo_requested_at": "2026-04-15",
+            "product_interest":  "Enterprise Plan",
+            "company":           "Acme Corp",
+            "deal_value_usd":    48000,
+        },
+    },
+})
+
+req, _ := http.NewRequest("POST",
+    fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/workflow-runs", orgID),
+    bytes.NewReader(payload),
+)
+req.Header.Set("X-API-Key", apiKey)
+req.Header.Set("Content-Type", "application/json")
+
+resp, err := http.DefaultClient.Do(req)
+if err != nil {
+    log.Fatal(err)
+}
+defer resp.Body.Close()
+
+var run map[string]string
+json.NewDecoder(resp.Body).Decode(&run)
+fmt.Println("Run ID:", run["workflow_run_id"])
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "workflow_run_id": "run_xyz789",
+  "external_id": "crm_contact_789"
+}
+```
+
+Nova has now queued the call. The agent will dial the prospect's number according to your workflow's scheduling rules. Calls typically connect within 30-90 seconds for `trigger_type: api` workflows.
+
+### Scheduling calls for a future time
+
+Pass `scheduled_at` to queue the call for a specific time rather than triggering immediately:
+
+```json
+{
+  "workflow_id": "wf_abc123",
+  "scheduled_at": "2026-04-22T14:00:00Z",
+  "prospect": {
+    "phone": "+19175551234",
+    "first_name": "Jane"
+  }
+}
+```
+
+<Info>
+  Use UTC in `scheduled_at`. If your workflow is configured with local calling hours, Nova will also respect those constraints - the call fires at whichever time comes later.
+</Info>
+
+## Step 5 - Monitor via webhook
+
+Set up a webhook endpoint to receive real-time notifications when calls complete or fail. This is far more efficient than polling.
+
+<Tabs>
+  <Tab title="Node.js (Express)">
+    ```typescript TypeScript
+    import express from "express";
+    import crypto from "crypto";
+
+    const app = express();
+    app.use(express.json());
+
+    const NOVA_WEBHOOK_SECRET = process.env.NOVA_WEBHOOK_SECRET!;
+
+    app.post("/webhook/cozmo", async (req, res) => {
+      // Return 200 immediately - process in background
+      res.json({ ok: true });
+
+      const { event, data } = req.body;
+
+      try {
+        switch (event) {
+          case "call.completed":
+            await handleCallCompleted(data);
+            break;
+          case "call.failed":
+            await handleCallFailed(data);
+            break;
+          case "session.completed":
+            await handleSessionCompleted(data);
+            break;
+        }
+      } catch (err) {
+        console.error("Webhook processing error", { event, error: err });
+      }
+    });
+
+    async function handleCallCompleted(data: any) {
+      const {
+        call_id,
+        call_result,
+        summary,
+        transcript,
+        recording_url,
+        prospect,
+        evaluations,
+        dnc_requested,
+        sentiment,
+      } = data;
+
+      console.log("Call completed", { call_id, call_result, sentiment });
+
+      // Handle DNC immediately
+      if (dnc_requested) {
+        await addToDncList(prospect.ID, prospect.ExternalId);
+        return;
+      }
+
+      // Read evaluations
+      const evalMap = Object.fromEntries(
+        (evaluations ?? []).map((e: any) => [e.key, e])
+      );
+
+      if (evalMap.INTERESTED?.result_boolean) {
+        // Prospect is interested - update CRM
+        await updateCrm(prospect.ExternalId, {
+          status: "interested",
+          summary,
+          recording_url,
+          call_id,
+        });
+      }
+
+      if (evalMap.CALLBACK_REQUESTED?.result_boolean) {
+        await scheduleCallback(prospect.ExternalId, call_id);
+      }
+    }
+
+    async function handleCallFailed(data: any) {
+      const { call_id, call_result, prospect } = data;
+      console.warn("Call failed", { call_id, call_result, prospect_id: prospect?.ID });
+
+      if (call_result === "NO_ANSWER") {
+        // Schedule retry for 4 hours later
+        await scheduleRetry(prospect.ExternalId, 4 * 60 * 60 * 1000);
+      }
+    }
+
+    async function handleSessionCompleted(data: any) {
+      console.log("Session completed", { session_id: data.session_id, status: data.status });
+    }
+
+    app.listen(3000, () => console.log("Webhook listener on :3000"));
+    ```
+  </Tab>
+  <Tab title="Python (FastAPI)">
+    ```python Python
+    from fastapi import FastAPI, BackgroundTasks, Request
+    import logging
+
+    app = FastAPI()
+    log = logging.getLogger(__name__)
+
+    @app.post("/webhook/cozmo")
+    async def receive_webhook(request: Request, background: BackgroundTasks):
+        payload = await request.json()
+        # Return 200 immediately, process async
+        background.add_task(process_event, payload)
+        return {"ok": True}
+
+    async def process_event(payload: dict):
+        event = payload.get("event")
+        data = payload.get("data", {})
+
+        try:
+            if event == "call.completed":
+                await on_call_completed(data)
+            elif event == "call.failed":
+                await on_call_failed(data)
+            elif event == "session.completed":
+                await on_session_completed(data)
+        except Exception as e:
+            log.error("webhook_processing_error", extra={
+                "event": event,
+                "error": str(e),
+                "call_id": data.get("call_id"),
+            })
+
+    async def on_call_completed(data: dict):
+        call_id = data["call_id"]
+        call_result = data["call_result"]
+        prospect = data.get("prospect", {})
+        evaluations = {e["key"]: e for e in data.get("evaluations", [])}
+
+        log.info("call_completed", extra={
+            "call_id": call_id,
+            "result": call_result,
+            "sentiment": data.get("sentiment"),
+        })
+
+        # Handle DNC first
+        if data.get("dnc_requested"):
+            await add_to_dnc(prospect.get("ID"), prospect.get("ExternalId"))
+            return
+
+        # Act on evaluations
+        if evaluations.get("INTERESTED", {}).get("result_boolean"):
+            await update_crm(
+                external_id=prospect.get("ExternalId"),
+                status="interested",
+                summary=data.get("summary"),
+                recording_url=data.get("recording_url"),
+            )
+
+    async def on_call_failed(data: dict):
+        call_result = data.get("call_result")
+        prospect = data.get("prospect", {})
+        log.warning("call_failed", extra={
+            "call_id": data.get("call_id"),
+            "result": call_result,
+            "prospect_id": prospect.get("ID"),
+        })
+
+        if call_result == "NO_ANSWER":
+            await schedule_retry(prospect.get("ExternalId"), delay_hours=4)
+
+    async def on_session_completed(data: dict):
+        log.info("session_completed", extra={
+            "session_id": data.get("session_id"),
+            "status": data.get("status"),
+            "duration_seconds": data.get("duration_seconds"),
+        })
+    ```
+  </Tab>
+</Tabs>
+
+See [Webhooks](/webhooks) for the complete payload reference.
+
+## Step 6 - Inspect the call record
+
+After the call completes, retrieve the full record including transcript, evaluations, cost breakdown, and tool logs:
+
+<CodeGroup>
+
+```bash cURL
+curl https://v2-nova-api.prod.czmx.in/api/org/{org_id}/calls/{call_id} \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+```python Python
+call_id = "call_17546d2d"
+response = requests.get(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/calls/{call_id}",
+    headers={"X-API-Key": API_KEY},
+)
+response.raise_for_status()
+call = response.json()
+
+print("Duration:", call["duration_seconds"], "seconds")
+print("Summary:", call["summary"])
+print("Cost:", call["cost_usd"], "USD")
+print("Recording:", call["recording_url"])
+
+print("\nEvaluations:")
+for ev in call.get("evaluations", []):
+    print(f"  {ev['outcome_key']}: {ev['result_boolean']} - {ev['reasoning']}")
+
+print("\nTranscript snippet:")
+print(call["transcript_text"][:500])
+```
+
+```typescript TypeScript
+const callId = "call_17546d2d";
+const res = await fetch(
+  `https://v2-nova-api.prod.czmx.in/api/org/${ORG_ID}/calls/${callId}`,
+  { headers: { "X-API-Key": API_KEY } }
+);
+const call = await res.json();
+
+console.log("Duration:", call.duration_seconds, "seconds");
+console.log("Cost:", call.cost_usd, "USD");
+console.log("Recording:", call.recording_url);
+
+call.evaluations?.forEach((ev: any) => {
+  console.log(`${ev.outcome_key}: ${ev.result_boolean} - ${ev.reasoning}`);
+});
+```
+
+```go Go
+callID := "call_17546d2d"
+req, _ := http.NewRequest("GET",
+    fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/calls/%s", orgID, callID),
+    nil,
+)
+req.Header.Set("X-API-Key", apiKey)
+
+resp, err := http.DefaultClient.Do(req)
+if err != nil {
+    log.Fatal(err)
+}
+defer resp.Body.Close()
+
+var call map[string]interface{}
+json.NewDecoder(resp.Body).Decode(&call)
+fmt.Printf("Duration: %v seconds\n", call["duration_seconds"])
+fmt.Printf("Cost: $%v\n", call["cost_usd"])
+fmt.Printf("Recording: %v\n", call["recording_url"])
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "id": "call_17546d2d",
+  "status": "FINISHED",
+  "direction": "outbound",
+  "duration_seconds": 187,
+  "summary": "Agent called Jane to follow up on her demo request. Jane confirmed interest and agreed to a follow-up meeting on Friday.",
+  "transcript_text": "Agent: Hi, is this Jane Doe?\nProspect: Yes, speaking.\nAgent: Hi Jane, this is Alex from Acme...",
+  "recording_url": "https://storage.czmx.in/recordings/call_17546d2d.mp3",
+  "evaluations": [
+    {
+      "outcome_key": "INTERESTED",
+      "extracted_value": "yes",
+      "reasoning": "Prospect agreed to a follow-up meeting.",
+      "result_boolean": true
+    }
+  ],
+  "cost_usd": "0.042",
+  "tokens_input": 1240,
+  "tokens_output": 380,
+  "tts_characters": 820,
+  "stt_duration_seconds": 95
+}
+```
+
+## Handling failures
+
+Not every call succeeds. Handle each failure type appropriately:
+
+| call_result | When it happens | What to do |
+|-------------|-----------------|------------|
+| `NO_ANSWER` | Prospect didn't pick up | Retry at a different time; respect local calling hours |
+| `BUSY` | Line was busy | Retry after 15-60 minutes |
+| `FAILED` | Technical error during the call | Retry after a 5-minute delay |
+| `FAILED_SIP` | Carrier-level error | Check SIP configuration; contact support if persistent |
+| `FAILED_VALIDATION` | Agent or prospect config invalid | Inspect configuration; do not auto-retry |
+| `CANCELLED` | Call cancelled before connecting | Investigate; may be intentional |
+
+```python Python
+async def on_call_failed(data: dict):
+    result = data.get("call_result")
+    prospect_external_id = data["prospect"]["ExternalId"]
+
+    retry_delays = {
+        "NO_ANSWER": 4 * 3600,     # 4 hours
+        "BUSY": 3600,               # 1 hour
+        "FAILED": 300,              # 5 minutes
+        "FAILED_SIP": 1800,         # 30 minutes
+    }
+
+    delay = retry_delays.get(result)
+    if delay:
+        await schedule_retry_run(
+            workflow_id="wf_abc123",
+            prospect_external_id=prospect_external_id,
+            delay_seconds=delay,
+        )
+    elif result == "FAILED_VALIDATION":
+        # Alert on-call - this needs a human to investigate
+        await alert_oncall(f"FAILED_VALIDATION for prospect {prospect_external_id}")
+```
+
+## What to do after the call - CRM update pattern
+
+Use the `evaluations` array from the webhook or call record to drive downstream actions:
+
+```python Python
+def update_crm_from_call(call_data: dict):
+    prospect = call_data["prospect"]
+    external_id = prospect["ExternalId"]
+    evaluations = {e["key"]: e for e in call_data.get("evaluations", [])}
+
+    crm_update = {
+        "last_call_id": call_data["call_id"],
+        "last_call_at": "now",
+        "call_summary": call_data.get("summary"),
+        "recording_url": call_data.get("recording_url"),
+    }
+
+    # Map evaluation outcomes to CRM fields
+    if evaluations.get("INTERESTED", {}).get("result_boolean"):
+        crm_update["lead_status"] = "hot"
+        crm_update["next_action"] = "schedule_demo"
+
+    elif evaluations.get("CALLBACK_REQUESTED", {}).get("result_boolean"):
+        crm_update["lead_status"] = "warm"
+        crm_update["next_action"] = "schedule_callback"
+
+    elif evaluations.get("NOT_INTERESTED", {}).get("result_boolean"):
+        crm_update["lead_status"] = "cold"
+        crm_update["next_action"] = "archive"
+
+    crm.update_contact(external_id, crm_update)
+```
+
+## Complete end-to-end production example
+
+This script orchestrates the full flow in one place - useful for testing and as a reference for production integrations:
+
+```python Python
+"""
+Complete Nova API integration example.
+Run with: NOVA_API_KEY=your_key ORG_ID=your_org python example.py
+"""
+import os
+import uuid
+import time
+import logging
+import requests
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger(__name__)
+
+BASE_URL = "https://v2-nova-api.prod.czmx.in/api"
+ORG_ID = os.environ["ORG_ID"]
+API_KEY = os.environ["NOVA_API_KEY"]
+HEADERS = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
+
+
+def api(method: str, path: str, **kwargs) -> dict:
+    """Make an API call with error handling."""
+    url = f"{BASE_URL}/org/{ORG_ID}{path}"
+    response = requests.request(method, url, headers=HEADERS, timeout=30, **kwargs)
+    if not response.ok:
+        body = response.json() if response.content else {}
+        raise Exception(f"Nova API {response.status_code}: {body.get('message', 'unknown error')}")
+    return response.json()
+
+
+def create_agent() -> str:
+    log.info("Creating voice agent...")
+    agent = api("POST", "/agents", json={
+        "name": "Demo Sales Agent",
+        "type": "voice",
+        "prompt_template": (
+            "You are a friendly sales agent for Acme Corp. "
+            "Follow up with {{prospect_name}} about their demo request."
+        ),
+    })
+    agent_id = agent["id"]
+    log.info(f"Created agent: {agent_id}")
+
+    # Configure LLM, voice, transcriber
+    api("PUT", f"/agents/{agent_id}", json={
+        "llm_config": {"provider": "openai", "model": "gpt-4o", "temperature": 0.7},
+        "transcriber_config": {"provider": "deepgram", "model": "nova-3", "language": "en-US"},
+        "voice_config": {"provider": "elevenlabs", "voice_id": "21m00Tcm4TlvDq8ikWAM"},
+        "greeting_config": {
+            "agent_speaks_first": True,
+            "greeting": "Hi {{prospect_name}}, this is Alex from Acme Corp!",
+        },
+    })
+    log.info(f"Agent {agent_id} configured")
+    return agent_id
+
+
+def find_workflow(name_contains: str = "") -> str:
+    log.info("Finding API-triggered workflow...")
+    data = api("GET", "/workflows", **{"params": {"is_active": True, "trigger_type": "api"}})
+    workflows = data["data"]
+    if not workflows:
+        raise Exception("No active API-triggered workflows found")
+
+    wf = next((w for w in workflows if name_contains.lower() in w["name"].lower()), workflows[0])
+    log.info(f"Using workflow: {wf['id']} - {wf['name']}")
+    return wf["id"]
+
+
+def trigger_run(workflow_id: str, prospect: dict, scheduled_at: str = None) -> str:
+    log.info(f"Triggering workflow run for {prospect['phone']}...")
+    body = {"workflow_id": workflow_id, "prospect": prospect}
+    if scheduled_at:
+        body["scheduled_at"] = scheduled_at
+
+    result = api("POST", "/workflow-runs", json=body)
+    run_id = result["workflow_run_id"]
+    log.info(f"Created workflow run: {run_id}")
+    return run_id
+
+
+def get_call(call_id: str) -> dict:
+    return api("GET", f"/calls/{call_id}")
+
+
+def poll_for_session(run_id: str, timeout_seconds: int = 300) -> str:
+    """Poll sessions until we find one for this run (webhook is preferred in production)."""
+    log.info(f"Polling for session associated with run {run_id}...")
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        sessions = api("GET", "/agent-sessions", params={"page": 1, "size": 10})
+        for session in sessions.get("data", []):
+            # In production, match via workflow_run_id field
+            if session.get("status") in ("COMPLETED", "STOPPED", "FAILED", "CANCELLED"):
+                log.info(f"Found completed session: {session['id']}")
+                return session["id"]
+        time.sleep(10)
+    raise TimeoutError(f"No completed session found within {timeout_seconds}s")
+
+
+def main():
+    # Step 1 - Create and configure agent
+    agent_id = create_agent()
+
+    # Step 2 - Find workflow
+    workflow_id = find_workflow()
+
+    # Step 3 - Trigger a run
+    prospect = {
+        "phone": "+19175551234",
+        "first_name": "Jane",
+        "last_name": "Doe",
+        "email": "jane.doe@example.com",
+        "external_id": f"demo_{uuid.uuid4().hex[:8]}",
+        "custom_data": {
+            "demo_requested_at": "2026-04-15",
+            "product_interest": "Enterprise Plan",
+            "company": "Acme Corp",
+        },
+    }
+    run_id = trigger_run(workflow_id, prospect)
+
+    log.info("Call queued. In production, use webhooks to receive completion events.")
+    log.info(f"Workflow run ID: {run_id}")
+    log.info("Configure your webhook at: https://dash.prod.czmx.in")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+## Best practices for production calls
+
+<CardGroup cols={2}>
+  <Card title="Always pass external_id" icon="fingerprint">
+    Set `external_id` to your CRM contact ID. Nova deduplicates prospects on this field, so re-triggering a workflow for the same contact does not create duplicate records.
+  </Card>
+  <Card title="Use custom_data for agent context" icon="database">
+    Pass relevant prospect context in `custom_data` - deal stage, product interest, previous interactions. The agent can reference this during the call through the prompt template.
+  </Card>
+  <Card title="Webhooks over polling" icon="webhook">
+    Use webhook events rather than polling the API. Webhooks are real-time, reduce API calls, and scale to any call volume.
+  </Card>
+  <Card title="Handle DNC requests immediately" icon="ban">
+    Check `dnc_requested` in every `call.completed` webhook and add the prospect to your DNC list before doing anything else. This is a legal requirement in most jurisdictions.
+  </Card>
+  <Card title="Store run IDs" icon="bookmark">
+    Persist `workflow_run_id` in your database alongside the CRM contact ID. This links your records to Nova sessions and calls for auditing and troubleshooting.
+  </Card>
+  <Card title="Schedule calls thoughtfully" icon="clock">
+    Use `scheduled_at` to place calls during business hours for the prospect's timezone. Pass `timezone` in the prospect object to help Nova respect calling hour rules.
+  </Card>
+</CardGroup>
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    Set up and verify webhook endpoints for real-time call and session events.
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Implement retry logic, circuit breakers, and structured error logging.
+  </Card>
+  <Card title="Agents" icon="robot" href="/concepts/agents">
+    Fine-tune LLM, voice, and transcriber settings for your use case.
+  </Card>
+  <Card title="Calls" icon="phone" href="/concepts/calls">
+    Understand the full call detail response, evaluations, and cost breakdown.
+  </Card>
+  <Card title="Workflows" icon="sitemap" href="/concepts/workflows">
+    Configure multi-step workflows, scheduling, and bulk calling patterns.
+  </Card>
+  <Card title="Sessions" icon="messages" href="/concepts/sessions">
+    Start sessions directly for custom orchestration outside of workflows.
+  </Card>
+</CardGroup>

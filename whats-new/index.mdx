@@ -1,0 +1,53 @@
+---
+title: "What's New"
+description: "The latest features, improvements, and fixes to the Cozmo platform"
+---
+
+Stay up to date with everything shipping in Cozmo: new APIs, SDKs, developer tooling, and infrastructure improvements.
+
+<CardGroup cols={2}>
+  <Card title="April 2026" icon="calendar" href="/whats-new/april-2026">
+    Agent Sessions, MCP Server, Agent Skills, E2E Testing, session webhooks, analytics, quality rules, and member management.
+  </Card>
+  <Card title="March 2026" icon="calendar" href="/whats-new/march-2026">
+    Workflow Runs in Python and TypeScript SDKs, API URL migration, and authentication hardening.
+  </Card>
+  <Card title="February 2026" icon="calendar" href="/whats-new/february-2026">
+    Python SDK, TypeScript SDK, OpenAPI specification, and automated SDK generation pipeline.
+  </Card>
+  <Card title="January 2026" icon="calendar" href="/whats-new/january-2026">
+    Platform launch with Agents, Calls, Voices, Workflows, Prospects, and webhook events.
+  </Card>
+</CardGroup>
+
+## Latest highlights
+
+### Agent Sessions API
+
+Start and manage multi-turn agent sessions programmatically. Sessions can span voice, chat, WhatsApp, Telegram, Slack, and web channels. Each session takes a client-generated UUID v4 so launches are idempotent by design.
+
+[Sessions concept](/concepts/sessions) · [API Reference](/api-reference/introduction)
+
+### MCP Server
+
+Give your AI coding assistant direct read/write access to your Cozmo org without leaving your IDE. Works with Claude Code, Cursor, Windsurf, and VS Code Copilot. Three tool tiers (read, write, destructive) keep blast radius under control.
+
+[MCP Server docs](/mcp/overview)
+
+### Agent Skills
+
+Eight installable instruction sets that turn any AI coding assistant into a Cozmo expert: API Operator, MCP Toolsmith, Agent Builder, Workflow Builder, Workflow Runner, Call Quality Analyst, Agent Design Reviewer, and Tenant Isolation Auditor. One command to install, zero hallucinated endpoints.
+
+[Agent Skills overview](/skills/overview)
+
+### Session Webhooks
+
+`session.completed` and `session.failed` join the existing `call.completed` and `call.failed` events. All four event types use HMAC-SHA256 signing via `X-Cozmo-Signature`.
+
+[Webhook events](/webhooks)
+
+### Python and TypeScript SDKs
+
+Auto-generated from the OpenAPI spec via Stainless. Both SDKs cover agents, sessions, calls, voices, workflows, and workflow runs with full type coverage, automatic retries, and pagination helpers.
+
+[SDK overview](/sdk/overview)

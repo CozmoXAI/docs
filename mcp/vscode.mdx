@@ -1,0 +1,185 @@
+---
+title: "VSCode"
+description: "Add the Cozmo MCP server to VSCode so GitHub Copilot can list agents, inspect calls, and trigger workflow runs"
+icon: "code"
+---
+
+## Prerequisites
+
+- [VSCode](https://code.visualstudio.com) 1.99 or later with the [GitHub Copilot extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) installed
+- Node.js **20.11** or later
+- A Cozmo API key and Org ID from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
+
+## Step 1 - Clone and build the MCP server
+
+```bash
+git clone https://github.com/CozmoXAI/mcp-server.git ~/cozmox-mcp-server
+cd ~/cozmox-mcp-server
+npm install
+npm run build
+```
+
+## Step 2 - Configure VSCode
+
+Create a `.vscode/mcp.json` file at the root of your project:
+
+```bash
+mkdir -p .vscode
+```
+
+```json .vscode/mcp.json
+{
+  "servers": {
+    "cozmox": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/absolute/path/to/cozmox-mcp-server/dist/stdio.js"],
+      "env": {
+        "COZMOX_API_BASE_URL": "https://v2-nova-api.prod.czmx.in",
+        "COZMOX_ORG_ID": "YOUR_ORG_ID",
+        "COZMOX_API_KEY": "YOUR_API_KEY",
+        "COZMOX_ENABLE_WRITE_TOOLS": "false",
+        "COZMOX_ENABLE_DESTRUCTIVE_TOOLS": "false"
+      }
+    }
+  }
+}
+```
+
+Replace `/absolute/path/to/cozmox-mcp-server` with the actual path where you cloned the repo.
+
+<Warning>
+  Do not commit API keys to version control. For shared workspaces, omit the `env` block and set `COZMOX_API_KEY` and `COZMOX_ORG_ID` in each developer's shell environment.
+</Warning>
+
+**Team-safe version** — commit this, have each developer export their own keys:
+
+```json .vscode/mcp.json
+{
+  "servers": {
+    "cozmox": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/absolute/path/to/cozmox-mcp-server/dist/stdio.js"]
+    }
+  }
+}
+```
+
+Each developer exports in their shell:
+
+```bash
+export COZMOX_API_KEY="your_api_key"
+export COZMOX_ORG_ID="your_org_id"
+```
+
+## Step 3 - Reload VSCode
+
+Run **Developer: Reload Window** from the command palette (`⇧⌘P` / `Ctrl+Shift+P`). Copilot will pick up the MCP server on reload.
+
+## Step 4 - Verify
+
+Open Copilot Chat (`⇧⌘I` / `Ctrl+Shift+I`) and ask:
+
+> *"Use cozmox_health_check to verify my Cozmo connection"*
+
+A correct response returns `{ "ok": true, "org_id": "..." }` — pulled live from the API.
+
+## Available tools
+
+### Read tools (always on)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_context` | Show server config — org ID and which tiers are enabled |
+| `cozmox_health_check` | Verify API key and org connectivity |
+| `cozmox_list_agents` | Paginated agent list; filter by `type` or `search` |
+| `cozmox_get_agent` | Full details for one agent by UUID |
+| `cozmox_list_calls` | Calls list with 12 filters (status, direction, agent, prospect, date range…) |
+| `cozmox_get_call_details` | Full call record — transcript, evaluations, recording metadata, tool logs |
+| `cozmox_list_voices` | Available voices by provider |
+| `cozmox_list_workflows` | Paginated workflow list |
+| `cozmox_get_workflow` | Single workflow with its latest definition |
+| `cozmox_get_agent_session` | Agent session details by UUID |
+
+### Write tools (`COZMOX_ENABLE_WRITE_TOOLS=true`)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_create_agent` | Create a new voice, chat, or video agent |
+| `cozmox_update_agent` | Partial update of an existing agent |
+| `cozmox_create_workflow_run_with_prospect` | Trigger a workflow run with a new or existing prospect |
+| `cozmox_start_agent_session` | Start an agent session with an initial instruction |
+
+### Destructive tools (`COZMOX_ENABLE_DESTRUCTIVE_TOOLS=true`)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_delete_agent` | Permanently delete an agent (requires literal confirmation) |
+
+## What Copilot can help you build
+
+<AccordionGroup>
+  <Accordion title="Inspecting agents">
+    > *"List all my Cozmo agents and show their types"*
+
+    Copilot calls `cozmox_list_agents` and returns the paginated list scoped to your configured org.
+  </Accordion>
+
+  <Accordion title="Analyzing calls">
+    > *"Get the details for call [call_id] — I want to see the evaluations and the transcript"*
+
+    Copilot calls `cozmox_get_call_details` and returns the full call record including `evaluations[]`, `transcript_text`, `recording_url`, and `summary`.
+  </Accordion>
+
+  <Accordion title="Starting sessions (write tools on)">
+    > *"Start a session for agent [agent_id] with the instruction: schedule a follow-up call"*
+
+    Copilot calls `cozmox_start_agent_session`, which validates agent org ownership then creates the session — returning the session ID for tracking.
+  </Accordion>
+
+  <Accordion title="Triggering workflow runs (write tools on)">
+    > *"Create a workflow run for workflow [workflow_id] with prospect phone +19175551234"*
+
+    Copilot calls `cozmox_create_workflow_run_with_prospect` with the correct `POST /workflow-runs` body.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="MCP server not showing in Copilot">
+    Check that the Copilot extension is up to date (MCP support requires VSCode 1.99+). Verify `.vscode/mcp.json` is in the **root of the open workspace**, not a subdirectory.
+
+    Reload the window:
+
+    ```
+    ⇧⌘P → Developer: Reload Window
+    ```
+  </Accordion>
+
+  <Accordion title="node not found when VSCode launches">
+    VSCode may not inherit your shell's PATH. Use the full path to the node binary:
+
+    ```bash
+    which node   # e.g. /Users/you/.nvm/versions/node/v20.11.0/bin/node
+    ```
+
+    Then use that full path in the `command` field of `.vscode/mcp.json`.
+  </Accordion>
+
+  <Accordion title="Environment variables not picked up">
+    If `COZMOX_API_KEY` set in your shell profile isn't visible to VSCode, add the `env` block explicitly to `.vscode/mcp.json` for local development and add the file to `.gitignore`.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Overview" icon="server" href="/mcp/overview">
+    Full tool reference, HTTP mode, and Docker.
+  </Card>
+  <Card title="SDKs" icon="box" href="/sdk/overview">
+    Install the official Python or TypeScript SDK.
+  </Card>
+</CardGroup>

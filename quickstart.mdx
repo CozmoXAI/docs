@@ -1,42 +1,706 @@
 ---
 title: "Quickstart"
-description: "Get started with the Nova API in minutes"
+description: "Go from zero to a triggered workflow call in under 10 minutes"
 ---
 
-## Get started in two steps
+## Before you begin
 
-<Steps>
-  <Step title="Create an API Key">
-    Go to the [Dashboard](https://dash.prod.czmx.in) and navigate to your **Organization Settings** to create an API key.
-  </Step>
-  <Step title="Make your first request">
-    Use your API key to fetch your user profile:
+You need:
 
-    ```bash
-    curl --request GET \
-      --url https://v2-nova-api.prod.czmx.in/me \
-      --header 'Authorization: Bearer YOUR_API_KEY'
-    ```
-  </Step>
-</Steps>
+- A Cozmo AI account with an organization ([sign up](https://dash.prod.czmx.in))
+- An API key - create one in **Dashboard - Organization Settings - API Keys**
+- Your `org_id` - visible in the Dashboard URL and Organization Settings
+- One of: `curl`, Python 3.8+, Node.js 18+, or Go 1.21+
 
-## Response
+<Info>
+  All requests use the base URL `https://v2-nova-api.prod.czmx.in/api` with your API key in the `X-API-Key` header. All paths are scoped to your organization: `/org/{org_id}/...`.
+</Info>
 
-```json
-{
-  "id": "user_123",
-  "email": "you@example.com",
-  "created_at": "2026-01-15T10:30:00Z",
-  "organizations": [
-    {
-      "id": "org_456",
-      "name": "My Organization",
-      "slug": "my-org",
-      "role": "admin",
-      "joined_at": "2026-01-15T10:30:00Z"
+---
+
+## Step 1 - Verify authentication
+
+Confirm your API key works by listing agents. A `200` response means you are authenticated.
+
+<CodeGroup>
+
+```bash cURL
+curl https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+)
+
+print(response.status_code)  # 200
+print(response.json())
+```
+
+```typescript TypeScript
+const response = await fetch(
+  "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+  {
+    headers: {
+      "X-API-Key": "YOUR_API_KEY",
+    },
+  }
+);
+
+console.log(response.status); // 200
+const data = await response.json();
+console.log(data);
+```
+
+```go Go
+package main
+
+import (
+    "fmt"
+    "io"
+    "net/http"
+)
+
+func main() {
+    req, _ := http.NewRequest(
+        "GET",
+        "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+        nil,
+    )
+    req.Header.Set("X-API-Key", "YOUR_API_KEY")
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        panic(err)
     }
-  ]
+    defer resp.Body.Close()
+
+    body, _ := io.ReadAll(resp.Body)
+    fmt.Printf("Status: %d\n%s\n", resp.StatusCode, body)
 }
 ```
 
-You're all set! Explore the [API Reference](/api-reference) to see all available endpoints.
+</CodeGroup>
+
+**Expected response:**
+
+```json
+{
+  "data": [],
+  "meta": {
+    "page": 1,
+    "size": 20,
+    "total": 0,
+    "total_pages": 0
+  }
+}
+```
+
+If you receive `401 Unauthorized`, double-check your API key and org ID.
+
+<Tip>
+  Store your credentials in environment variables and never hardcode them in source files or commit them to version control. The Python SDK reads `COZMOAI_API_KEY` and `COZMOAI_ORG_ID`; the TypeScript SDK reads `COZMO_API_KEY` and `COZMO_ORG_ID`.
+</Tip>
+
+---
+
+## Step 2 - Create an agent
+
+An agent defines how your AI behaves - its persona, language model, voice, and transcriber. Create a voice agent with a full configuration:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Support Agent",
+    "type": "voice",
+    "prompt_template": "You are Jordan, a friendly support specialist at Acme Corp. Your goal is to help {{prospect_name}} resolve their issue quickly. Be concise - ask one question at a time. If you cannot resolve the issue, offer to escalate to a human agent.",
+    "llm_config": {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "temperature": 0.7,
+      "max_tokens": 200,
+      "fallbacks": [
+        { "provider": "anthropic", "model": "claude-3-5-sonnet-20241022" }
+      ]
+    },
+    "transcriber_config": {
+      "provider": "deepgram",
+      "model": "nova-3",
+      "language": "en-US",
+      "endpointing_ms": 300,
+      "smart_format": true
+    },
+    "voice_config": {
+      "provider": "elevenlabs",
+      "voice_id": "21m00Tcm4TlvDq8ikWAM",
+      "model": "eleven_turbo_v2_5"
+    },
+    "greeting_config": {
+      "agent_speaks_first": true,
+      "greeting": "Hi, is this {{prospect_name}}? This is Jordan from Acme Corp support. How can I help you today?",
+      "pause_before_first_message": 800
+    }
+  }'
+```
+
+```python Python
+import os
+import requests
+
+COZMO_API_KEY = os.environ["COZMOAI_API_KEY"]
+COZMO_ORG_ID = os.environ["COZMOAI_ORG_ID"]
+
+response = requests.post(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{COZMO_ORG_ID}/agents",
+    headers={
+        "X-API-Key": COZMO_API_KEY,
+        "Content-Type": "application/json",
+    },
+    json={
+        "name": "Support Agent",
+        "type": "voice",
+        "prompt_template": (
+            "You are Jordan, a friendly support specialist at Acme Corp. "
+            "Your goal is to help {{prospect_name}} resolve their issue quickly. "
+            "Be concise - ask one question at a time. "
+            "If you cannot resolve the issue, offer to escalate to a human agent."
+        ),
+        "llm_config": {
+            "provider": "openai",
+            "model": "gpt-4o",
+            "temperature": 0.7,
+            "max_tokens": 200,
+            "fallbacks": [
+                {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
+            ],
+        },
+        "transcriber_config": {
+            "provider": "deepgram",
+            "model": "nova-3",
+            "language": "en-US",
+            "endpointing_ms": 300,
+            "smart_format": True,
+        },
+        "voice_config": {
+            "provider": "elevenlabs",
+            "voice_id": "21m00Tcm4TlvDq8ikWAM",
+            "model": "eleven_turbo_v2_5",
+        },
+        "greeting_config": {
+            "agent_speaks_first": True,
+            "greeting": "Hi, is this {{prospect_name}}? This is Jordan from Acme Corp support. How can I help you today?",
+            "pause_before_first_message": 800,
+        },
+    },
+)
+
+agent = response.json()
+print(f"Created agent: {agent['id']}")
+# Attach this agent to a workflow in the Dashboard
+AGENT_ID = agent["id"]
+```
+
+```typescript TypeScript
+const COZMO_API_KEY = process.env.COZMO_API_KEY!;  // TypeScript SDK reads COZMO_API_KEY
+const COZMO_ORG_ID = process.env.COZMO_ORG_ID!;
+
+const response = await fetch(
+  `https://v2-nova-api.prod.czmx.in/api/org/${COZMO_ORG_ID}/agents`,
+  {
+    method: "POST",
+    headers: {
+      "X-API-Key": COZMO_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: "Support Agent",
+      type: "voice",
+      prompt_template:
+        "You are Jordan, a friendly support specialist at Acme Corp. " +
+        "Your goal is to help {{prospect_name}} resolve their issue quickly. " +
+        "Be concise - ask one question at a time. " +
+        "If you cannot resolve the issue, offer to escalate to a human agent.",
+      llm_config: {
+        provider: "openai",
+        model: "gpt-4o",
+        temperature: 0.7,
+        max_tokens: 200,
+        fallbacks: [
+          { provider: "anthropic", model: "claude-3-5-sonnet-20241022" },
+        ],
+      },
+      transcriber_config: {
+        provider: "deepgram",
+        model: "nova-3",
+        language: "en-US",
+        endpointing_ms: 300,
+        smart_format: true,
+      },
+      voice_config: {
+        provider: "elevenlabs",
+        voice_id: "21m00Tcm4TlvDq8ikWAM",
+        model: "eleven_turbo_v2_5",
+      },
+      greeting_config: {
+        agent_speaks_first: true,
+        greeting:
+          "Hi, is this {{prospect_name}}? This is Jordan from Acme Corp support. How can I help you today?",
+        pause_before_first_message: 800,
+      },
+    }),
+  }
+);
+
+const agent = await response.json();
+console.log(`Created agent: ${agent.id}`);
+// Attach this agent to a workflow in the Dashboard
+const AGENT_ID = agent.id;
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "os"
+)
+
+func main() {
+    apiKey := os.Getenv("COZMO_API_KEY")
+    orgID := os.Getenv("COZMO_ORG_ID")
+
+    payload := map[string]interface{}{
+        "name": "Support Agent",
+        "type": "voice",
+        "prompt_template": "You are Jordan, a friendly support specialist at Acme Corp. " +
+            "Your goal is to help {{prospect_name}} resolve their issue quickly. " +
+            "Be concise - ask one question at a time.",
+        "llm_config": map[string]interface{}{
+            "provider":    "openai",
+            "model":       "gpt-4o",
+            "temperature": 0.7,
+            "max_tokens":  200,
+            "fallbacks": []map[string]string{
+                {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
+            },
+        },
+        "transcriber_config": map[string]interface{}{
+            "provider":       "deepgram",
+            "model":          "nova-3",
+            "language":       "en-US",
+            "endpointing_ms": 300,
+            "smart_format":   true,
+        },
+        "voice_config": map[string]string{
+            "provider": "elevenlabs",
+            "voice_id": "21m00Tcm4TlvDq8ikWAM",
+            "model":    "eleven_turbo_v2_5",
+        },
+        "greeting_config": map[string]interface{}{
+            "agent_speaks_first":        true,
+            "greeting":                  "Hi, is this {{prospect_name}}? This is Jordan from Acme Corp support.",
+            "pause_before_first_message": 800,
+        },
+    }
+
+    body, _ := json.Marshal(payload)
+    req, _ := http.NewRequest(
+        "POST",
+        fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/agents", orgID),
+        bytes.NewReader(body),
+    )
+    req.Header.Set("X-API-Key", apiKey)
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+
+    respBody, _ := io.ReadAll(resp.Body)
+    fmt.Printf("Response: %s\n", respBody)
+
+    var agent map[string]interface{}
+    json.Unmarshal(respBody, &agent)
+    agentID := agent["id"].(string)
+    fmt.Printf("Created agent: %s\n", agentID)
+}
+```
+
+</CodeGroup>
+
+**Expected response:**
+
+```json
+{
+  "id": "fec4a264-6c53-49e8-a577-705a7cf30b48",
+  "name": "Support Agent",
+  "type": "voice",
+  "organization_id": "d1e2f3a4-b5c6-7890-1234-567890abcdef",
+  "created_at": "2026-04-21T10:00:00Z",
+  "updated_at": "2026-04-21T10:00:00Z"
+}
+```
+
+Save the `id` — attach this agent to a workflow in the Dashboard before Step 4.
+
+---
+
+## Step 3 - Set up a webhook
+
+Receive a push notification the moment a call or session ends. Configure your endpoint in **Dashboard - Organization Settings - Webhooks**, then implement a handler:
+
+<CodeGroup>
+
+```javascript Node.js / Express
+import express from "express";
+import crypto from "crypto";
+
+const app = express();
+
+// Use raw body parser to preserve bytes for signature verification
+app.post(
+  "/webhooks/cozmo",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    const signature = req.headers["x-cozmo-signature"] as string;
+    const secret = process.env.COZMO_WEBHOOK_SECRET!;
+
+    // Verify signature
+    const expected = crypto
+      .createHmac("sha256", secret)
+      .update(req.body)
+      .digest("hex");
+
+    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) {
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    // Acknowledge immediately
+    res.json({ ok: true });
+
+    // Process asynchronously
+    const { event, data } = JSON.parse(req.body.toString());
+    handleEvent(event, data).catch(console.error);
+  }
+);
+
+async function handleEvent(event: string, data: any) {
+  switch (event) {
+    case "call.completed":
+      console.log(`Call ${data.call_id} - Result: ${data.call_result}`);
+      // Update your CRM, store transcript, trigger follow-up workflows
+      break;
+
+    case "call.failed":
+      console.warn(`Call ${data.call_id} failed: ${data.call_result}`);
+      // Log failure, schedule retry if appropriate
+      break;
+
+    case "session.completed":
+      console.log(`Session ${data.session_id} completed in ${data.duration_seconds}s`);
+      break;
+
+    case "session.failed":
+      console.warn(`Session ${data.session_id} failed: ${data.status}`);
+      break;
+  }
+}
+
+app.listen(3000, () => console.log("Listening on :3000"));
+```
+
+```python Python / FastAPI
+import hashlib
+import hmac
+import os
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+
+app = FastAPI()
+
+async def handle_event(event: str, data: dict):
+    if event == "call.completed":
+        evals = {e["key"]: e for e in data.get("evaluations", [])}
+        print(f"Call {data['call_id']} - {data['call_result']}")
+        if evals.get("INTERESTED", {}).get("result_boolean"):
+            print(f"Prospect {data['prospect']['ExternalId']} is interested!")
+    elif event == "call.failed":
+        print(f"Call {data['call_id']} failed: {data['call_result']}")
+    elif event == "session.completed":
+        print(f"Session {data['session_id']} completed in {data['duration_seconds']}s")
+    elif event == "session.failed":
+        print(f"Session {data['session_id']} failed: {data['status']}")
+
+@app.post("/webhooks/cozmo")
+async def cozmo_webhook(request: Request, background_tasks: BackgroundTasks):
+    raw_body = await request.body()
+    signature = request.headers.get("x-cozmo-signature", "")
+    secret = os.environ["COZMO_WEBHOOK_SECRET"]
+
+    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    payload = await request.json()
+    background_tasks.add_task(handle_event, payload["event"], payload["data"])
+
+    return {"ok": True}
+```
+
+```go Go / net/http
+package main
+
+import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+    "encoding/json"
+    "fmt"
+    "io"
+    "log"
+    "net/http"
+    "os"
+)
+
+type Payload struct {
+    Event string          `json:"event"`
+    Data  json.RawMessage `json:"data"`
+}
+
+func verifySignature(body []byte, sig, secret string) bool {
+    mac := hmac.New(sha256.New, []byte(secret))
+    mac.Write(body)
+    return hmac.Equal([]byte(hex.EncodeToString(mac.Sum(nil))), []byte(sig))
+}
+
+func handleEvent(event string, data json.RawMessage) {
+    switch event {
+    case "call.completed":
+        var d struct {
+            CallID     string `json:"call_id"`
+            CallResult string `json:"call_result"`
+        }
+        json.Unmarshal(data, &d)
+        log.Printf("Call %s - %s", d.CallID, d.CallResult)
+
+    case "session.completed":
+        var d struct {
+            SessionID       string `json:"session_id"`
+            DurationSeconds int    `json:"duration_seconds"`
+        }
+        json.Unmarshal(data, &d)
+        log.Printf("Session %s completed in %ds", d.SessionID, d.DurationSeconds)
+    }
+}
+
+func webhookHandler(w http.ResponseWriter, r *http.Request) {
+    body, _ := io.ReadAll(r.Body)
+
+    if !verifySignature(body, r.Header.Get("X-Cozmo-Signature"), os.Getenv("COZMO_WEBHOOK_SECRET")) {
+        http.Error(w, "invalid signature", http.StatusUnauthorized)
+        return
+    }
+
+    var p Payload
+    json.Unmarshal(body, &p)
+
+    // Respond first, process in background
+    w.Header().Set("Content-Type", "application/json")
+    w.Write([]byte(`{"ok":true}`))
+
+    go handleEvent(p.Event, p.Data)
+}
+
+func main() {
+    http.HandleFunc("/webhooks/cozmo", webhookHandler)
+    fmt.Println("Webhook server on :3000")
+    log.Fatal(http.ListenAndServe(":3000", nil))
+}
+```
+
+</CodeGroup>
+
+<Warning>
+  Always verify the `X-Cozmo-Signature` header. Without this check, anyone can send fake events to your endpoint. Compute the HMAC-SHA256 over the **raw request body bytes** before any JSON parsing.
+</Warning>
+
+To test webhooks locally without deploying, use the Cozmo CLI:
+
+```bash
+# Forward live events to your local server
+cozmo listen --forward-to localhost:3000/webhooks/cozmo
+```
+
+See [CLI - Webhook Testing](/cli/webhook) for the full setup guide.
+
+---
+
+## Step 4 - Trigger a workflow run
+
+A workflow run triggers your agent against a prospect, creating the session and placing the call according to your campaign configuration:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow_id": "00000000-0000-0000-0000-000000000004",
+    "prospect": {
+      "phone": "+19175551234",
+      "first_name": "Jane",
+      "last_name": "Doe",
+      "email": "jane.doe@example.com",
+      "external_id": "crm_789",
+      "custom_data": {
+        "deal_stage": "proposal",
+        "contract_value": 45000
+      }
+    }
+  }'
+```
+
+```python Python
+response = requests.post(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{COZMO_ORG_ID}/workflow-runs",
+    headers={
+        "X-API-Key": COZMO_API_KEY,
+        "Content-Type": "application/json",
+    },
+    json={
+        "workflow_id": "00000000-0000-0000-0000-000000000004",
+        "prospect": {
+            "phone": "+19175551234",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "email": "jane.doe@example.com",
+            "external_id": "crm_789",
+            "custom_data": {
+                "deal_stage": "proposal",
+                "contract_value": 45000,
+            },
+        },
+    },
+)
+
+run = response.json()
+print(f"Workflow run: {run['workflow_run_id']}")
+```
+
+```typescript TypeScript
+const response = await fetch(
+  `https://v2-nova-api.prod.czmx.in/api/org/${COZMO_ORG_ID}/workflow-runs`,
+  {
+    method: "POST",
+    headers: {
+      "X-API-Key": COZMO_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      workflow_id: "00000000-0000-0000-0000-000000000004",
+      prospect: {
+        phone: "+19175551234",
+        first_name: "Jane",
+        last_name: "Doe",
+        email: "jane.doe@example.com",
+        external_id: "crm_789",
+        custom_data: {
+          deal_stage: "proposal",
+          contract_value: 45000,
+        },
+      },
+    }),
+  }
+);
+
+const run = await response.json();
+console.log(`Workflow run: ${run.workflow_run_id}`);
+```
+
+```go Go
+payload := map[string]interface{}{
+    "workflow_id": "00000000-0000-0000-0000-000000000004",
+    "prospect": map[string]interface{}{
+        "phone":       "+19175551234",
+        "first_name":  "Jane",
+        "last_name":   "Doe",
+        "email":       "jane.doe@example.com",
+        "external_id": "crm_789",
+        "custom_data": map[string]interface{}{
+            "deal_stage":      "proposal",
+            "contract_value":  45000,
+        },
+    },
+}
+
+body, _ := json.Marshal(payload)
+req, _ := http.NewRequest(
+    "POST",
+    fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/workflow-runs", orgID),
+    bytes.NewReader(body),
+)
+req.Header.Set("X-API-Key", apiKey)
+req.Header.Set("Content-Type", "application/json")
+
+resp, _ := http.DefaultClient.Do(req)
+defer resp.Body.Close()
+
+respBody, _ := io.ReadAll(resp.Body)
+fmt.Println(string(respBody))
+```
+
+</CodeGroup>
+
+**Expected response:**
+
+```json
+{
+  "workflow_run_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "external_id": "crm_789"
+}
+```
+
+<Tip>
+  Set `external_id` to your CRM's contact ID. This value appears as `prospect.ExternalId` in webhook payloads, letting you map call outcomes back to the right record without any extra lookups.
+</Tip>
+
+Workflow runs also support scheduling. Add `"scheduled_at": "2026-04-22T09:00:00Z"` to the request body to delay execution until a specific time.
+
+---
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Agents" icon="robot" href="/concepts/agents">
+    Configure LLM providers, voices, transcribers, and fallbacks for your agent.
+  </Card>
+  <Card title="Sessions" icon="messages" href="/concepts/sessions">
+    Understand session lifecycle, channels, and idempotency.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    Handle call.completed and session.completed events with full payload schemas.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/concepts/workflows">
+    Trigger multi-touch outreach campaigns at scale.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/cli/overview">
+    Use the Cozmo CLI to test webhooks locally and scaffold integrations.
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle API errors, rate limits, and implement retry logic.
+  </Card>
+</CardGroup>

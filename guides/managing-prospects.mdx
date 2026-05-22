@@ -1,0 +1,226 @@
+---
+title: "Managing Prospects"
+description: "Create, import, segment, and update prospects with lists, tags, bulk operations, and call history endpoints"
+---
+
+## Overview
+
+Prospects are the contacts your agents call, message, and evaluate. Cozmo’s API lets you:
+
+- Create and update individual prospects
+- Import large prospect sets from CSV
+- Group prospects into lists for campaign targeting
+- Tag prospects for segmentation and filtering
+- Fetch a prospect’s historical calls
+- Update custom metadata in bulk
+
+Use these endpoints together when you are syncing a CRM, uploading outreach lists, or building operational workflows around lead state.
+
+## Create a prospect
+
+Create a single prospect when you already have the contact data in your app:
+
+```bash
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/prospects" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone": "+14155550123",
+    "first_name": "Jordan",
+    "last_name": "Lee",
+    "email": "jordan@example.com",
+    "external_id": "crm_12345",
+    "custom_data": {
+      "plan": "enterprise",
+      "owner": "west-coast-team"
+    }
+  }'
+```
+
+<Tip>
+  `phone` is required. Country and timezone can often be inferred automatically from the number if you do not provide them explicitly.
+</Tip>
+
+## Import prospects from CSV
+
+When you need to onboard a larger list, use the bulk import endpoint. The import creates a prospect list and upserts valid rows from your file.
+
+```bash
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/prospects/bulk" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "list_name=April Demo Requests" \
+  -F "file=@./prospects.csv"
+```
+
+Typical response fields include:
+
+- `list_id`
+- `list_name`
+- `prospect_ids`
+- `total_imported`
+- `total_updated`
+- `total_skipped`
+- `skipped_rows`
+
+## Organize prospects with lists
+
+Lists are useful for campaign grouping, source tracking, and import management.
+
+### Create a list
+
+```bash
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/lists" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "High Intent Leads",
+    "source": "API"
+  }'
+```
+
+### Add prospects to a list
+
+```bash
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/lists/{list_id}/prospects" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prospect_ids": ["pros_1", "pros_2", "pros_3"]
+  }'
+```
+
+### Filter lists
+
+The list reference supports:
+
+- `source`
+- `search`
+- `sort`
+- `page`
+- `size`
+
+This is useful when you want to differentiate imported lists from API-created or manually managed lists.
+
+## Segment prospects with tags
+
+Tags are ideal for lightweight labels such as `vip`, `follow_up`, `do_not_sell`, or region-based segmentation.
+
+### Add tags to a prospect
+
+```bash
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/prospects/{prospect_id}/tags" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tag_ids": ["tag_vip", "tag_priority"]
+  }'
+```
+
+### Remove a single tag
+
+```bash
+curl -X DELETE "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/prospects/{prospect_id}/tags/{tag_id}" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+### Remove all tags
+
+```bash
+curl -X DELETE "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/prospects/{prospect_id}/tags" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+## Run bulk updates
+
+Use bulk operations when the same change should apply to many prospects.
+
+### Bulk update shared fields
+
+```bash
+curl -X PATCH "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/prospects/bulk" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prospect_ids": ["pros_1", "pros_2"],
+    "updates": {
+      "status": "qualified",
+      "country": "US"
+    }
+  }'
+```
+
+### Bulk merge custom metadata
+
+```bash
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/prospects/bulk/custom-data" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "updates": [
+      {
+        "prospect_id": "pros_1",
+        "custom_data": {
+          "sales_stage": "demo_booked"
+        }
+      },
+      {
+        "prospect_id": "pros_2",
+        "custom_data": {
+          "sales_stage": "nurture"
+        }
+      }
+    ]
+  }'
+```
+
+### Bulk delete prospects
+
+```bash
+curl -X DELETE "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/prospects/bulk" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prospect_ids": ["pros_1", "pros_2"]
+  }'
+```
+
+## Retrieve a prospect’s call history
+
+To show activity for a single contact, fetch the calls associated with that prospect:
+
+```bash
+curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/prospects/{prospect_id}/calls?page=1&size=50" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+This is useful for CRM timelines, support tooling, or retry logic based on previous outcomes.
+
+## Common filters
+
+The prospects list endpoint supports several operational filters:
+
+- `list_id`
+- `no_list`
+- `status`
+- `country`
+- `tag_id`
+- `search`
+
+Example:
+
+```bash
+curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/prospects?tag_id=tag_vip&status=qualified&country=US" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+## Related endpoints
+
+- `/org/{org_id}/prospects`
+- `/org/{org_id}/prospects/{prospect_id}`
+- `/org/{org_id}/prospects/{prospect_id}/calls`
+- `/org/{org_id}/prospects/{prospect_id}/tags`
+- `/org/{org_id}/prospects/bulk`
+- `/org/{org_id}/prospects/bulk/custom-data`
+- `/org/{org_id}/lists`
+- `/org/{org_id}/lists/{list_id}/prospects`
+- `/org/{org_id}/tags`

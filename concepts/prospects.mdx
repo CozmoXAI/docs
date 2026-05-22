@@ -1,0 +1,319 @@
+---
+title: "Prospects"
+description: "Prospects are the contacts your agents interact with - understand phone formats, deduplication, custom data, and best practices"
+---
+
+## What is a prospect?
+
+A prospect is a contact record representing a person your agents will interact with. Every session and call is associated with a prospect. Prospects store identity information, a phone number for voice calls, and arbitrary `custom_data` for passing context into your agent's conversations.
+
+You can create prospects inline when starting a session or triggering a workflow run - no separate prospect creation step is required.
+
+## Prospect fields
+
+<ResponseField name="id" type="string">
+  Unique identifier assigned by Cozmo AI (UUID).
+</ResponseField>
+
+<ResponseField name="phone" type="string" required>
+  Phone number in E.164 format (e.g. `+19175551234`). Required for voice sessions. Must include the country code and a leading `+`.
+</ResponseField>
+
+<ResponseField name="first_name" type="string">
+  Prospect's first name. Passed to the agent as `{{prospect_first_name}}` in prompt templates.
+</ResponseField>
+
+<ResponseField name="last_name" type="string">
+  Prospect's last name. Available as `{{prospect_last_name}}` in prompt templates.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  Email address. Available to the agent and included in webhook payloads.
+</ResponseField>
+
+<ResponseField name="external_id" type="string">
+  Your internal identifier for this contact (e.g. a CRM contact ID, Salesforce ID). Used for deduplication - if a prospect with the same `external_id` already exists, it will be matched rather than creating a duplicate.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current status of the prospect. Common values: `new`, `contacted`, `qualified`, `dnc` (Do Not Call).
+</ResponseField>
+
+<ResponseField name="country" type="string">
+  ISO 3166-1 alpha-2 country code (e.g. `US`, `AE`, `IN`, `GB`). Used for regional routing and compliance checks.
+</ResponseField>
+
+<ResponseField name="timezone" type="string">
+  IANA timezone string (e.g. `America/New_York`, `Asia/Dubai`, `Europe/London`). Used for scheduling calls at appropriate local times.
+</ResponseField>
+
+<ResponseField name="custom_data" type="object">
+  Arbitrary key-value metadata attached to the prospect. This data is available to the agent during the session and is surfaced in webhook payloads under `prospect.ExtraMetadata`.
+</ResponseField>
+
+<ResponseField name="tags" type="array">
+  String labels for filtering and segmentation.
+</ResponseField>
+
+## E.164 phone format
+
+All phone numbers must be in E.164 format: `+[country code][subscriber number]` with no spaces, dashes, or parentheses.
+
+| Country | Local format | E.164 format |
+|---------|-------------|-------------|
+| United States | (917) 555-1234 | `+19175551234` |
+| United Arab Emirates | 055 555 5555 | `+971555555555` |
+| India | 98765 43210 | `+919876543210` |
+| United Kingdom | 07911 123456 | `+447911123456` |
+| Australia | 0412 345 678 | `+61412345678` |
+| Germany | 0170 1234567 | `+491701234567` |
+
+<Warning>
+  Phone numbers without a leading `+` and country code, or with spaces/dashes, will be rejected with a `400 Bad Request` error. Always normalize phone numbers before passing them to the API.
+</Warning>
+
+### Normalizing phone numbers
+
+Use a library like `phonenumbers` (Python) or `libphonenumber-js` (JS/TS) to normalize and validate before calling the API:
+
+<CodeGroup>
+
+```python Python
+import phonenumbers
+
+def to_e164(raw: str, default_country: str = "US") -> str:
+    """Normalize a phone number to E.164 format."""
+    parsed = phonenumbers.parse(raw, default_country)
+    if not phonenumbers.is_valid_number(parsed):
+        raise ValueError(f"Invalid phone number: {raw}")
+    return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+
+# Examples
+to_e164("(917) 555-1234")          # "+19175551234"
+to_e164("+971 55 555 5555")        # "+971555555555"
+to_e164("07911 123456", "GB")      # "+447911123456"
+```
+
+```typescript TypeScript
+import { parsePhoneNumberWithError, CountryCode } from "libphonenumber-js";
+
+function toE164(raw: string, defaultCountry: CountryCode = "US"): string {
+  const phone = parsePhoneNumberWithError(raw, defaultCountry);
+  if (!phone.isValid()) throw new Error(`Invalid phone number: ${raw}`);
+  return phone.format("E.164");
+}
+
+// Examples
+toE164("(917) 555-1234");          // "+19175551234"
+toE164("+971 55 555 5555");        // "+971555555555"
+toE164("07911 123456", "GB");      // "+447911123456"
+```
+
+</CodeGroup>
+
+## Creating prospects inline
+
+The simplest way to create a prospect is inline when triggering a workflow run or starting a session. No separate step required:
+
+### In a workflow run
+
+```json
+{
+  "workflow_id": "wf_abc123",
+  "prospect": {
+    "phone": "+19175551234",
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "email": "jane.doe@example.com",
+    "external_id": "crm_contact_789",
+    "country": "US",
+    "timezone": "America/New_York",
+    "custom_data": {
+      "account_tier": "enterprise",
+      "demo_requested_at": "2026-04-15",
+      "product_interest": "Sales Automation"
+    }
+  }
+}
+```
+
+### In a session
+
+```json
+{
+  "root_agent_id": "agt_01j9xyz",
+  "new_prospect": {
+    "phone": "+19175551234",
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "email": "jane.doe@example.com",
+    "external_id": "crm_contact_789"
+  }
+}
+```
+
+## Deduplication with external_id
+
+If you pass an `external_id`, Cozmo AI will match the prospect against existing records rather than creating a duplicate. This is the recommended pattern for CRM integrations:
+
+```python Python
+# Trigger a run for a prospect from your CRM
+# If the prospect was called before, their record is updated rather than duplicated
+response = requests.post(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs",
+    headers={"X-API-Key": api_key},
+    json={
+        "workflow_id": "wf_abc123",
+        "prospect": {
+            "phone": "+19175551234",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "external_id": crm_contact["id"],  # your CRM's contact ID
+            "custom_data": {
+                "crm_stage": crm_contact["stage"],
+                "last_activity": crm_contact["last_activity_date"],
+            },
+        },
+    },
+)
+```
+
+<Tip>
+  Always pass `external_id` when integrating with a CRM or external database. It prevents duplicate prospect records and makes it easy to cross-reference Cozmo data with your source of truth.
+</Tip>
+
+## Using custom_data for personalization
+
+Custom data is passed into the agent's context and can be referenced in your prompt template using template variables. This enables highly personalized conversations:
+
+```json
+{
+  "phone": "+19175551234",
+  "first_name": "Jane",
+  "custom_data": {
+    "account_tier": "enterprise",
+    "contract_value": 85000,
+    "renewal_date": "2026-09-30",
+    "account_manager": "Alex Smith",
+    "last_purchase": "Advanced Analytics Add-on",
+    "open_tickets": 2,
+    "nps_score": 8
+  }
+}
+```
+
+Reference in your agent's system prompt:
+
+```
+You are a renewal specialist for Acme Corp calling {{prospect_first_name}} at their
+{{custom_data.account_tier}} account. Their contract of ${{custom_data.contract_value}}
+renews on {{custom_data.renewal_date}}. They have {{custom_data.open_tickets}} open
+support tickets and an NPS score of {{custom_data.nps_score}}.
+
+Your goal is to discuss their renewal and address any concerns before the renewal date.
+```
+
+## DNC (Do Not Call) handling
+
+When a prospect requests to be added to the Do Not Call list during a call, the `call.completed` webhook includes `dnc_requested: true`. Handle this immediately:
+
+```python Python
+@app.post("/webhook/cozmo")
+async def handle_webhook(request: Request):
+    payload = await request.json()
+    event = payload["event"]
+    data = payload["data"]
+
+    if event == "call.completed":
+        prospect = data["prospect"]
+
+        if data.get("dnc_requested"):
+            # Immediately flag as DNC in your system
+            await mark_dnc(
+                external_id=prospect["ExternalId"],
+                phone=prospect["Phone"],
+                reason="prospect_requested",
+                call_id=data["call_id"],
+            )
+            # Remove from any active campaigns
+            await remove_from_campaigns(prospect["Phone"])
+            return {"ok": True}
+
+        # Normal processing...
+
+    return {"ok": True}
+```
+
+<Warning>
+  DNC requests have legal compliance implications. Handle `dnc_requested: true` immediately and ensure the prospect is not contacted again. Document your DNC handling in your privacy policy.
+</Warning>
+
+## Prospect in webhook payloads
+
+When a call completes, the `call.completed` webhook includes the full prospect object with Pascal-case field names:
+
+```json
+{
+  "event": "call.completed",
+  "data": {
+    "call_id": "17546d2d-4939-4a86-b822-e497c70d5819",
+    "call_result": "FINISHED",
+    "dnc_requested": false,
+    "prospect": {
+      "ID": "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
+      "ExternalId": "crm_contact_789",
+      "FullName": "Jane Doe",
+      "Email": "jane.doe@example.com",
+      "Phone": "+19175551234",
+      "Status": "contacted",
+      "ExtraMetadata": {
+        "account_tier": "enterprise",
+        "contract_value": 85000
+      },
+      "CreatedAt": "2026-04-01T09:00:00Z"
+    }
+  }
+}
+```
+
+Note the Pascal-case field names in webhook payloads (`ExternalId`, `FullName`, `Phone`) vs. the snake_case used in API request/response bodies (`external_id`, `first_name`, `phone`).
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Always pass external_id" icon="key">
+    Link prospects to your CRM or database with `external_id`. This prevents duplicates and simplifies cross-referencing call outcomes with your data.
+  </Card>
+  <Card title="Include timezone" icon="clock">
+    Pass `timezone` (IANA format) to enable time-appropriate call scheduling. This prevents calling prospects at inconvenient hours.
+  </Card>
+  <Card title="Normalize phones before submission" icon="phone">
+    Validate and normalize all phone numbers to E.164 before sending. Use `phonenumbers` (Python) or `libphonenumber-js` to catch invalid numbers early.
+  </Card>
+  <Card title="Handle DNC immediately" icon="ban">
+    When `dnc_requested: true` appears in a webhook, immediately update your systems to prevent future contact. This is both a best practice and often a legal requirement.
+  </Card>
+  <Card title="Keep custom_data relevant" icon="database">
+    Pass only data the agent will actually use in the conversation. Irrelevant data adds noise to the agent's context and can degrade conversation quality.
+  </Card>
+  <Card title="Use status for segmentation" icon="filter">
+    Keep `status` updated after each interaction (e.g. `new` to `contacted` to `qualified` or `dnc`). This enables accurate reporting and prevents re-contacting completed prospects.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Sessions" icon="messages" href="/concepts/sessions">
+    Associate prospects with sessions when starting a run.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    Prospect data is included in call and session webhook payloads.
+  </Card>
+  <Card title="Workflows" icon="workflow" href="/concepts/workflows">
+    Trigger workflow runs for prospects with custom_data.
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle phone validation errors and DNC events gracefully.
+  </Card>
+</CardGroup>

@@ -1,0 +1,114 @@
+---
+title: "Agent Skills"
+description: "Portable, installable instruction sets that give AI coding assistants expert knowledge of the Cozmo API, MCP server, agent building, workflow running, call analysis, agent design, and security auditing"
+---
+
+## What are Agent Skills?
+
+Agent Skills are portable instruction files (each a `SKILL.md`) that you install into your AI coding assistant — Claude Code, Cursor, Windsurf, Codex, GitHub Copilot, or any agent that supports the open Agent Skills layout. Once installed, your agent knows exactly how to operate, code, and reason about Cozmo APIs and infrastructure without hallucinating endpoints, leaking credentials, or skipping safety checks.
+
+Each skill is a folder containing a `SKILL.md` plus optional helper scripts. They are installed via the `npx skills` CLI from a GitHub repository or local path.
+
+## Skills included
+
+| Skill | Purpose |
+|-------|---------|
+| [`cozmox-api-operator`](/skills/cozmox-api-operator) | Create and manage Cozmo agents via the API with org-scoped auth, TypeScript/Python wrappers, and full field coverage — produces `agent_id` |
+| [`cozmox-mcp-toolsmith`](/skills/cozmox-mcp-toolsmith) | Build and review a secure Cozmo MCP server with read/write/destructive tool gates and org pinning |
+| [`cozmox-session-runner`](/skills/cozmox-session-runner) | Create and configure agents via the API with full field coverage — produces `agent_id` for use by the Workflow Builder |
+| [`cozmox-workflow-builder`](/skills/cozmox-workflow-builder) | Discover and validate API-triggered workflows — produces `workflow_id` for the Workflow Runner |
+| [`cozmox-workflow-runner`](/skills/cozmox-workflow-runner) | Trigger workflow runs with prospect creation, scheduling, and preflight validation — consumes `workflow_id` from the Workflow Builder |
+| [`cozmox-call-quality-analyst`](/skills/cozmox-call-quality-analyst) | Analyze call transcripts, evaluations, tool logs, and costs into QA reports and coaching notes |
+| [`cozmox-agent-design-reviewer`](/skills/cozmox-agent-design-reviewer) | Design and review voice agent prompts, workflows, escalation policies, and launch readiness |
+| [`cozmox-tenant-isolation-auditor`](/skills/cozmox-tenant-isolation-auditor) | Audit Go/sqlc/Postgres/Temporal API code for cross-org access, missing ownership checks, and security lapses |
+
+## Installation
+
+### From GitHub
+
+```bash
+# List available skills
+npx skills add CozmoXAI/skills --list
+
+# Install all skills for your agent
+npx skills add CozmoXAI/skills --skill '*' -a claude-code -y
+npx skills add CozmoXAI/skills --skill '*' -a cursor -y
+npx skills add CozmoXAI/skills --skill '*' -a codex -y
+
+# Install a single skill globally
+npx skills add CozmoXAI/skills --skill cozmox-api-operator -g -a claude-code -y
+```
+
+### From a local clone
+
+```bash
+git clone https://github.com/CozmoXAI/skills.git
+npx skills add ./skills --list
+npx skills add ./skills --skill '*' -a claude-code -y
+```
+
+Supported agent IDs include: `claude-code`, `cursor`, `windsurf`, `opencode`, `github-copilot`, `codex`.
+
+## Environment setup
+
+For skills that make live API calls, set these in trusted local or server environments only — never commit them:
+
+```bash
+export COZMOX_API_BASE_URL="https://v2-nova-api.prod.czmx.in"
+export COZMOX_ORG_ID="your-org-uuid"
+export COZMOX_API_KEY="czmx_..."
+```
+
+Optional write gate for the bundled API wrapper:
+
+```bash
+export COZMOX_ALLOW_WRITES="true"
+```
+
+## Security defaults shared by all skills
+
+Every skill in this bundle enforces the same safety contract:
+
+- `COZMOX_ORG_ID` is never a user-supplied argument. Agents read it from trusted environment or server config.
+- API keys stay server-side. No skill will ask the user to paste a live key into code, logs, or chat.
+- Read-only operations are preferred. Writes require explicit user intent and a confirmation step.
+- Before writing agents or triggering workflow runs, the resource is always validated under the configured org.
+- Destructive operations require a second confirmation and should normally route through the MCP server's destructive-tool gate.
+
+## Validate the bundle
+
+After cloning, run the built-in validator to confirm all skills have valid frontmatter:
+
+```bash
+cd skills
+node scripts/validate-skills.mjs
+```
+
+## Pick a skill
+
+<CardGroup cols={2}>
+  <Card title="API Operator" icon="code" href="/skills/cozmox-api-operator">
+    Create and manage agents via the API with full field coverage. Produces agent_id.
+  </Card>
+  <Card title="MCP Toolsmith" icon="server" href="/skills/cozmox-mcp-toolsmith">
+    Build and review secure MCP servers with read/write/destructive gates.
+  </Card>
+  <Card title="Agent Builder" icon="play" href="/skills/cozmox-session-runner">
+    Create and configure agents with full field coverage. Produces agent_id for the Workflow Builder.
+  </Card>
+  <Card title="Workflow Builder" icon="diagram-project" href="/skills/cozmox-workflow-builder">
+    Discover and validate API-triggered workflows. Produces workflow_id for the Workflow Runner.
+  </Card>
+  <Card title="Workflow Runner" icon="bolt" href="/skills/cozmox-workflow-runner">
+    Trigger workflow runs with prospect payloads, scheduling, and preflight validation.
+  </Card>
+  <Card title="Call Quality Analyst" icon="chart-bar" href="/skills/cozmox-call-quality-analyst">
+    QA reports, coaching notes, and trend analysis from call data.
+  </Card>
+  <Card title="Agent Design Reviewer" icon="robot" href="/skills/cozmox-agent-design-reviewer">
+    Design specs, prompt review, and launch-readiness reports for voice agents.
+  </Card>
+  <Card title="Tenant Isolation Auditor" icon="shield" href="/skills/cozmox-tenant-isolation-auditor">
+    Security audits for cross-org access, ownership checks, and API-key storage.
+  </Card>
+</CardGroup>

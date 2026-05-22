@@ -1,0 +1,1292 @@
+---
+title: "Agents"
+description: "AI agents are the core building block of Cozmo AI - they define how your AI behaves across voice, chat, and video interactions"
+---
+
+## What is an agent?
+
+An agent is a configured AI entity that runs on behalf of your organization. It combines a language model, a voice (for voice agents), a transcriber (for voice agents), and a set of instructions to handle real-world interactions with prospects.
+
+Every agent encapsulates:
+
+- **Prompt template** - the system prompt governing behavior and persona
+- **LLM config** - which model to use, sampling parameters, and fallbacks
+- **Transcriber config** - how speech is converted to text (voice agents only)
+- **Voice config** - which TTS voice the agent speaks in (voice agents only)
+- **Greeting and goodbye** - how the agent opens and closes interactions
+- **Interruption settings** - how aggressively the agent yields to the human
+- **VAD config** - voice activity detection parameters
+- **Tools** - external functions the agent can call during a session
+
+---
+
+## Agent types
+
+<CardGroup cols={3}>
+  <Card title="Voice" icon="phone">
+    Conducts outbound or inbound phone calls using real-time STT + LLM + TTS. Best for sales, support, appointment setting, and surveys.
+  </Card>
+  <Card title="Chat" icon="message">
+    Text-based conversations over messaging channels such as WhatsApp, Telegram, Slack, or web chat widgets.
+  </Card>
+  <Card title="Video" icon="video">
+    Video-enabled sessions for high-touch interactions requiring face-to-face communication.
+  </Card>
+</CardGroup>
+
+The `type` field is set at creation and cannot be changed. Choose based on the primary channel your use case requires.
+
+---
+
+## Creating an agent
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sales Agent - US Market",
+    "type": "voice",
+    "prompt_template": "You are Alex, a friendly sales representative for Acme Corp. Your goal is to qualify {{prospect_name}} and schedule a demo. Be concise - this is a phone call, not an email. Ask one question at a time.",
+    "llm_config": {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "temperature": 0.7,
+      "max_tokens": 200,
+      "fallbacks": [
+        { "provider": "anthropic", "model": "claude-3-5-sonnet-20241022" }
+      ]
+    },
+    "transcriber_config": {
+      "provider": "deepgram",
+      "model": "nova-3",
+      "language": "en-US",
+      "endpointing_ms": 300,
+      "smart_format": true,
+      "keywords": ["Acme", "demo", "ARR"]
+    },
+    "voice_config": {
+      "provider": "elevenlabs",
+      "voice_id": "21m00Tcm4TlvDq8ikWAM",
+      "model": "eleven_turbo_v2_5",
+      "language": "en"
+    },
+    "greeting_config": {
+      "agent_speaks_first": true,
+      "greeting": "Hi, is this {{prospect_name}}? Great! This is Alex from Acme Corp - do you have two minutes?",
+      "pause_before_first_message": 800
+    }
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+    headers={
+        "X-API-Key": "YOUR_API_KEY",
+        "Content-Type": "application/json",
+    },
+    json={
+        "name": "Sales Agent - US Market",
+        "type": "voice",
+        "prompt_template": (
+            "You are Alex, a friendly sales representative for Acme Corp. "
+            "Your goal is to qualify {{prospect_name}} and schedule a demo. "
+            "Be concise - this is a phone call, not an email. Ask one question at a time."
+        ),
+        "llm_config": {
+            "provider": "openai",
+            "model": "gpt-4o",
+            "temperature": 0.7,
+            "max_tokens": 200,
+            "fallbacks": [
+                {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"}
+            ],
+        },
+        "transcriber_config": {
+            "provider": "deepgram",
+            "model": "nova-3",
+            "language": "en-US",
+            "endpointing_ms": 300,
+            "smart_format": True,
+            "keywords": ["Acme", "demo", "ARR"],
+        },
+        "voice_config": {
+            "provider": "elevenlabs",
+            "voice_id": "21m00Tcm4TlvDq8ikWAM",
+            "model": "eleven_turbo_v2_5",
+            "language": "en",
+        },
+        "greeting_config": {
+            "agent_speaks_first": True,
+            "greeting": "Hi, is this {{prospect_name}}? Great! This is Alex from Acme Corp - do you have two minutes?",
+            "pause_before_first_message": 800,
+        },
+    },
+)
+
+agent = response.json()
+print(agent["id"])
+```
+
+```typescript TypeScript
+const response = await fetch(
+  "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+  {
+    method: "POST",
+    headers: {
+      "X-API-Key": "YOUR_API_KEY",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: "Sales Agent - US Market",
+      type: "voice",
+      prompt_template:
+        "You are Alex, a friendly sales representative for Acme Corp. " +
+        "Your goal is to qualify {{prospect_name}} and schedule a demo. " +
+        "Be concise - this is a phone call, not an email. Ask one question at a time.",
+      llm_config: {
+        provider: "openai",
+        model: "gpt-4o",
+        temperature: 0.7,
+        max_tokens: 200,
+        fallbacks: [
+          { provider: "anthropic", model: "claude-3-5-sonnet-20241022" },
+        ],
+      },
+      transcriber_config: {
+        provider: "deepgram",
+        model: "nova-3",
+        language: "en-US",
+        endpointing_ms: 300,
+        smart_format: true,
+        keywords: ["Acme", "demo", "ARR"],
+      },
+      voice_config: {
+        provider: "elevenlabs",
+        voice_id: "21m00Tcm4TlvDq8ikWAM",
+        model: "eleven_turbo_v2_5",
+        language: "en",
+      },
+      greeting_config: {
+        agent_speaks_first: true,
+        greeting:
+          "Hi, is this {{prospect_name}}? Great! This is Alex from Acme Corp - do you have two minutes?",
+        pause_before_first_message: 800,
+      },
+    }),
+  }
+);
+
+const agent = await response.json();
+console.log(agent.id);
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+)
+
+type CreateAgentRequest struct {
+    Name           string             `json:"name"`
+    Type           string             `json:"type"`
+    PromptTemplate string             `json:"prompt_template"`
+    LLMConfig      *LLMConfig         `json:"llm_config,omitempty"`
+    TranscriberConfig *TranscriberConfig `json:"transcriber_config,omitempty"`
+    VoiceConfig    *VoiceConfig       `json:"voice_config,omitempty"`
+    GreetingConfig *GreetingConfig    `json:"greeting_config,omitempty"`
+}
+
+type LLMConfig struct {
+    Provider    string      `json:"provider"`
+    Model       string      `json:"model"`
+    Temperature float64     `json:"temperature,omitempty"`
+    MaxTokens   int         `json:"max_tokens,omitempty"`
+    Fallbacks   []LLMConfig `json:"fallbacks,omitempty"`
+}
+
+type TranscriberConfig struct {
+    Provider      string   `json:"provider"`
+    Model         string   `json:"model,omitempty"`
+    Language      string   `json:"language,omitempty"`
+    EndpointingMs int      `json:"endpointing_ms,omitempty"`
+    SmartFormat   bool     `json:"smart_format,omitempty"`
+    Keywords      []string `json:"keywords,omitempty"`
+}
+
+type VoiceConfig struct {
+    Provider string `json:"provider"`
+    VoiceID  string `json:"voice_id"`
+    Model    string `json:"model,omitempty"`
+    Language string `json:"language,omitempty"`
+}
+
+type GreetingConfig struct {
+    AgentSpeaksFirst        bool   `json:"agent_speaks_first"`
+    Greeting                string `json:"greeting,omitempty"`
+    PauseBeforeFirstMessage int    `json:"pause_before_first_message,omitempty"`
+    VoiceMailMessage        string `json:"voice_mail_message,omitempty"`
+}
+
+func main() {
+    payload := CreateAgentRequest{
+        Name: "Sales Agent - US Market",
+        Type: "voice",
+        PromptTemplate: "You are Alex, a friendly sales representative for Acme Corp. " +
+            "Your goal is to qualify {{prospect_name}} and schedule a demo.",
+        LLMConfig: &LLMConfig{
+            Provider:    "openai",
+            Model:       "gpt-4o",
+            Temperature: 0.7,
+            MaxTokens:   200,
+            Fallbacks: []LLMConfig{
+                {Provider: "anthropic", Model: "claude-3-5-sonnet-20241022"},
+            },
+        },
+        TranscriberConfig: &TranscriberConfig{
+            Provider:      "deepgram",
+            Model:         "nova-3",
+            Language:      "en-US",
+            EndpointingMs: 300,
+            SmartFormat:   true,
+            Keywords:      []string{"Acme", "demo", "ARR"},
+        },
+        VoiceConfig: &VoiceConfig{
+            Provider: "elevenlabs",
+            VoiceID:  "21m00Tcm4TlvDq8ikWAM",
+            Model:    "eleven_turbo_v2_5",
+            Language: "en",
+        },
+        GreetingConfig: &GreetingConfig{
+            AgentSpeaksFirst:        true,
+            Greeting:                "Hi, is this {{prospect_name}}? Great! This is Alex from Acme Corp.",
+            PauseBeforeFirstMessage: 800,
+        },
+    }
+
+    body, _ := json.Marshal(payload)
+    req, _ := http.NewRequest(
+        "POST",
+        "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+        bytes.NewReader(body),
+    )
+    req.Header.Set("X-API-Key", "YOUR_API_KEY")
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+
+    respBody, _ := io.ReadAll(resp.Body)
+    fmt.Println(string(respBody))
+}
+```
+
+</CodeGroup>
+
+### Create request fields
+
+<ResponseField name="name" type="string" required>
+  Human-readable name for the agent, shown in the Dashboard.
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+  Agent type: `voice`, `chat`, or `video`. Cannot be changed after creation.
+</ResponseField>
+
+<ResponseField name="prompt_template" type="string">
+  The system prompt that governs the agent's persona, goals, and behavior. Supports template variables like `{{prospect_name}}` which are resolved at runtime from the prospect record.
+</ResponseField>
+
+<ResponseField name="copy_from_agent_id" type="string">
+  Clone all settings from an existing agent into the new one. Useful for creating A/B variants or per-campaign copies without starting from scratch. The `name` and any fields you specify override the source agent's values.
+</ResponseField>
+
+<ResponseField name="llm_config" type="object">
+  Language model configuration. See [LLM configuration](#llm-configuration).
+</ResponseField>
+
+<ResponseField name="transcriber_config" type="object">
+  Speech-to-text configuration (voice agents only). See [Transcriber configuration](#transcriber-configuration).
+</ResponseField>
+
+<ResponseField name="voice_config" type="object">
+  Text-to-speech voice configuration (voice agents only). See [Voice configuration](#voice-configuration).
+</ResponseField>
+
+<ResponseField name="greeting_config" type="object">
+  How the agent opens the interaction. See [Greeting configuration](#greeting-configuration).
+</ResponseField>
+
+<ResponseField name="goodbye_config" type="object">
+  How the agent closes the interaction. See [Goodbye configuration](#goodbye-configuration).
+</ResponseField>
+
+<ResponseField name="extra_config" type="object">
+  Interruption, turn detection, and advanced runtime settings. See [Extra config](#extra-config--interruption-settings).
+</ResponseField>
+
+<ResponseField name="vad_config" type="object">
+  Voice activity detection parameters. See [VAD configuration](#vad-configuration).
+</ResponseField>
+
+---
+
+## LLM configuration
+
+The `llm_config` block controls which language model powers the agent and how it generates responses.
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o",
+  "temperature": 0.7,
+  "max_tokens": 200,
+  "top_p": 0.95,
+  "presence_penalty": 0.1,
+  "parallel_tool_calls": true,
+  "system_prompt": "Additional system-level instructions appended to the prompt template.",
+  "fallbacks": [
+    {
+      "provider": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "temperature": 0.7,
+      "max_tokens": 200
+    },
+    {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile"
+    }
+  ]
+}
+```
+
+<ResponseField name="provider" type="string" required>
+  LLM provider. Supported values: `openai`, `anthropic`, `google`, `groq`, `azure-openai`, `cerebras`, `togetherai`, `xai`, `mistral`, `openrouter`.
+</ResponseField>
+
+<ResponseField name="model" type="string" required>
+  Model identifier for the chosen provider. See provider-specific notes below.
+</ResponseField>
+
+<ResponseField name="temperature" type="number">
+  Sampling temperature between `0` and `2`. Lower values produce more focused, deterministic responses. Higher values produce more varied output. Default: `0.7`.
+</ResponseField>
+
+<ResponseField name="max_tokens" type="integer">
+  Maximum number of tokens to generate per turn. For voice agents, keep this low (150-250) so responses remain concise and conversation feels natural. Minimum: `1`.
+</ResponseField>
+
+<ResponseField name="top_p" type="number">
+  Nucleus sampling parameter. The model considers tokens in the top `top_p` probability mass. Range: `0` to `1`.
+</ResponseField>
+
+<ResponseField name="top_k" type="integer">
+  Top-k sampling. **Anthropic models only.** Limits sampling to the top k tokens at each step.
+</ResponseField>
+
+<ResponseField name="presence_penalty" type="number">
+  Penalizes tokens that have already appeared in the conversation to reduce repetition. **OpenAI models only.** Range: `-2.0` to `2.0`.
+</ResponseField>
+
+<ResponseField name="parallel_tool_calls" type="boolean">
+  Allow the model to invoke multiple tools in a single turn. Useful when an agent needs to look up multiple data points simultaneously. Default: `false`.
+</ResponseField>
+
+<ResponseField name="system_prompt" type="string">
+  Additional system-level text appended after the `prompt_template`. Use this for boilerplate instructions (e.g. compliance disclaimers) that apply across multiple agents.
+</ResponseField>
+
+<ResponseField name="fallbacks" type="array">
+  Ordered list of fallback LLM configs. When the primary provider returns an error or is unavailable, Nova tries each fallback in sequence until one succeeds. Each item has the same shape as the primary config (`provider`, `model`, `temperature`, etc.).
+</ResponseField>
+
+### Provider-specific notes
+
+<AccordionGroup>
+  <Accordion title="OpenAI">
+    **Supported models:** `gpt-5.1`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `gpt-realtime`, `realtime-preview`
+
+    OpenAI-specific parameters: `presence_penalty`, `frequency_penalty`.
+
+    `gpt-4.1` is the recommended default for voice agents. Use `gpt-4o-mini` for cost-sensitive, high-volume deployments.
+
+    ```json
+    {
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "temperature": 0.7,
+      "max_tokens": 200,
+      "presence_penalty": 0.1
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Anthropic">
+    **Supported models:** `claude-opus-4-1`, `claude-opus-4`, `claude-sonnet-4`, `claude-3-7-sonnet`, `claude-3-5-haiku`, `claude-3-haiku`
+
+    Anthropic-specific parameter: `top_k` (limits sampling pool to the top k tokens).
+
+    Claude Sonnet 4 is excellent for nuanced conversations requiring careful reasoning. Haiku is faster and cheaper, well-suited as a fallback.
+
+    ```json
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4",
+      "temperature": 0.6,
+      "max_tokens": 200,
+      "top_k": 40
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Google">
+    **Supported models:** `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`
+
+    Gemini models support very long context windows — useful for agents with large system prompts or extensive tool definitions.
+
+    ```json
+    {
+      "provider": "google",
+      "model": "gemini-2.5-flash",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Groq">
+    **Supported models:** `llama-3.1-8b-instant`, `llama-3.3-70b-versatile`, `gpt-oss-120b`, `gpt-oss-20b`
+
+    Groq delivers very low inference latency, making it an excellent fallback to reduce conversation lag when primary providers are slow.
+
+    ```json
+    {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Azure OpenAI">
+    **Supported models:** `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `gpt-4o-realtime-preview`, `o1`, `o1-mini`, `o3`, `o3-mini`, `o4`
+
+    Use Azure OpenAI for enterprise deployments requiring data residency, private networking, or compliance controls.
+
+    ```json
+    {
+      "provider": "azure-openai",
+      "model": "gpt-4.1",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Cerebras">
+    **Supported models:** `llama-3.1-8b`, `openai-gpt-oss`, `qwen-3-235b-instruct`, `z.ai-glm-4.7`
+
+    Cerebras provides ultra-low latency inference. Best used as a primary provider when latency is the top priority, or as a fast fallback.
+
+    ```json
+    {
+      "provider": "cerebras",
+      "model": "llama-3.1-8b",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="TogetherAI">
+    **Supported models:** `glm-5.1`, `minimax-m2.7`, `gemma-4-31b`, `qwen-3.5-397b`
+
+    TogetherAI hosts a wide range of open-source models with competitive pricing and low latency.
+
+    ```json
+    {
+      "provider": "togetherai",
+      "model": "qwen-3.5-397b",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="xAI">
+    **Supported models:** `grok-4-20-reasoning`, `grok-4-20`, `grok-4-1-fast-reasoning`, `grok-4-1-fast`
+
+    xAI's Grok models offer strong reasoning capabilities. The `-reasoning` variants include extended chain-of-thought processing.
+
+    ```json
+    {
+      "provider": "xai",
+      "model": "grok-4-1-fast",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Mistral">
+    **Supported models:** `magistral-medium`, `magistral-small`, `mistral-large`, `mistral-medium`, `mistral-small`, `mistral-tiny`
+
+    Mistral models excel at European language tasks and offer strong multilingual performance.
+
+    ```json
+    {
+      "provider": "mistral",
+      "model": "mistral-large",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="OpenRouter">
+    **Supported models:** Multiple models via router
+
+    OpenRouter provides access to a wide range of models from various providers through a single API. Useful for routing between providers based on availability and cost.
+
+    ```json
+    {
+      "provider": "openrouter",
+      "model": "your-chosen-model",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Fallback LLM strategy
+
+Configure fallbacks so your agent remains operational even when a primary provider experiences an outage:
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o",
+  "temperature": 0.7,
+  "max_tokens": 200,
+  "fallbacks": [
+    {
+      "provider": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "temperature": 0.7,
+      "max_tokens": 200
+    },
+    {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "temperature": 0.7,
+      "max_tokens": 200
+    }
+  ]
+}
+```
+
+Nova tries each fallback in order. If all providers fail, the session returns an error.
+
+<Tip>
+  For production voice agents, always configure at least one fallback. A two-provider setup (e.g. OpenAI primary, Groq fallback) significantly improves reliability.
+</Tip>
+
+---
+
+## Transcriber configuration
+
+For voice agents, the transcriber converts the prospect's speech to text in real time. The transcription feeds directly into the LLM turn.
+
+```json
+{
+  "provider": "deepgram",
+  "model": "nova-3",
+  "language": "en-US",
+  "endpointing_ms": 300,
+  "smart_format": true,
+  "keywords": ["Acme", "CRM", "ARR", "SaaS"],
+  "fallbacks": [
+    {
+      "provider": "openai",
+      "model": "whisper-1",
+      "language": "en"
+    }
+  ]
+}
+```
+
+<ResponseField name="provider" type="string" required>
+  STT provider. Supported values: `deepgram`, `elevenlabs`, `speechmatics`, `openai`, `groq`, `sarvam`, `assemblyai`, `azure`, `gladia`, `google`, `cartesia`, `soniox`.
+</ResponseField>
+
+<ResponseField name="model" type="string">
+  Provider-specific model identifier. For Deepgram: `flux`, `nova-3`, `nova-3-general`, `nova-3-medical`, `nova-2`, `nova-2-general`, `nova-2-phonecall`, and more. For OpenAI: `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1`. For Groq: `whisper-large-v3`, `whisper-large-v3-turbo`. For ElevenLabs: `scribe-v2-realtime`. For Sarvam: `saaras-3`. For AssemblyAI: `universal-streaming-english`, `universal-streaming-multilingual`, `u3-rt-pro`. For Google: `chirp-2`, `chirp-3`. For Cartesia: `ink-whisper`. For Speechmatics: `enhanced`, `standard`. For Soniox: `stt-rt-v4`.
+</ResponseField>
+
+<ResponseField name="language" type="string">
+  BCP-47 language code (e.g. `en-US`, `es-ES`, `ar`, `hi-IN`). Omit to use the provider's auto-detect.
+</ResponseField>
+
+<ResponseField name="endpointing_ms" type="integer">
+  Milliseconds of silence after which the transcriber commits the current speech segment and sends it to the LLM. Lower values make the agent more responsive but can cut off slow speakers. Recommended range: `200`-`400`. Default: `300`.
+</ResponseField>
+
+<ResponseField name="smart_format" type="boolean">
+  Enable provider-specific post-processing to format numbers, dates, currency, and punctuation. Deepgram only. Default: `false`.
+</ResponseField>
+
+<ResponseField name="keywords" type="array">
+  List of domain-specific terms to boost recognition accuracy. Useful for product names, technical jargon, or names that are commonly misheard.
+</ResponseField>
+
+<ResponseField name="fallbacks" type="array">
+  Ordered list of fallback transcriber configs. Nova tries each in sequence if the primary fails.
+</ResponseField>
+
+### Provider notes
+
+| Provider | Best for | Notes |
+|----------|----------|-------|
+| `deepgram` | English, low latency | Recommended default. `nova-3` and `flux` for highest accuracy. |
+| `elevenlabs` | Real-time multilingual | `scribe-v2-realtime` for streaming transcription. |
+| `speechmatics` | Accents, dialects | `enhanced` mode for strongest accuracy on non-native speakers. |
+| `openai` | High accuracy | `gpt-4o-transcribe` for best quality; `whisper-1` as a reliable fallback. |
+| `groq` | Speed | `whisper-large-v3-turbo` for very low latency. |
+| `sarvam` | Indian languages | `saaras-3` optimized for Hindi and Indic language calls. |
+| `assemblyai` | Streaming, multilingual | `u3-rt-pro` for real-time pro-grade transcription. |
+| `google` | Broad language support | `chirp-3` for latest accuracy improvements. |
+| `cartesia` | Ultra-low latency | `ink-whisper` for latency-sensitive pipelines. |
+| `soniox` | Real-time accuracy | `stt-rt-v4` for real-time streaming. |
+| `gladia` | Multilingual | Broad language coverage with speaker diarization. |
+| `azure` | Enterprise | Azure Speech Services with compliance and regional data residency. |
+
+---
+
+## Voice configuration
+
+The voice configuration controls the TTS voice the agent speaks in.
+
+```json
+{
+  "provider": "elevenlabs",
+  "voice_id": "21m00Tcm4TlvDq8ikWAM",
+  "model": "eleven_turbo_v2_5",
+  "language": "en",
+  "emotion": "friendly"
+}
+```
+
+<ResponseField name="provider" type="string" required>
+  TTS provider. Supported values: `elevenlabs`, `cartesia`, `openai`, `cambai`, `sarvam`, `inworld`, `minimax`, `mistral`.
+</ResponseField>
+
+<ResponseField name="voice_id" type="string" required>
+  Provider-specific voice identifier. Use the `/voices` endpoint to browse available voices for each provider.
+</ResponseField>
+
+<ResponseField name="model" type="string">
+  Provider-specific model. For ElevenLabs: `eleven-v3`, `eleven-flash-v2.5` (lowest latency), `eleven-turbo-v2.5`, `eleven-multilingual-v2`. For Cartesia: `sonic-3`, `sonic-turbo`, `sonic-2`, `sonic`. For OpenAI: `gpt-4o-mini`, `realtime`. For CambAI: `mars-pro`, `mars-flash`, `mars-instruct`. For Sarvam: `bulbul-v3`, `bulbul-v2`. For Inworld: `inworld-tts-1.5-max`, `inworld-tts-1.5-mini`, `inworld-tts-1-max`, `inworld-tts-1`. For MiniMax: `speech-2.8-hd`, `speech-2.8-turbo`, `speech-2.6-hd`, `speech-2.6-turbo`. For Mistral: `voxtral-4b-tts`.
+</ResponseField>
+
+<ResponseField name="language" type="string">
+  Language code for multilingual voices (e.g. `en`, `es`, `ar`, `hi`).
+</ResponseField>
+
+<ResponseField name="emotion" type="string">
+  Emotion or speaking style hint for providers that support it (e.g. `friendly`, `professional`, `empathetic`). Provider support varies.
+</ResponseField>
+
+### Finding voice IDs
+
+Use the voices endpoint to browse available voices and preview audio samples:
+
+```bash
+curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/voices?provider=elevenlabs" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+### Provider notes
+
+| Provider | Best for | Notes |
+|----------|----------|-------|
+| `elevenlabs` | Natural, expressive voices | `eleven-v3` for highest quality; `eleven-flash-v2.5` for lowest latency. |
+| `cartesia` | Ultra-low latency | `sonic-3` for best quality; `sonic-turbo` for fastest streaming. |
+| `openai` | Consistent quality | `gpt-4o-mini` for clean, reliable output. |
+| `cambai` | Multilingual | `mars-pro` for highest quality; `mars-flash` for low latency. |
+| `sarvam` | Indian languages | `bulbul-v3` for Hindi, Tamil, Bengali, and other Indic languages. |
+| `inworld` | Character voices | `inworld-tts-1.5-max` for most expressive character voices. |
+| `minimax` | Multilingual | `speech-2.8-hd` for highest quality across languages. |
+| `mistral` | Voice synthesis | `voxtral-4b-tts` for Mistral-native TTS. |
+
+---
+
+## Greeting configuration
+
+Controls how the agent opens an interaction.
+
+```json
+{
+  "agent_speaks_first": true,
+  "greeting": "Hi, is this {{prospect_name}}? Great, this is Alex from Acme Corp - do you have two minutes?",
+  "pause_before_first_message": 800,
+  "voice_mail_message": "Hi {{prospect_name}}, this is Alex from Acme Corp. I'll try you again soon. Have a great day!",
+  "welcome_message_is_generated": false
+}
+```
+
+<ResponseField name="agent_speaks_first" type="boolean">
+  If `true`, the agent delivers the greeting immediately after the call connects without waiting for the prospect to speak. Set to `false` for inbound calls where the prospect speaks first.
+</ResponseField>
+
+<ResponseField name="greeting" type="string">
+  Static opening message. Supports template variables (`{{prospect_name}}`, `{{prospect_first_name}}`, etc.) resolved from the prospect record at runtime.
+</ResponseField>
+
+<ResponseField name="welcome_message_is_generated" type="boolean">
+  If `true`, the LLM generates the opening message dynamically instead of using the static `greeting` string. Useful when you want the agent to personalize the opener based on prospect context.
+</ResponseField>
+
+<ResponseField name="pause_before_first_message" type="integer">
+  Milliseconds to wait after the call connects before the agent speaks. Helps avoid the agent speaking before the prospect has had a chance to say "Hello". Recommended: `500`-`1200`. Default: `1000`.
+</ResponseField>
+
+<ResponseField name="voice_mail_message" type="string">
+  Message left when voicemail is detected. Keep it brief (under 30 seconds of audio). Supports the same template variables as `greeting`.
+</ResponseField>
+
+---
+
+## Goodbye configuration
+
+Controls how the agent closes an interaction.
+
+```json
+{
+  "enabled": true,
+  "message": "Thank you for your time, {{prospect_name}}. Have a great day!"
+}
+```
+
+<ResponseField name="enabled" type="boolean">
+  Whether the agent delivers a closing message before hanging up.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  The closing message. Supports template variables. If the LLM naturally ends the conversation without this, it acts as a fallback.
+</ResponseField>
+
+---
+
+## Extra config / Interruption settings
+
+The `extra_config` block controls how the agent handles interruptions and turn-taking.
+
+```json
+{
+  "allow_interruptions": true,
+  "interruption_sensitivity": 0.6,
+  "min_words": 2,
+  "turn_detector": "server_vad",
+  "response_delay_ms": 100
+}
+```
+
+<ResponseField name="allow_interruptions" type="boolean">
+  If `true`, the prospect can interrupt the agent mid-utterance and the agent will yield. Set to `false` for compliance scenarios where the agent must complete its full statement. Default: `true`.
+</ResponseField>
+
+<ResponseField name="interruption_sensitivity" type="number">
+  How sensitive the agent is to being interrupted. Range: `0` (requires very clear intent to interrupt) to `1` (yields on any sound). Default: `0.5`. Higher values make conversations feel more natural but can cause false interruptions from background noise.
+</ResponseField>
+
+<ResponseField name="min_words" type="integer">
+  Minimum number of words the prospect must say before an interruption is recognized. Prevents brief affirmations like "mm-hmm" from interrupting the agent. Default: `2`.
+</ResponseField>
+
+<ResponseField name="turn_detector" type="string">
+  Algorithm used to detect turn boundaries. Options: `server_vad` (voice activity detection), `silence_based`. Default: `server_vad`.
+</ResponseField>
+
+<ResponseField name="response_delay_ms" type="integer">
+  Milliseconds of silence after the prospect stops speaking before the agent responds. A small delay (100-300ms) makes conversations feel more natural. Default: `100`.
+</ResponseField>
+
+---
+
+## VAD configuration
+
+Voice activity detection determines when the prospect is speaking versus silent.
+
+```json
+{
+  "activation_threshold": 0.5,
+  "min_silence_duration": 300,
+  "min_speech_duration": 100,
+  "sample_rate": 16000
+}
+```
+
+<ResponseField name="activation_threshold" type="number">
+  Confidence threshold above which audio is classified as speech. Range: `0` to `1`. Lower values detect quieter speech but increase false positives from background noise. Default: `0.5`.
+</ResponseField>
+
+<ResponseField name="min_silence_duration" type="integer">
+  Milliseconds of silence required to consider a speech segment ended. Default: `300`.
+</ResponseField>
+
+<ResponseField name="min_speech_duration" type="integer">
+  Minimum milliseconds of continuous speech required to trigger VAD activation. Filters out brief clicks and noise. Default: `100`.
+</ResponseField>
+
+<ResponseField name="sample_rate" type="integer">
+  Audio sample rate in Hz. Default: `16000`. Most telephony uses `8000` Hz; increase for higher quality channels.
+</ResponseField>
+
+---
+
+## Background sound configuration
+
+Add ambient background sound to voice calls to make AI agents sound more natural in office or call center environments.
+
+```json
+{
+  "background_sound": "office",
+  "background_sound_volume": 0.3
+}
+```
+
+<ResponseField name="background_sound" type="string">
+  Background ambient sound preset. Options: `office`, `call_center`, `cafe`, `none`. Default: `none`.
+</ResponseField>
+
+<ResponseField name="background_sound_volume" type="number">
+  Volume of the background sound relative to the agent's voice. Range: `0` to `1`. Default: `0.3`.
+</ResponseField>
+
+---
+
+## Tools
+
+Agents can invoke external tools (HTTP endpoints) during a session to look up data, update records, or trigger actions.
+
+Attach tools to an agent using the update endpoint. Each tool attachment specifies:
+
+```json
+{
+  "tool_id": "tool_abc123",
+  "is_enabled": true,
+  "config_override": {
+    "timeout_seconds": 15,
+    "base_url": "https://api.yourapp.com"
+  }
+}
+```
+
+<ResponseField name="tool_id" type="string" required>
+  ID of the tool to attach. Tools are defined separately and can be reused across agents.
+</ResponseField>
+
+<ResponseField name="is_enabled" type="boolean">
+  Whether the tool is active for this agent. Set to `false` to temporarily disable without removing the attachment. Default: `true`.
+</ResponseField>
+
+<ResponseField name="config_override" type="object">
+  Per-agent overrides for the tool's base configuration. Useful when the same tool is attached to multiple agents but needs different endpoints or timeouts.
+</ResponseField>
+
+---
+
+## Updating an agent
+
+Use `PATCH` to update individual fields. Only the fields you send are changed; all other settings remain unchanged.
+
+<CodeGroup>
+
+```bash cURL
+curl -X PATCH https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents/{agent_id} \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt_template": "Updated prompt with new instructions...",
+    "llm_config": {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "temperature": 0.5,
+      "max_tokens": 180
+    }
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.patch(
+    "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents/{agent_id}",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    json={
+        "prompt_template": "Updated prompt with new instructions...",
+        "llm_config": {
+            "provider": "openai",
+            "model": "gpt-4o",
+            "temperature": 0.5,
+            "max_tokens": 180,
+        },
+    },
+)
+
+updated_agent = response.json()
+print(updated_agent["updated_at"])
+```
+
+```typescript TypeScript
+const response = await fetch(
+  "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents/{agent_id}",
+  {
+    method: "PATCH",
+    headers: {
+      "X-API-Key": "YOUR_API_KEY",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      prompt_template: "Updated prompt with new instructions...",
+      llm_config: {
+        provider: "openai",
+        model: "gpt-4o",
+        temperature: 0.5,
+        max_tokens: 180,
+      },
+    }),
+  }
+);
+
+const updatedAgent = await response.json();
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+)
+
+func updateAgent(orgID, agentID, apiKey string, updates map[string]interface{}) error {
+    body, _ := json.Marshal(updates)
+
+    req, _ := http.NewRequest(
+        "PATCH",
+        fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/agents/%s", orgID, agentID),
+        bytes.NewReader(body),
+    )
+    req.Header.Set("X-API-Key", apiKey)
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+
+    respBody, _ := io.ReadAll(resp.Body)
+    fmt.Println(string(respBody))
+    return nil
+}
+
+func main() {
+    updates := map[string]interface{}{
+        "prompt_template": "Updated prompt with new instructions...",
+        "llm_config": map[string]interface{}{
+            "provider":    "openai",
+            "model":       "gpt-4o",
+            "temperature": 0.5,
+            "max_tokens":  180,
+        },
+    }
+    updateAgent("{org_id}", "{agent_id}", "YOUR_API_KEY", updates)
+}
+```
+
+</CodeGroup>
+
+---
+
+## Cloning an agent
+
+Create a copy of an existing agent - for example, to test a prompt change without modifying the production agent, or to create per-campaign variants.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sales Agent - US Market (B variant)",
+    "copy_from_agent_id": "agt_01j9xyz_original",
+    "prompt_template": "Alternate prompt for B test..."
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    json={
+        "name": "Sales Agent - US Market (B variant)",
+        "copy_from_agent_id": "agt_01j9xyz_original",
+        "prompt_template": "Alternate prompt for B test...",
+    },
+)
+
+cloned = response.json()
+print(cloned["id"])
+```
+
+```typescript TypeScript
+const response = await fetch(
+  "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+  {
+    method: "POST",
+    headers: {
+      "X-API-Key": "YOUR_API_KEY",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: "Sales Agent - US Market (B variant)",
+      copy_from_agent_id: "agt_01j9xyz_original",
+      prompt_template: "Alternate prompt for B test...",
+    }),
+  }
+);
+
+const cloned = await response.json();
+```
+
+```go Go
+body, _ := json.Marshal(map[string]string{
+    "name":               "Sales Agent - US Market (B variant)",
+    "copy_from_agent_id": "agt_01j9xyz_original",
+    "prompt_template":    "Alternate prompt for B test...",
+})
+
+req, _ := http.NewRequest(
+    "POST",
+    "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+    bytes.NewReader(body),
+)
+req.Header.Set("X-API-Key", "YOUR_API_KEY")
+req.Header.Set("Content-Type", "application/json")
+
+resp, _ := http.DefaultClient.Do(req)
+defer resp.Body.Close()
+```
+
+</CodeGroup>
+
+All fields from the source agent are copied. Any field you explicitly provide in the request overrides the copied value.
+
+---
+
+## Deleting an agent
+
+<Warning>
+  Deleting an agent is permanent. Active sessions using the agent will complete, but no new sessions can be started.
+</Warning>
+
+```bash
+curl -X DELETE https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents/{agent_id} \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+A successful delete returns `204 No Content`.
+
+---
+
+## Listing agents
+
+```bash
+curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents?page=1&size=20" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "agt-01j9xyz-abc123",
+      "name": "Sales Agent - US Market",
+      "type": "voice",
+      "created_at": "2026-04-01T09:00:00Z",
+      "updated_at": "2026-04-20T14:30:00Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "size": 20,
+    "total": 1,
+    "total_pages": 1
+  }
+}
+```
+
+---
+
+## Best practices
+
+### Prompt writing tips
+
+**Be specific about persona and role.** Vague prompts produce inconsistent agents. Give the agent a name, a company, a clear objective, and behavioral constraints.
+
+```
+Good: "You are Maya, a support specialist at TechCorp. You help customers troubleshoot login issues. Always verify the customer's email before discussing account details. Do not discuss pricing."
+
+Avoid: "You are a helpful assistant."
+```
+
+**Use template variables.** Personalize interactions by referencing prospect data:
+
+- `{{prospect_name}}` - full name
+- `{{prospect_first_name}}` - first name only
+- `{{prospect_phone}}` - phone number
+
+These are resolved from the prospect record at runtime.
+
+**Optimize for the medium.** Voice prompts should instruct the agent to keep responses short, ask one question at a time, and avoid lists or formatting (which do not translate to speech).
+
+**Include explicit call objectives.** List what the agent should achieve in priority order. The LLM performs better with clear success criteria.
+
+### Model selection guide
+
+| Use case | Recommended model |
+|----------|-------------------|
+| Sales / SDR calls | `gpt-4.1` or `claude-sonnet-4` |
+| High-volume, simple scripts | `gpt-4o-mini` or `groq/llama-3.3-70b-versatile` |
+| Multi-step reasoning, complex objection handling | `claude-sonnet-4` or `gpt-4.1` |
+| Lowest possible latency | `cerebras/llama-3.1-8b` or `cartesia` TTS |
+| Multilingual campaigns | `google/gemini-2.5-flash` + `elevenlabs` multilingual |
+| Cost-optimized fallback | `groq/llama-3.1-8b-instant` |
+| Enterprise / compliance | `azure-openai/gpt-4.1` |
+| Advanced reasoning | `claude-opus-4` or `xai/grok-4-20-reasoning` |
+
+### Voice selection tips
+
+- Match the voice accent and language to your target market. An American-English voice for a market where prospects speak British English creates friction.
+- Preview voices using the `/voices` endpoint before committing.
+- ElevenLabs `eleven-flash-v2.5` is the best balance of quality and latency for most voice agents.
+- For non-English markets, use `eleven-multilingual-v2` (ElevenLabs), Sarvam `bulbul-v3` (Indian languages), or MiniMax `speech-2.8-hd` (multilingual).
+
+### LLM fallback strategy for production
+
+Always configure at least two providers. A recommended production setup:
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4.1",
+  "fallbacks": [
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4"
+    },
+    {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile"
+    }
+  ]
+}
+```
+
+This gives you coverage for OpenAI outages (use Anthropic) and for Anthropic slowdowns (use Groq's very low latency).
+
+---
+
+## Common patterns
+
+### A/B testing agents
+
+Clone the production agent, modify one variable (prompt, voice, or temperature), and split traffic across workflows:
+
+```python
+# Create B variant
+b_agent = requests.post(
+    "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    json={
+        "name": "Sales Agent - Opener B",
+        "copy_from_agent_id": "agt_production",
+        "prompt_template": "Alternate opening that leads with value prop first...",
+    },
+).json()
+
+# Randomly assign agents when creating sessions
+import random
+agent_id = "agt_production" if random.random() < 0.5 else b_agent["id"]
+```
+
+Track conversion rates per `agent_id` in the `call.completed` webhook payload to determine the winner.
+
+### Per-campaign configuration
+
+Create agent variants for different campaigns rather than modifying the base agent:
+
+```python
+def create_campaign_agent(base_agent_id: str, campaign_name: str, custom_prompt_suffix: str):
+    return requests.post(
+        "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agents",
+        headers={"X-API-Key": "YOUR_API_KEY"},
+        json={
+            "name": f"Sales Agent - {campaign_name}",
+            "copy_from_agent_id": base_agent_id,
+            "prompt_template": BASE_PROMPT + "\n\n" + custom_prompt_suffix,
+        },
+    ).json()
+
+q2_agent = create_campaign_agent(
+    base_agent_id="agt_base",
+    campaign_name="Q2 Outreach",
+    custom_prompt_suffix="Focus on our new Q2 pricing promotion: 20% off annual plans.",
+)
+```
+
+This keeps your base configuration clean and makes per-campaign rollbacks straightforward.
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Sessions" icon="messages" href="/concepts/sessions">
+    Run your agent against a prospect by starting a session.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/concepts/workflows">
+    Orchestrate multi-step, multi-touch outreach campaigns.
+  </Card>
+  <Card title="Making your first call" icon="phone" href="/guides/making-your-first-call">
+    End-to-end guide to placing an AI voice call.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    Receive call.completed events with transcripts and evaluations.
+  </Card>
+</CardGroup>

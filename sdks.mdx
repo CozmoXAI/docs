@@ -1,0 +1,950 @@
+---
+title: "SDKs"
+description: "Official client libraries for the Nova API - Python, TypeScript, and Go with full type safety and production-ready patterns"
+---
+
+## Official SDKs
+
+Cozmo AI provides official SDKs generated from the Nova API OpenAPI specification using [Stainless](https://stainless.com). All SDKs are kept in sync with the API automatically and provide:
+
+- Full type safety (TypeScript types, Python type hints, Go structs)
+- Automatic retries with exponential backoff
+- Consistent error handling
+- Environment variable configuration
+
+<CardGroup cols={3}>
+  <Card title="Python" icon="python">
+    `pip install cozmoxai`
+  </Card>
+  <Card title="TypeScript" icon="js">
+    `npm install cozmoai`
+  </Card>
+  <Card title="Go" icon="golang">
+    `go get github.com/cozmoai/cozmoai-go`
+  </Card>
+</CardGroup>
+
+## Python
+
+### Installation
+
+```bash
+pip install cozmoxai
+# or with poetry
+poetry add cozmoxai
+# or with uv
+uv add cozmoxai
+```
+
+### Environment variable setup
+
+```bash
+export COZMOAI_API_KEY="your_api_key_here"
+export COZMOAI_ORG_ID="your_org_id_here"
+```
+
+Or use a `.env` file:
+
+```bash .env
+COZMOAI_API_KEY=your_api_key_here
+COZMOAI_ORG_ID=your_org_id_here
+```
+
+```bash
+pip install python-dotenv
+```
+
+```python
+from dotenv import load_dotenv
+load_dotenv()
+```
+
+### Client initialization
+
+```python
+import os
+from cozmoxai import Cozmoai
+
+client = Cozmoai(
+    api_key=os.environ["COZMOAI_API_KEY"],
+    base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+)
+```
+
+### Complete agent CRUD example
+
+```python
+import os
+from cozmoxai import Cozmoai
+from cozmoxai.types import LlmConfigParam, TranscriberConfigParam, VoiceConfigParam, GreetingConfigParam
+
+client = Cozmoai(
+    api_key=os.environ["COZMOAI_API_KEY"],
+    base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+)
+
+# Create an agent
+agent = client.agents.create(
+    name="Outbound Sales Agent",
+    type="voice",
+    prompt_template=(
+        "You are a friendly outbound sales agent for Acme Corp. "
+        "Your goal is to follow up with {{prospect_name}} about their demo request. "
+        "Be concise and respectful of their time."
+    ),
+)
+print("Created agent:", agent.id)
+
+# Configure LLM, voice, and transcriber
+client.agents.update(
+    agent_id=agent.id,
+    llm_config=LlmConfigParam(
+        provider="openai",
+        model="gpt-4o",
+        temperature=0.7,
+        max_tokens=512,
+    ),
+    transcriber_config=TranscriberConfigParam(
+        provider="deepgram",
+        model="nova-3",
+        language="en-US",
+    ),
+    voice_config=VoiceConfigParam(
+        provider="elevenlabs",
+        voice_id="21m00Tcm4TlvDq8ikWAM",
+        model="eleven_turbo_v2",
+    ),
+    greeting_config=GreetingConfigParam(
+        agent_speaks_first=True,
+        greeting="Hi {{prospect_name}}, this is Alex from Acme Corp!",
+        pause_before_first_message=800,
+    ),
+)
+
+# List agents
+agents = client.agents.list(page=1, size=20)
+for a in agents.data:
+    print(a.id, a.name, a.type)
+
+# Retrieve a single agent
+agent = client.agents.retrieve(agent_id=agent.id)
+print(agent.name, agent.updated_at)
+
+# Delete an agent
+client.agents.delete(agent_id=agent.id)
+```
+
+### Session examples
+
+```python
+import uuid
+
+session_id = str(uuid.uuid4())
+
+# Start a session
+result = client.agent_sessions.start(
+    session_id=session_id,
+    agent_id="00000000-0000-0000-0000-000000000001",
+    instruction="Follow up with this prospect about their Q2 enterprise demo request.",
+    title="Q2 demo follow-up - Jane Doe",
+    prospect_id="5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
+    source="crm-integration",
+)
+print("Session ID:", result.session_id)
+
+# Retrieve a session
+session = client.agent_sessions.retrieve(session_id=session_id)
+print("Status:", session.status)
+```
+
+### Workflow run examples
+
+The `workflow_runs` resource is not yet in the SDK. Use the REST API directly:
+
+```python
+import os
+import requests
+from datetime import datetime, timezone, timedelta
+
+def create_workflow_run(workflow_id: str, prospect: dict, scheduled_at=None):
+    org_id = os.environ["COZMOAI_ORG_ID"]
+    api_key = os.environ["COZMOAI_API_KEY"]
+    body = {"workflow_id": workflow_id, "prospect": prospect}
+    if scheduled_at:
+        body["scheduled_at"] = scheduled_at.isoformat()
+    response = requests.post(
+        f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs",
+        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+        json=body,
+    )
+    response.raise_for_status()
+    return response.json()
+
+run = create_workflow_run(
+    workflow_id="00000000-0000-0000-0000-000000000004",
+    prospect={
+        "phone": "+19175551234",
+        "first_name": "Jane",
+        "last_name": "Doe",
+        "email": "jane.doe@example.com",
+        "external_id": "crm_contact_789",
+        "timezone": "America/New_York",
+        "custom_data": {"product_interest": "Enterprise Plan"},
+    },
+)
+print("Run ID:", run["workflow_run_id"])
+
+# Scheduled run
+run = create_workflow_run(
+    workflow_id="00000000-0000-0000-0000-000000000004",
+    prospect={"phone": "+19175551234", "first_name": "Jane", "external_id": "crm_789"},
+    scheduled_at=datetime.now(timezone.utc) + timedelta(hours=4),
+)
+```
+
+### Call retrieval examples
+
+```python
+# List calls with filters
+calls = client.calls.list(
+    status="completed",
+    start_date="2026-04-01",
+    end_date="2026-04-30",
+    page=1,
+    size=50,
+)
+for call in calls.data:
+    print(call.id, call.duration_seconds, call.cost_usd)
+
+# Retrieve full call details
+call = client.calls.retrieve(call_id="00000000-0000-0000-0000-000000000003")
+print("Summary:", call.summary)
+print("Recording:", call.recording_url)
+
+for ev in call.evaluations or []:
+    print(f"  {ev.outcome_key}: {ev.result_boolean} - {ev.reasoning}")
+
+for tool in call.tool_logs or []:
+    print(f"  Tool: {tool.tool_name} - {tool.status}")
+```
+
+### Error handling
+
+```python
+import os
+from cozmoxai import (
+    Cozmoai,
+    AuthenticationError,
+    NotFoundError,
+    RateLimitError,
+    BadRequestError,
+    APIStatusError,
+    APIConnectionError,
+)
+
+client = Cozmoai(
+    api_key=os.environ["COZMOAI_API_KEY"],
+    base_url=f"https://v2-nova-api.prod.czmx.in/api/org/{os.environ['COZMOAI_ORG_ID']}",
+)
+
+try:
+    agent = client.agents.retrieve(agent_id="00000000-0000-0000-0000-000000000000")
+except AuthenticationError:
+    print("Invalid API key - check COZMOAI_API_KEY")
+except NotFoundError as e:
+    print(f"Not found: {e.message}")
+except BadRequestError as e:
+    print(f"Validation error: {e.message}")
+except RateLimitError as e:
+    reset_ts = e.response.headers.get("X-Rate-Limit-Reset")
+    print(f"Rate limited. Reset at {reset_ts}")
+except APIStatusError as e:
+    print(f"API error {e.status_code}: {e.message}")
+except APIConnectionError as e:
+    print(f"Network error: {e}")
+```
+
+---
+
+## TypeScript / Node.js
+
+### Installation
+
+```bash
+npm install cozmoai
+# or
+yarn add cozmoai
+# or
+pnpm add cozmoai
+```
+
+### Environment variable setup
+
+```bash .env
+COZMO_API_KEY=your_api_key_here
+COZMO_ORG_ID=your_org_id_here
+```
+
+### Client initialization
+
+```typescript
+import CozmoAI from "cozmoai";
+
+// Reads COZMO_API_KEY from environment automatically
+const client = new CozmoAI();
+
+// Explicit key
+const client = new CozmoAI({ apiKey: "YOUR_API_KEY" });
+```
+
+### TypeScript types
+
+All SDK methods return fully-typed responses. Import types for use in your own function signatures:
+
+```typescript
+import type {
+  AgentResponse,
+  AgentListResponse,
+  CallDetailResponse,
+  CallListResponse,
+  SessionResponse,
+  WorkflowResponse,
+  WorkflowRunResponse,
+  EvaluationResult,
+  ToolLog,
+} from "cozmoai";
+
+async function getInterestingCalls(orgId: string): Promise<CallDetailResponse[]> {
+  const client = new CozmoAI();
+  const list: CallListResponse = await client.calls.list({ orgId, status: "FINISHED" });
+
+  const detailed: CallDetailResponse[] = await Promise.all(
+    list.data.map((c) => client.calls.get({ orgId, callId: c.id }))
+  );
+
+  return detailed.filter((call) =>
+    call.evaluations?.some(
+      (ev: EvaluationResult) => ev.outcome_key === "INTERESTED" && ev.result_boolean
+    )
+  );
+}
+```
+
+### Complete agent CRUD example
+
+```typescript
+const ORG_ID = process.env.ORG_ID!;
+const client = new CozmoAI();
+
+// Create agent
+const agent = await client.agents.create({
+  orgId: ORG_ID,
+  name: "Outbound Sales Agent",
+  type: "voice",
+  promptTemplate:
+    "You are a friendly outbound sales agent for Acme Corp. " +
+    "Your goal is to follow up with {{prospect_name}} about their demo request.",
+});
+console.log("Created:", agent.id);
+
+// Update configuration
+await client.agents.update({
+  orgId: ORG_ID,
+  agentId: agent.id,
+  llmConfig: {
+    provider: "openai",
+    model: "gpt-4o",
+    temperature: 0.7,
+    maxTokens: 512,
+  },
+  transcriberConfig: {
+    provider: "deepgram",
+    model: "nova-3",
+    language: "en-US",
+    endpointingMs: 300,
+    smartFormat: true,
+  },
+  voiceConfig: {
+    provider: "elevenlabs",
+    voiceId: "21m00Tcm4TlvDq8ikWAM",
+    model: "eleven_turbo_v2",
+  },
+});
+
+// List
+const { data: agents } = await client.agents.list({ orgId: ORG_ID });
+agents.forEach((a) => console.log(a.id, a.name));
+
+// Get
+const agentDetail = await client.agents.get({ orgId: ORG_ID, agentId: agent.id });
+
+// Delete
+await client.agents.delete({ orgId: ORG_ID, agentId: agent.id });
+```
+
+### Session examples
+
+```typescript
+import crypto from "crypto";
+
+const sessionId = crypto.randomUUID(); // Generate before request
+
+// Start a session
+const result = await client.agentSessions.start({
+  orgId: ORG_ID,
+  sessionId,
+  agentId: "00000000-0000-0000-0000-000000000001",
+  instruction: "Follow up with this prospect about their Q2 enterprise demo request.",
+  title: "Q2 demo follow-up - Jane Doe",
+  prospectId: "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
+  source: "crm-integration",
+});
+console.log("Session ID:", result.sessionId);
+
+// Get session
+const session = await client.agentSessions.get({ orgId: ORG_ID, sessionId });
+console.log("Status:", session.status, "Case ID:", session.case_id);
+```
+
+### Workflow run examples
+
+```typescript
+// Immediate run
+const run = await client.workflowRuns.create({
+  orgId: ORG_ID,
+  workflowId: "00000000-0000-0000-0000-000000000004",
+  prospect: {
+    phone: "+19175551234",
+    firstName: "Jane",
+    lastName: "Doe",
+    email: "jane.doe@example.com",
+    externalId: "crm_contact_789",
+    timezone: "America/New_York",
+    customData: {
+      demoRequestedAt: "2026-04-15",
+      productInterest: "Enterprise Plan",
+      dealValueUsd: 48000,
+    },
+  },
+});
+console.log("Run ID:", run.workflowRunId);
+
+// Scheduled run
+const scheduledAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(); // 4 hours from now
+
+const scheduledRun = await client.workflowRuns.create({
+  orgId: ORG_ID,
+  workflowId: "00000000-0000-0000-0000-000000000004",
+  scheduledAt,
+  prospect: {
+    phone: "+19175551234",
+    firstName: "Jane",
+    externalId: "crm_789",
+    timezone: "America/New_York",
+  },
+});
+```
+
+### Error handling
+
+```typescript
+import CozmoAI, {
+  AuthenticationError,
+  NotFoundError,
+  RateLimitError,
+  BadRequestError,
+  APIError,
+} from "cozmoai";
+
+const client = new CozmoAI();
+
+async function safeCreateRun(workflowId: string, prospect: object) {
+  try {
+    return await client.workflowRuns.create({
+      orgId: ORG_ID,
+      workflowId,
+      prospect,
+    });
+  } catch (err) {
+    if (err instanceof AuthenticationError) {
+      console.error("Invalid API key - check COZMO_API_KEY");
+      throw err;
+    }
+    if (err instanceof BadRequestError) {
+      console.error("Validation error:", err.message);
+      throw err; // Don't retry 4xx
+    }
+    if (err instanceof NotFoundError) {
+      console.error("Workflow not found:", workflowId);
+      throw err;
+    }
+    if (err instanceof RateLimitError) {
+      console.warn("Rate limited, retry after:", err.retryAfter);
+      throw err;
+    }
+    if (err instanceof APIError) {
+      console.error(`API error ${err.status}: ${err.message}`);
+    }
+    throw err;
+  }
+}
+```
+
+### Async patterns
+
+```typescript
+// Parallel workflow runs with controlled concurrency
+import { default as pLimit } from "p-limit"; // npm install p-limit
+
+const limit = pLimit(10); // Max 10 concurrent requests
+
+async function triggerBulkRuns(prospects: object[]) {
+  const results = await Promise.allSettled(
+    prospects.map((prospect) =>
+      limit(() =>
+        client.workflowRuns.create({
+          orgId: ORG_ID,
+          workflowId: "00000000-0000-0000-0000-000000000004",
+          prospect,
+        })
+      )
+    )
+  );
+
+  const succeeded = results.filter((r) => r.status === "fulfilled").length;
+  const failed = results.filter((r) => r.status === "rejected").length;
+  console.log(`Triggered: ${succeeded} succeeded, ${failed} failed`);
+  return results;
+}
+
+// Async generator for paginating all calls
+async function* getAllCalls(status?: string) {
+  let page = 1;
+  while (true) {
+    const result = await client.calls.list({
+      orgId: ORG_ID,
+      status,
+      page,
+      size: 100,
+    });
+    for (const call of result.data) yield call;
+    if (page >= result.meta.totalPages) break;
+    page++;
+  }
+}
+
+for await (const call of getAllCalls("FINISHED")) {
+  console.log(call.id, call.duration_seconds);
+}
+```
+
+### Using with Next.js App Router
+
+```typescript
+// app/api/trigger-call/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import CozmoAI from "cozmoai";
+
+// Initialize outside the handler for connection reuse
+const nova = new CozmoAI({ apiKey: process.env.COZMO_API_KEY });
+const ORG_ID = process.env.ORG_ID!;
+
+export async function POST(req: NextRequest) {
+  const { workflowId, phone, firstName, externalId } = await req.json();
+
+  if (!workflowId || !phone) {
+    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  try {
+    const run = await nova.workflowRuns.create({
+      orgId: ORG_ID,
+      workflowId,
+      prospect: { phone, firstName, externalId },
+    });
+    return NextResponse.json({ runId: run.workflowRunId });
+  } catch (err: any) {
+    console.error("trigger_call_error", err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+```
+
+```typescript
+// app/api/webhook/cozmo/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import CozmoAI from "cozmoai";
+
+const nova = new CozmoAI();
+const ORG_ID = process.env.ORG_ID!;
+
+export async function POST(req: NextRequest) {
+  const payload = await req.json();
+  const { event, data } = payload;
+
+  // Return 200 immediately - process async
+  setImmediate(async () => {
+    if (event === "call.completed" && data.call_id) {
+      const call = await nova.calls.get({ orgId: ORG_ID, callId: data.call_id });
+      // Process call evaluations, update database, etc.
+    }
+  });
+
+  return NextResponse.json({ ok: true });
+}
+```
+
+---
+
+## Go
+
+### Installation
+
+```bash
+go get github.com/cozmoai/cozmoai-go
+```
+
+### Environment variable setup
+
+```bash .env (loaded via godotenv or os.Getenv)
+COZMO_API_KEY=your_api_key_here
+ORG_ID=your_org_id_here
+```
+
+```go
+// Load .env in development
+import "github.com/joho/godotenv" // go get github.com/joho/godotenv
+godotenv.Load()  // Call before using os.Getenv
+```
+
+### Client initialization
+
+```go
+package main
+
+import (
+    "os"
+    "github.com/cozmoai/cozmoai-go"
+)
+
+func main() {
+    // Reads COZMO_API_KEY from environment
+    client := cozmoai.NewClient()
+
+    // Explicit key
+    client := cozmoai.NewClient(cozmoai.WithAPIKey(os.Getenv("COZMO_API_KEY")))
+}
+```
+
+### Complete agent CRUD example
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+
+    "github.com/cozmoai/cozmoai-go"
+)
+
+func main() {
+    ctx := context.Background()
+    orgID := os.Getenv("ORG_ID")
+    client := cozmoai.NewClient()
+
+    // Create agent
+    agent, err := client.Agents.Create(ctx, orgID, &cozmoai.CreateAgentRequest{
+        Name: "Outbound Sales Agent",
+        Type: "voice",
+        PromptTemplate: "You are a friendly outbound sales agent for Acme Corp. " +
+            "Your goal is to follow up with {{prospect_name}} about their demo request.",
+    })
+    if err != nil {
+        log.Fatalf("create agent: %v", err)
+    }
+    fmt.Println("Created agent:", agent.ID)
+
+    // Update configuration
+    _, err = client.Agents.Update(ctx, orgID, agent.ID, &cozmoai.UpdateAgentRequest{
+        LLMConfig: &cozmoai.LLMConfig{
+            Provider:    "openai",
+            Model:       "gpt-4o",
+            Temperature: 0.7,
+            MaxTokens:   512,
+        },
+        TranscriberConfig: &cozmoai.TranscriberConfig{
+            Provider:      "deepgram",
+            Model:         "nova-3",
+            Language:      "en-US",
+            EndpointingMs: 300,
+            SmartFormat:   true,
+        },
+        VoiceConfig: &cozmoai.VoiceConfig{
+            Provider: "elevenlabs",
+            VoiceID:  "21m00Tcm4TlvDq8ikWAM",
+            Model:    "eleven_turbo_v2",
+        },
+    })
+    if err != nil {
+        log.Fatalf("update agent: %v", err)
+    }
+
+    // List agents
+    agents, err := client.Agents.List(ctx, orgID, &cozmoai.ListAgentsParams{
+        Page: 1, Size: 20,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    for _, a := range agents.Data {
+        fmt.Println(a.ID, a.Name)
+    }
+
+    // Get single agent
+    detail, err := client.Agents.Get(ctx, orgID, agent.ID)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println("Agent:", detail.Name, "updated at", detail.UpdatedAt)
+}
+```
+
+### Session examples
+
+```go
+import "github.com/google/uuid" // go get github.com/google/uuid
+
+sessionID := uuid.New().String() // Generate before request
+
+// Start session
+result, err := client.AgentSessions.Start(ctx, orgID, sessionID, &cozmoai.StartSessionRequest{
+    AgentID:     "00000000-0000-0000-0000-000000000001",
+    Instruction: "Follow up with this prospect about their Q2 enterprise demo request.",
+    Title:       "Q2 demo follow-up - Jane Doe",
+    ProspectID:  "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
+    Source:      "go-integration",
+})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println("Session ID:", result.SessionID)
+
+// Get session
+session, err := client.AgentSessions.Get(ctx, orgID, sessionID)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println("Status:", session.Status, "Case ID:", session.CaseID)
+```
+
+### Workflow run examples
+
+```go
+// Create run
+run, err := client.WorkflowRuns.Create(ctx, orgID, &cozmoai.CreateWorkflowRunRequest{
+    WorkflowID: "00000000-0000-0000-0000-000000000004",
+    Prospect: cozmoai.ProspectData{
+        Phone:      "+19175551234",
+        FirstName:  "Jane",
+        LastName:   "Doe",
+        Email:      "jane.doe@example.com",
+        ExternalID: "crm_contact_789",
+        Timezone:   "America/New_York",
+        CustomData: map[string]interface{}{
+            "demo_requested_at": "2026-04-15",
+            "product_interest":  "Enterprise Plan",
+            "deal_value_usd":    48000,
+        },
+    },
+})
+if err != nil {
+    log.Fatalf("create workflow run: %v", err)
+}
+fmt.Println("Run ID:", run.WorkflowRunID)
+
+// Scheduled run
+import "time"
+
+scheduledAt := time.Now().UTC().Add(4 * time.Hour).Format(time.RFC3339)
+run, err = client.WorkflowRuns.Create(ctx, orgID, &cozmoai.CreateWorkflowRunRequest{
+    WorkflowID:  "00000000-0000-0000-0000-000000000004",
+    ScheduledAt: scheduledAt,
+    Prospect: cozmoai.ProspectData{
+        Phone:      "+19175551234",
+        FirstName:  "Jane",
+        ExternalID: "crm_789",
+        Timezone:   "America/New_York",
+    },
+})
+```
+
+### Error handling
+
+```go
+import (
+    "errors"
+    "github.com/cozmoai/cozmoai-go"
+)
+
+run, err := client.WorkflowRuns.Create(ctx, orgID, req)
+if err != nil {
+    var apiErr *cozmoai.APIError
+    if errors.As(err, &apiErr) {
+        switch apiErr.StatusCode {
+        case 400:
+            fmt.Println("Validation error:", apiErr.Message)
+            // Don't retry - fix the request
+        case 401:
+            fmt.Println("Invalid API key")
+        case 404:
+            fmt.Println("Workflow not found")
+        case 429:
+            fmt.Println("Rate limited, retry after:", apiErr.RetryAfter)
+        default:
+            fmt.Printf("API error %d: %s\n", apiErr.StatusCode, apiErr.Message)
+        }
+        return
+    }
+    // Network or other error
+    log.Fatal("request failed:", err)
+}
+```
+
+### Goroutine-based bulk calling
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "sync"
+    "time"
+
+    "github.com/cozmoai/cozmoai-go"
+)
+
+func TriggerBulkRuns(orgID, workflowID string, prospects []cozmoai.ProspectData) ([]string, []error) {
+    client := cozmoai.NewClient()
+    ctx := context.Background()
+
+    type result struct {
+        runID string
+        err   error
+        idx   int
+    }
+
+    results := make([]result, len(prospects))
+    sem := make(chan struct{}, 10) // Limit to 10 concurrent requests
+    var wg sync.WaitGroup
+
+    for i, prospect := range prospects {
+        wg.Add(1)
+        go func(idx int, p cozmoai.ProspectData) {
+            defer wg.Done()
+            sem <- struct{}{}
+            defer func() { <-sem }()
+
+            run, err := client.WorkflowRuns.Create(ctx, orgID, &cozmoai.CreateWorkflowRunRequest{
+                WorkflowID: workflowID,
+                Prospect:   p,
+            })
+            if err != nil {
+                results[idx] = result{err: err, idx: idx}
+                return
+            }
+            results[idx] = result{runID: run.WorkflowRunID, idx: idx}
+        }(i, prospect)
+    }
+
+    wg.Wait()
+
+    var runIDs []string
+    var errs []error
+    for _, r := range results {
+        if r.err != nil {
+            errs = append(errs, fmt.Errorf("prospect %d: %w", r.idx, r.err))
+        } else {
+            runIDs = append(runIDs, r.runID)
+        }
+    }
+
+    fmt.Printf("Triggered %d runs, %d failed\n", len(runIDs), len(errs))
+    return runIDs, errs
+}
+```
+
+### Production patterns
+
+```go
+// Production client with connection pool and custom HTTP client
+import (
+    "net/http"
+    "time"
+    "github.com/cozmoai/cozmoai-go"
+)
+
+func NewProductionClient() *cozmoai.Client {
+    httpClient := &http.Client{
+        Timeout: 30 * time.Second,
+        Transport: &http.Transport{
+            MaxIdleConns:        100,
+            MaxIdleConnsPerHost: 20,
+            IdleConnTimeout:     90 * time.Second,
+        },
+    }
+
+    return cozmoai.NewClient(
+        cozmoai.WithAPIKey(os.Getenv("COZMO_API_KEY")),
+        cozmoai.WithHTTPClient(httpClient),
+        cozmoai.WithMaxRetries(3),
+    )
+}
+```
+
+---
+
+## Using the REST API directly
+
+If your language is not supported by an official SDK, use the REST API directly via HTTP. All examples throughout this documentation use `curl` and show raw HTTP requests.
+
+- Base URL: `https://v2-nova-api.prod.czmx.in/api`
+- Auth header: `X-API-Key: YOUR_API_KEY`
+- All paths org-scoped: `/org/{org_id}/...`
+- Content-Type: `application/json` for POST/PUT requests
+
+See the [API Reference](/api-reference) for the complete endpoint list with interactive request builders.
+
+## Environment variable reference
+
+| Variable | SDK | Description |
+|----------|-----|-------------|
+| `COZMOAI_API_KEY` | Python | Your Nova API key (required) |
+| `COZMOAI_ORG_ID` | Python | Your organization UUID (required) |
+| `COZMO_API_KEY` | TypeScript | Your Nova API key (required) |
+| `COZMO_ORG_ID` | TypeScript | Your organization UUID (required) |
+
+<Warning>
+  Never commit API keys to source control. Use environment variables, a secrets manager (AWS Secrets Manager, HashiCorp Vault, Doppler), or a `.env` file excluded from git via `.gitignore`.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Making Your First Call" icon="phone" href="/guides/making-your-first-call">
+    End-to-end guide using the SDK from agent creation to CRM update.
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    SDK exception types, retry patterns, and circuit breakers.
+  </Card>
+  <Card title="Agents" icon="robot" href="/concepts/agents">
+    Agent creation, LLM config, voice, and transcriber settings.
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference">
+    Interactive API explorer with all endpoints and schemas.
+  </Card>
+</CardGroup>

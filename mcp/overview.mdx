@@ -1,0 +1,206 @@
+---
+title: "MCP Server"
+description: "Give your AI coding assistant direct access to the Cozmo API — list agents, inspect calls, trigger workflow runs, and start sessions without leaving your IDE"
+---
+
+## Overview
+
+The Cozmo MCP server connects AI assistants (Claude Desktop, Cursor, Windsurf, VS Code Copilot, or any MCP client) directly to the Nova API. It exposes read, write, and destructive tools that map 1-to-1 to API endpoints, with `COZMOX_ORG_ID` pinned server-side so the LLM can never swap organizations.
+
+## Prerequisites
+
+- Node.js **20.11** or later
+- A Cozmo API key from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
+- Your Organization ID (visible in the dashboard URL or settings)
+
+## Installation
+
+Clone the repo and build:
+
+```bash
+git clone https://github.com/CozmoXAI/mcp-server.git
+cd mcp-server
+cp .env.example .env   # fill in your COZMOX_ORG_ID and COZMOX_API_KEY
+npm install
+npm run build
+```
+
+## Transport modes
+
+The server ships with two transports:
+
+| Mode | Command | Use case |
+|------|---------|----------|
+| **stdio** | `npm start` | Local Claude Desktop, Cursor, Windsurf, VS Code |
+| **HTTP** | `npm run start:http` | Hosted remote MCP endpoint for teams |
+
+## Tool tiers
+
+Tools are gated by environment variables to limit blast radius:
+
+| Tier | Env flag | Default |
+|------|----------|---------|
+| Read | always on | — |
+| Write | `COZMOX_ENABLE_WRITE_TOOLS=true` | `false` |
+| Destructive | `COZMOX_ENABLE_DESTRUCTIVE_TOOLS=true` | `false` |
+
+### Read tools (always enabled)
+
+| Tool | Description | API endpoint |
+|------|-------------|--------------|
+| `cozmox_context` | Show server config (org ID, which tiers are on) | local only |
+| `cozmox_health_check` | Verify API key and org connectivity | `GET /agents?page=1&size=1` |
+| `cozmox_list_agents` | Paginated agent list with type/search filters | `GET /agents` |
+| `cozmox_get_agent` | Full agent details by UUID | `GET /agents/{agent_id}` |
+| `cozmox_list_calls` | Paginated calls with 12 optional filters | `GET /calls` |
+| `cozmox_get_call_details` | Full call record — transcript, evaluations, recording | `GET /calls/{call_id}` |
+| `cozmox_list_voices` | Available voices by provider | `GET /voices` |
+| `cozmox_list_workflows` | Paginated workflow list with filters | `GET /workflows` |
+| `cozmox_get_workflow` | Single workflow with its latest definition | `GET /workflows/{workflow_id}` |
+| `cozmox_get_agent_session` | Agent session details by UUID | `GET /agent-sessions/{session_id}` |
+
+### Write tools (`COZMOX_ENABLE_WRITE_TOOLS=true`)
+
+| Tool | Description | API endpoint |
+|------|-------------|--------------|
+| `cozmox_create_agent` | Create a new agent (voice, chat, or video) | `POST /agents` |
+| `cozmox_update_agent` | Partial update of an existing agent | `PATCH /agents/{agent_id}` |
+| `cozmox_create_workflow_run_with_prospect` | Trigger a workflow run with a prospect | `POST /workflow-runs` |
+| `cozmox_start_agent_session` | Start an agent session with an instruction | `POST /agent-sessions/{session_id}/start` |
+
+### Destructive tools (`COZMOX_ENABLE_DESTRUCTIVE_TOOLS=true`)
+
+| Tool | Description | API endpoint |
+|------|-------------|--------------|
+| `cozmox_delete_agent` | Permanently delete an agent (requires literal confirmation) | `DELETE /agents/{agent_id}` |
+
+## Environment variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `COZMOX_ORG_ID` | Yes | — | Your organization UUID |
+| `COZMOX_API_KEY` | Yes | — | Your Cozmo API key |
+| `COZMOX_API_BASE_URL` | No | `https://v2-nova-api.prod.czmx.in` | API base URL |
+| `COZMOX_REQUEST_TIMEOUT_MS` | No | `30000` | Per-request timeout in ms |
+| `COZMOX_ENABLE_WRITE_TOOLS` | No | `false` | Enable write tools |
+| `COZMOX_ENABLE_DESTRUCTIVE_TOOLS` | No | `false` | Enable destructive tools |
+| `PORT` | No | `3000` | HTTP server port (HTTP mode only) |
+| `MCP_BEARER_TOKEN` | No | — | Bearer token for HTTP endpoint auth |
+
+## Local stdio config (Claude Desktop & IDEs)
+
+Add to `claude_desktop_config.json` (Claude Desktop) or your IDE's MCP config file:
+
+```json
+{
+  "mcpServers": {
+    "cozmox": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-server/dist/stdio.js"],
+      "env": {
+        "COZMOX_API_BASE_URL": "https://v2-nova-api.prod.czmx.in",
+        "COZMOX_ORG_ID": "YOUR_ORG_ID",
+        "COZMOX_API_KEY": "YOUR_API_KEY",
+        "COZMOX_ENABLE_WRITE_TOOLS": "false",
+        "COZMOX_ENABLE_DESTRUCTIVE_TOOLS": "false"
+      }
+    }
+  }
+}
+```
+
+Pick your IDE for exact setup steps:
+
+<CardGroup cols={2}>
+  <Card title="Cursor" icon="arrow-pointer" href="/mcp/cursor">
+    Add `.cursor/mcp.json` to your project.
+  </Card>
+  <Card title="Claude Code / Claude Desktop" icon="asterisk" href="/mcp/claude-code">
+    Register via `claude mcp add` or edit `claude_desktop_config.json`.
+  </Card>
+  <Card title="Windsurf" icon="water" href="/mcp/windsurf">
+    Add `.windsurf/mcp.json` to your project.
+  </Card>
+  <Card title="VSCode" icon="code" href="/mcp/vscode">
+    Add `.vscode/mcp.json` to your project.
+  </Card>
+</CardGroup>
+
+## Hosted remote MCP (HTTP mode)
+
+For teams, run the HTTP server and let each developer connect via `mcp-remote`:
+
+**Server side:**
+
+```bash
+PORT=3000 \
+MCP_BEARER_TOKEN="long-random-mcp-token" \
+COZMOX_ORG_ID="YOUR_ORG_ID" \
+COZMOX_API_KEY="YOUR_API_KEY" \
+npm run start:http
+```
+
+**Client side config:**
+
+```json
+{
+  "mcpServers": {
+    "cozmox": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.your-domain.com/mcp",
+        "--header",
+        "Authorization: Bearer ${COZMOX_MCP_TOKEN}"
+      ],
+      "env": {
+        "COZMOX_MCP_TOKEN": "long-random-mcp-token"
+      }
+    }
+  }
+}
+```
+
+<Warning>
+  Do not put `COZMOX_API_KEY` in client-side remote configs. The `MCP_BEARER_TOKEN` protects the MCP endpoint; the Cozmo API key stays in your server-side deployment secrets.
+</Warning>
+
+The HTTP server also exposes a health endpoint at `GET /healthz`.
+
+## Docker
+
+```bash
+docker build -t cozmox-mcp-server .
+docker run --rm -p 3000:3000 \
+  -e PORT=3000 \
+  -e MCP_BEARER_TOKEN="long-random-mcp-token" \
+  -e COZMOX_ORG_ID="YOUR_ORG_ID" \
+  -e COZMOX_API_KEY="YOUR_API_KEY" \
+  -e COZMOX_ENABLE_WRITE_TOOLS=false \
+  cozmox-mcp-server
+```
+
+## Recommended rollout
+
+1. Deploy with read-only tools first — no `COZMOX_ENABLE_WRITE_TOOLS` set.
+2. Verify with `cozmox_health_check`, `cozmox_list_agents`, and `cozmox_list_calls`.
+3. Enable `COZMOX_ENABLE_WRITE_TOOLS=true` only for trusted internal users.
+4. Keep `COZMOX_ENABLE_DESTRUCTIVE_TOOLS=false` unless restricted to admins.
+
+## Security
+
+- `COZMOX_ORG_ID` is pinned server-side and never accepted as a tool argument — the LLM cannot swap organizations.
+- Write tools perform a visibility pre-check before mutating anything (e.g. `cozmox_start_agent_session` verifies the agent belongs to the configured org before starting).
+- `cozmox_delete_agent` requires the literal string `"delete this agent"` as a confirmation parameter.
+- For HTTP mode, always set `MCP_BEARER_TOKEN`. Without it, `/mcp` accepts unauthenticated requests.
+- Pin `@modelcontextprotocol/sdk` to `^1.29.0` or higher — older versions below `1.26.0` had a cross-client data leak in stateless HTTP deployments.
+
+## Example prompts
+
+Once connected, ask your AI assistant:
+
+- *"List all my Cozmo agents and show me which ones are voice type"*
+- *"Get the details for call [call_id] including the transcript and evaluations"*
+- *"Start an agent session for agent [agent_id] with the instruction: follow up on the demo request"*
+- *"Create a workflow run for workflow [workflow_id] with prospect phone +19175551234"*
+- *"What voices are available from ElevenLabs?"*

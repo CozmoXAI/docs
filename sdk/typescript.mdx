@@ -1,0 +1,635 @@
+---
+title: "TypeScript SDK"
+description: "Official Cozmo AI TypeScript/Node.js SDK - full types, Promise-based, ESM and CommonJS"
+---
+
+## Installation
+
+```bash
+npm install cozmoai
+# or with yarn
+yarn add cozmoai
+# or with pnpm
+pnpm add cozmoai
+# or with bun
+bun add cozmoai
+```
+
+**Requirements:** Node.js 18+ or Bun 1.0+
+
+## Setup
+
+Set your credentials as environment variables:
+
+```bash
+export COZMO_API_KEY="your_api_key_here"
+export COZMO_ORG_ID="your_org_id_here"
+```
+
+Or use a `.env` file with `dotenv`:
+
+```bash
+npm install dotenv
+```
+
+```typescript
+import "dotenv/config";
+```
+
+## Initialize the client
+
+```typescript
+import CozmoAI from "cozmoai";
+
+// Reads COZMO_API_KEY and COZMO_ORG_ID from environment automatically
+const client = new CozmoAI();
+```
+
+Pass credentials explicitly if you prefer:
+
+```typescript
+const client = new CozmoAI({
+  apiKey: "your_api_key",
+  orgId: "your_org_id",
+});
+```
+
+---
+
+## Agents
+
+### List agents
+
+```typescript
+const agents = await client.agents.list();
+
+for (const agent of agents.data) {
+  console.log(agent.id, agent.name, agent.type);
+}
+
+// With filters and pagination
+const filtered = await client.agents.list({ page: 1, size: 50, type: "voice" });
+console.log(`Total: ${filtered.meta.total}`);
+```
+
+### Create an agent
+
+```typescript
+const agent = await client.agents.create({
+  name: "Sales Agent",
+  type: "voice",
+  promptTemplate:
+    "You are a friendly outbound sales agent for Acme Corp. " +
+    "Your goal is to reconnect with {{prospect_first_name}} and schedule a follow-up demo. " +
+    "Be concise and respectful of their time.",
+});
+
+console.log(agent.id);
+```
+
+Create with full configuration:
+
+```typescript
+const agent = await client.agents.create({
+  name: "Enterprise Sales Agent",
+  type: "voice",
+  promptTemplate: "You are a senior enterprise sales rep...",
+});
+
+// Configure after creation with update
+const configured = await client.agents.update(agent.id, {
+  llmConfig: {
+    provider: "openai",
+    model: "gpt-4o",
+    temperature: 0.7,
+    maxTokens: 512,
+    systemPrompt: "You are a helpful enterprise sales assistant.",
+    fallbacks: [
+      { provider: "anthropic", model: "claude-3-5-sonnet-20241022" },
+    ],
+  },
+  transcriberConfig: {
+    provider: "deepgram",
+    model: "nova-3",
+    language: "en-US",
+  },
+  voiceConfig: {
+    provider: "elevenlabs",
+    voiceId: "21m00Tcm4TlvDq8ikWAM", // Rachel
+    model: "eleven_turbo_v2",
+  },
+  greetingConfig: {
+    agentSpeaksFirst: true,
+    greeting: "Hi {{prospect_first_name}}, this is Alex from Acme. Do you have a moment?",
+    pauseBeforeFirstMessage: 800,
+    voiceMailMessage: "Hi, this is Alex from Acme. I'll try you again later. Have a great day.",
+  },
+});
+```
+
+### Get an agent
+
+```typescript
+const agent = await client.agents.get("agt_01j9xyz");
+console.log(agent.name, agent.type, agent.createdAt);
+```
+
+### Update an agent
+
+All fields are optional - only pass what you want to change:
+
+```typescript
+const agent = await client.agents.update("agt_01j9xyz", {
+  name: "Updated Sales Agent",
+  promptTemplate: "New system prompt...",
+  llmConfig: {
+    provider: "anthropic",
+    model: "claude-3-5-sonnet-20241022",
+    temperature: 0.5,
+  },
+});
+```
+
+### Clone an agent
+
+```typescript
+// Clone all settings from an existing agent
+const copy = await client.agents.create({
+  name: "Sales Agent - Copy",
+  type: "voice",
+  copyFromAgentId: "agt_existing123",
+});
+```
+
+### Delete an agent
+
+```typescript
+await client.agents.delete("agt_01j9xyz");
+```
+
+---
+
+## Agent Sessions
+
+### Start a session
+
+The `sessionId` must be a client-generated UUID v4. It makes the call idempotent - safe to retry.
+
+```typescript
+import { randomUUID } from "crypto";
+
+const sessionId = randomUUID();
+
+const session = await client.agentSessions.start({
+  sessionId,
+  agentId: "agt_01j9xyz",
+  instruction: "Follow up with this prospect about their demo request from last week.",
+  title: "Demo follow-up",
+  prospectId: "prospect_uuid", // optional - link to existing prospect
+  source: "api",
+});
+
+console.log(session.sessionId); // same as the sessionId you passed
+```
+
+### Get a session
+
+```typescript
+const session = await client.agentSessions.get("550e8400-e29b-41d4-a716-446655440000");
+
+console.log(session.status);    // PENDING | ACTIVE | COMPLETED | STOPPED | FAILED | CANCELLED
+console.log(session.channel);   // voice | chat | telegram | whatsapp
+console.log(session.startedAt); // Date or null
+console.log(session.endedAt);   // Date or null (when terminal)
+```
+
+---
+
+## Calls
+
+### List calls
+
+```typescript
+// Basic listing
+const calls = await client.calls.list();
+for (const call of calls.data) {
+  console.log(call.id, call.status, call.durationSeconds);
+}
+
+// With filters
+const filtered = await client.calls.list({
+  status: "completed",
+  direction: "outbound",
+  agentId: "agt_01j9xyz",
+  startDate: "2026-04-01",
+  endDate: "2026-04-30",
+  page: 1,
+  size: 50,
+});
+
+// Filter by evaluation outcome
+const interested = await client.calls.list({
+  evaluationKey: "INTERESTED",
+  evaluationValue: "true",
+});
+```
+
+### Iterate all calls (pagination helper)
+
+```typescript
+async function* iterAllCalls(
+  client: CozmoAI,
+  filters: Parameters<typeof client.calls.list>[0] = {}
+) {
+  let page = 1;
+  while (true) {
+    const result = await client.calls.list({ ...filters, page, size: 100 });
+    yield* result.data;
+    if (page >= result.meta.totalPages) break;
+    page++;
+  }
+}
+
+// Process every completed call this month
+for await (const call of iterAllCalls(client, { status: "completed", startDate: "2026-04-01" })) {
+  console.log(call.id, call.prospectFirstName, call.durationSeconds);
+}
+```
+
+### Get call details
+
+```typescript
+const call = await client.calls.get("call_17546d2d");
+
+// Transcript
+console.log(call.transcriptText);
+
+// AI-generated summary
+console.log(call.summary);
+
+// Recording
+console.log(call.recordingUrl);
+
+// Evaluations
+for (const evaluation of call.evaluations) {
+  console.log(evaluation.outcomeKey, evaluation.resultBoolean, evaluation.reasoning);
+}
+
+// Tool invocations
+for (const log of call.toolLogs) {
+  console.log(log.toolName, log.status);
+}
+
+// Cost
+console.log(`Cost: $${call.costUsd}`);
+console.log(`Tokens: ${call.tokensInput} in / ${call.tokensOutput} out`);
+```
+
+---
+
+## Voices
+
+### List available voices
+
+```typescript
+// List ElevenLabs voices
+const voices = await client.voices.list({ provider: "elevenlabs" });
+for (const voice of voices.data) {
+  console.log(voice.voiceId, voice.name, voice.language);
+}
+
+// With pagination cursor (ElevenLabs / Cartesia native pagination)
+const nextPage = await client.voices.list({
+  provider: "cartesia",
+  nextPage: voices.meta.nextPage,
+});
+```
+
+---
+
+## Workflows
+
+### List workflows
+
+```typescript
+const workflows = await client.workflows.list();
+
+// Only active workflows
+const active = await client.workflows.list({ isActive: true });
+
+for (const wf of workflows.data) {
+  console.log(wf.id, wf.name, wf.triggerType, wf.version);
+}
+```
+
+### Get a workflow
+
+```typescript
+const workflow = await client.workflows.get("wf_abc123");
+console.log(workflow.name, workflow.isActive, workflow.triggerType);
+```
+
+---
+
+## Workflow Runs
+
+### Create a workflow run
+
+```typescript
+const run = await client.workflowRuns.create({
+  workflowId: "wf_abc123",
+  prospect: {
+    phone: "+19175551234",
+    firstName: "Jane",
+    lastName: "Doe",
+    email: "jane.doe@example.com",
+    externalId: "crm_789",
+    country: "US",
+    timezone: "America/New_York",
+    customData: {
+      accountTier: "enterprise",
+      dealStage: "proposal",
+      contractValue: 85000,
+    },
+  },
+});
+
+console.log(run.workflowRunId);
+console.log(run.externalId);
+```
+
+### Schedule a future run
+
+```typescript
+const run = await client.workflowRuns.create({
+  workflowId: "wf_abc123",
+  prospect: { phone: "+19175551234", firstName: "Jane" },
+  scheduledAt: new Date("2026-05-01T09:00:00Z"),
+});
+```
+
+---
+
+## Error handling
+
+The SDK raises specific error classes for different categories:
+
+```typescript
+import CozmoAI, {
+  AuthenticationError,  // 401 - invalid or missing API key
+  NotFoundError,        // 404 - resource not found
+  RateLimitError,       // 429 - rate limit exceeded
+  BadRequestError,      // 400 - validation error
+  APIStatusError,       // any other 4xx/5xx
+  APIConnectionError,   // network/connection error
+} from "cozmoai";
+
+const client = new CozmoAI();
+
+try {
+  const agent = await client.agents.get("agt_does_not_exist");
+} catch (err) {
+  if (err instanceof NotFoundError) {
+    console.log(`Agent not found: ${err.message}`);
+  } else if (err instanceof RateLimitError) {
+    const resetTs = err.response.headers.get("X-Rate-Limit-Reset");
+    console.log(`Rate limited. Reset at ${resetTs}`);
+  } else if (err instanceof AuthenticationError) {
+    console.log("Invalid API key - check COZMO_API_KEY");
+  } else if (err instanceof BadRequestError) {
+    console.log(`Validation error: ${err.message}`);
+  } else if (err instanceof APIStatusError) {
+    console.log(`API error ${err.statusCode}: ${err.message}`);
+  } else if (err instanceof APIConnectionError) {
+    console.log(`Network error: ${err.message}`);
+  }
+}
+```
+
+### Retry with backoff
+
+```typescript
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        const resetTs = parseInt(err.response.headers.get("X-Rate-Limit-Reset") ?? "0");
+        const waitMs = Math.max((resetTs - Date.now() / 1000) * 1000, 1000);
+        console.log(`Rate limited. Waiting ${waitMs}ms`);
+        await new Promise((r) => setTimeout(r, waitMs));
+      } else if (err instanceof APIStatusError && err.statusCode >= 500) {
+        if (attempt === maxRetries - 1) throw err;
+        await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 1000));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+
+const agent = await withRetry(() => client.agents.get("agt_abc123"));
+```
+
+---
+
+## Pagination
+
+All list methods return a paginated response with `.data` and `.meta`:
+
+```typescript
+const result = await client.agents.list({ page: 1, size: 20 });
+
+console.log(result.meta.page);        // 1
+console.log(result.meta.size);        // 20
+console.log(result.meta.total);       // total items across all pages
+console.log(result.meta.totalPages);  // number of pages
+
+// Iterate all pages
+const allAgents = [];
+let page = 1;
+while (true) {
+  const result = await client.agents.list({ page, size: 100 });
+  allAgents.push(...result.data);
+  if (page >= result.meta.totalPages) break;
+  page++;
+}
+```
+
+---
+
+## Next.js integration
+
+### App Router (Server Component)
+
+```typescript
+// app/agents/page.tsx
+import CozmoAI from "cozmoai";
+
+export default async function AgentsPage() {
+  const client = new CozmoAI(); // reads from env server-side
+  const agents = await client.agents.list({ size: 50 });
+
+  return (
+    <ul>
+      {agents.data.map((agent) => (
+        <li key={agent.id}>{agent.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### API Route
+
+```typescript
+// app/api/trigger-call/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
+import CozmoAI from "cozmoai";
+import { BadRequestError } from "cozmoai";
+
+const client = new CozmoAI();
+
+export async function POST(req: NextRequest) {
+  const { phone, firstName, workflowId } = await req.json();
+
+  if (!phone || !workflowId) {
+    return NextResponse.json({ error: "phone and workflowId required" }, { status: 400 });
+  }
+
+  try {
+    const run = await client.workflowRuns.create({
+      workflowId,
+      prospect: { phone, firstName },
+    });
+    return NextResponse.json({ workflowRunId: run.workflowRunId });
+  } catch (err) {
+    if (err instanceof BadRequestError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    console.error("Workflow run error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+```
+
+### Webhook route
+
+```typescript
+// app/api/webhooks/cozmo/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "crypto";
+
+const WEBHOOK_SECRET = process.env.COZMO_WEBHOOK_SECRET!;
+
+export async function POST(req: NextRequest) {
+  const body = await req.text();
+  const signature = req.headers.get("x-cozmo-signature") ?? "";
+
+  // Verify signature
+  const expected = createHmac("sha256", WEBHOOK_SECRET).update(body).digest("hex");
+  const expectedBuf = Buffer.from(expected, "hex");
+  const actualBuf = Buffer.from(signature, "hex");
+
+  if (
+    expectedBuf.length !== actualBuf.length ||
+    !timingSafeEqual(expectedBuf, actualBuf)
+  ) {
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+
+  const payload = JSON.parse(body);
+
+  switch (payload.event) {
+    case "call.completed":
+      // handle call.completed
+      break;
+    case "session.completed":
+      // handle session.completed
+      break;
+  }
+
+  return NextResponse.json({ ok: true });
+}
+```
+
+---
+
+## Bulk async workflow runs
+
+```typescript
+import CozmoAI from "cozmoai";
+import pLimit from "p-limit";
+
+async function bulkTrigger(
+  prospects: Array<{ phone: string; firstName: string; [key: string]: unknown }>,
+  workflowId: string,
+  concurrency = 50
+) {
+  const client = new CozmoAI();
+  const limit = pLimit(concurrency);
+
+  const results = await Promise.allSettled(
+    prospects.map((prospect) =>
+      limit(() =>
+        client.workflowRuns.create({
+          workflowId,
+          prospect,
+        })
+      )
+    )
+  );
+
+  const successes = results.filter((r) => r.status === "fulfilled");
+  const failures = results.filter((r) => r.status === "rejected");
+  console.log(`${successes.length} succeeded, ${failures.length} failed`);
+  return results;
+}
+```
+
+---
+
+## TypeScript types
+
+All response objects are fully typed. Import types directly:
+
+```typescript
+import type {
+  AgentResponse,
+  AgentListItemResponse,
+  SessionResponse,
+  CallDetailResponse,
+  CallEvaluationResponse,
+  WorkflowResponse,
+  CreateWorkflowRunResponse,
+} from "cozmoai";
+
+// Full IDE autocompletion on all fields
+const call: CallDetailResponse = await client.calls.get("call_abc");
+console.log(call.transcriptText);  // string | null
+console.log(call.recordingUrl);    // string | null
+console.log(call.costUsd);         // string
+console.log(call.evaluations);     // CallEvaluationResponse[]
+```
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Python SDK" icon="python" href="/sdk/python">
+    Using Python or FastAPI?
+  </Card>
+  <Card title="Go SDK" icon="golang" href="/sdk/go">
+    Using Go for your backend?
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    Handle call and session completion events.
+  </Card>
+  <Card title="Error Handling Guide" icon="triangle-exclamation" href="/guides/error-handling">
+    Retry logic, circuit breakers, and production patterns.
+  </Card>
+</CardGroup>

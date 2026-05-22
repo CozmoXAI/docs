@@ -1,0 +1,233 @@
+---
+title: "Tenant Isolation Auditor"
+description: "Audit Cozmo Go, sqlc, Postgres, and Temporal API code for cross-org access, missing ownership checks, and security lapses"
+---
+
+## Overview
+
+The `cozmox-tenant-isolation-auditor` skill reviews Cozmo API code for security lapses — specifically whether one organization can read, mutate, execute, or terminate another organization's resources. Use it for security reviews, PR checks, and regression-test design.
+
+Output is concrete: affected endpoint or function, evidence, exploit precondition, impact, and patch/test recommendations.
+
+## Install
+
+```bash
+npx skills add CozmoXAI/skills --skill cozmox-tenant-isolation-auditor -a claude-code -y
+```
+
+## Threat model
+
+Assume the attacker is authenticated to **Org A** using either a user session or an API key. The attacker should not be able to:
+
+- Use an Org A credential with an Org B `org_id` path parameter
+- Use an Org A path with Org B resource IDs
+- Create cross-org foreign-key references
+- Trigger workflows, sessions, calls, or tools using another org's agents, workflows, prospects, or calls
+- Stop or signal another org's Temporal workflows by guessing IDs
+- Learn whether a resource exists in another org
+
+## Audit workflow
+
+**1. Map routes to middleware.**
+- Confirm every `/api/org/:org_id/...` route goes through authentication and `RequireOrgAccess` or equivalent.
+- Confirm route-specific permissions are appropriate: read, manage, destructive.
+
+**2. For each handler, list every path/body/query ID.**
+- Examples: `agent_id`, `workflow_id`, `call_id`, `prospect_id`, `session_id`, `workflow_run_id`, `voice_id`.
+
+**3. For each ID, trace to the DB query or service call that validates ownership.**
+- A valid check filters by both `id` and `organization_id`, or follows a verified same-org relationship.
+
+**4. Inspect SQL joins and recursive CTEs.**
+- The base row filter is not enough if recursive steps or joined rows can cross tenants.
+
+**5. Inspect inserts and updates.**
+- Any request-supplied foreign key should be validated under the same org before insert/update.
+
+**6. Inspect async/workflow systems.**
+- Temporal workflow IDs, queues, signals, and terminations should include org context or verify org ownership before any action.
+
+**7. Inspect API-key storage and validation.**
+- Stored DB values must not be usable as raw keys. Lookup by prefix/key ID, then compare submitted key against a hash.
+
+**8. Propose DB-level tenant constraints.**
+- App-layer checks are necessary but not sufficient.
+
+## Grep targets
+
+Run these searches to identify candidates for review:
+
+```bash
+rg -n "org_id|organization_id|RequireOrgAccess|X-API-Key|api_keys|callback_for|Temporal|TerminateWorkflow|SignalWorkflow|root_agent_id|prospect_id|workflow_run_id|call_id" .
+
+rg -n "WHERE .*id =|JOIN .* ON .*id =|WITH RECURSIVE|INSERT INTO|UPDATE .* SET" db pkg cmd
+
+rg -n "uuid.Parse\(|ctx.Param\(|ShouldBind|BindJSON|binding:\"required\"" pkg cmd
+```
+
+For sqlc projects, inspect both `.sql` files and generated query call sites.
+
+## High-risk patterns
+
+### Path org check without resource ownership check
+
+This is the most common critical finding: the route is org-scoped, but the resource referenced in the body is never validated to belong to that org.
+
+**Bad:**
+
+```go
+agentID, _ := uuid.Parse(req.AgentID)
+createSession(RootAgentID: agentID, OrganizationID: orgID)
+```
+
+**Good:**
+
+```go
+_, err := queries.GetAgentByID(ctx, database.GetAgentByIDParams{
+  ID:             agentID,
+  OrganizationID: orgID,
+})
+if err != nil { return notFound() }
+createSession(RootAgentID: agentID, OrganizationID: orgID)
+```
+
+### Recursive SQL with tenant filter only in base case
+
+If the `organization_id` filter only appears in the base case of a CTE, recursive steps can traverse across org boundaries.
+
+**Bad:**
+
+```sql
+WITH RECURSIVE chain AS (
+  SELECT id, callback_for FROM calls
+  WHERE id = @call_id AND organization_id = @organization_id
+  UNION ALL
+  SELECT c.id, c.callback_for FROM calls c
+  JOIN chain cc ON c.id = cc.callback_for
+)
+SELECT * FROM chain;
+```
+
+**Good:**
+
+```sql
+WITH RECURSIVE chain AS (
+  SELECT id, callback_for FROM calls
+  WHERE id = @call_id AND organization_id = @organization_id
+  UNION ALL
+  SELECT c.id, c.callback_for
+  FROM calls c
+  JOIN chain cc ON c.id = cc.callback_for
+  WHERE c.organization_id = @organization_id
+)
+SELECT * FROM chain;
+```
+
+### Temporal action before ownership verification
+
+Stopping or signaling a workflow before verifying org ownership allows Org A to terminate Org B's sessions.
+
+**Bad:**
+
+```go
+temporal.StopSession(ctx, sessionID.String())
+service.UpdateSession(ctx, orgID, sessionID, stopped)
+```
+
+**Good:**
+
+```go
+_, err := service.GetSession(ctx, SessionRef{OrgID: orgID, SessionID: sessionID})
+if err != nil { return notFound() }
+temporal.StopSession(ctx, orgID.String(), sessionID.String())
+```
+
+Prefer workflow IDs that embed org context:
+
+```
+agent-session/{org_id}/{session_id}
+```
+
+### API key stored as plaintext-equivalent lookup value
+
+If the full key can be retrieved by a prefix lookup without hashing, it is effectively plaintext.
+
+**Bad:**
+
+```sql
+SELECT * FROM api_keys WHERE key_prefix = @submitted_key;
+```
+
+**Good:**
+
+```sql
+SELECT * FROM api_keys WHERE key_prefix = @short_prefix;
+```
+
+Then validate in Go:
+
+```go
+if bcrypt.CompareHashAndPassword([]byte(row.KeyHash), []byte(submittedKey)) != nil {
+  return invalidKey
+}
+```
+
+## DB constraint recommendations
+
+Where practical, enforce same-org relationships in Postgres as a defense-in-depth layer.
+
+Example for `agent_sessions.root_agent_id`:
+
+```sql
+ALTER TABLE agents
+  ADD CONSTRAINT agents_org_id_id_uq UNIQUE (organization_id, id);
+
+ALTER TABLE agent_sessions
+  ADD CONSTRAINT agent_sessions_root_agent_same_org_fk
+  FOREIGN KEY (organization_id, root_agent_id)
+  REFERENCES agents (organization_id, id);
+```
+
+Use similar patterns for prospects, calls, workflow-owned records, and any tenant-owned table that can be referenced from another tenant-owned table.
+
+## Severity guide
+
+| Severity | Definition |
+|----------|-----------|
+| **Critical** | Authenticated Org A can read, mutate, execute, terminate, or exfiltrate Org B resources |
+| **High** | Request can create cross-org references, trigger workflows with foreign IDs, or API keys are stored in usable form |
+| **Medium** | Incomplete tenant filters in adjacent/internal routes that need a preexisting corrupted reference |
+| **Low** | Error messages reveal too much, missing redaction, or defense-in-depth improvement |
+
+## Required output format
+
+```markdown
+## Finding: <title>
+Severity: Critical | High | Medium | Low
+Affected endpoint/function/query: <path or file:function>
+
+### Evidence
+<code snippets or line references>
+
+### Why this matters
+<clear exploit path and impact>
+
+### Fix
+<minimal patch and stronger long-term fix>
+
+### Regression tests
+- <test 1>
+- <test 2>
+```
+
+## Default regression tests
+
+The skill requests these tests by default for any code under review:
+
+1. Org A credential against Org B `org_id` path returns 403
+2. Org A path with Org B resource ID returns 404, not Org B data
+3. Write endpoint rejects request-supplied foreign IDs from another org
+4. Async/Temporal stop/signal validates ownership before signal/terminate
+5. SQL recursive chains never return rows with a different `organization_id`
+6. API-key DB rows do not contain a usable full key
+7. Logs redact keys, phone numbers, emails, transcripts, and recording URLs

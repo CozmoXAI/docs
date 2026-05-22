@@ -1,0 +1,1114 @@
+---
+title: "Error Handling"
+description: "Understand Nova API error responses and implement robust retry logic, circuit breakers, and structured error logging for production integrations"
+---
+
+## Error response format
+
+All Nova API errors return a consistent JSON envelope:
+
+```json
+{
+  "error": "Error type",
+  "message": "Human-readable description of what went wrong"
+}
+```
+
+Always log both fields. The `message` field contains the exact reason the request was rejected - it is actionable and specific.
+
+## HTTP status codes
+
+| Code | Meaning | When it occurs | What to do |
+|------|---------|----------------|------------|
+| `400 Bad Request` | Invalid request | Missing required fields, invalid field values, malformed JSON, wrong phone format | Fix the request body - do not retry |
+| `401 Unauthorized` | Authentication failed | Missing or invalid `X-API-Key` header | Verify your API key is present and correct |
+| `403 Forbidden` | Authorization failed | API key lacks permission for this resource or org | Check that the key belongs to the org in the URL |
+| `404 Not Found` | Resource not found | Agent, session, or call ID does not exist in your org | Confirm the resource ID and org_id are correct |
+| `409 Conflict` | Duplicate resource | Session with this UUID already exists | If idempotent, treat as success and read existing |
+| `422 Unprocessable Entity` | Semantic validation failed | Request is well-formed but logically invalid | Read the error message for the specific issue |
+| `429 Too Many Requests` | Rate limit exceeded | More than 1,000 requests/min (normal) or 10/min (strict endpoints) | Back off using `X-Rate-Limit-Reset` header |
+| `500 Internal Server Error` | Server error | Unexpected error on Cozmo's side | Safe to retry with exponential backoff |
+| `502 Bad Gateway` | Upstream error | Transient connectivity issue | Retry with backoff |
+| `503 Service Unavailable` | Service down | Planned maintenance or outage | Retry with backoff; check status page |
+
+<Info>
+  Client errors (`4xx`) indicate a problem in your request. Fix the request before retrying. Server errors (`5xx`) are transient - retry with exponential backoff.
+</Info>
+
+## Common 400 validation errors
+
+### Missing required field
+
+```json
+{
+  "error": "Bad Request",
+  "message": "phone is required"
+}
+```
+
+**Fix:** Include all required fields. Check the API reference for which fields are marked `required`.
+
+### Invalid phone number format
+
+```json
+{
+  "error": "Bad Request",
+  "message": "phone must be in E.164 format (e.g. +19175551234)"
+}
+```
+
+**Fix:** All phone numbers must be in E.164 format - a leading `+`, country code, then subscriber number with no spaces, dashes, or parentheses. Examples: `+19175551234` (US), `+447911123456` (UK), `+971501234567` (UAE).
+
+### Invalid UUID
+
+```json
+{
+  "error": "Bad Request",
+  "message": "session_id must be a valid UUID v4"
+}
+```
+
+**Fix:** Generate UUIDs client-side using a standard library (`uuid.uuid4()` in Python, `crypto.randomUUID()` in Node.js, `uuid.New()` in Go). Do not construct UUIDs manually.
+
+### Invalid field value
+
+```json
+{
+  "error": "Bad Request",
+  "message": "scheduled_at must be an ISO 8601 datetime in the future"
+}
+```
+
+**Fix:** Ensure datetime strings are RFC 3339 / ISO 8601 with timezone, e.g. `2026-04-22T09:00:00Z`.
+
+## 401 - Authentication errors
+
+```json
+{
+  "error": "Unauthorized",
+  "message": "Invalid or missing API key"
+}
+```
+
+Verify that:
+- The `X-API-Key` header is present on every request
+- The value matches your key from Dashboard - Organization Settings
+- The key has not been revoked
+- You are not accidentally sending a Bearer token format - Nova uses `X-API-Key` directly, not `Bearer`
+
+## 404 - Resource not found
+
+```json
+{
+  "error": "Not Found",
+  "message": "Agent not found"
+}
+```
+
+The most common cause is a mismatch between the resource ID and the `org_id` in the URL path. All resources are scoped to an organization - an agent created in org A is not accessible under org B's path.
+
+## 429 - Rate limit exceeded
+
+```json
+{
+  "error": "Rate limit exceeded"
+}
+```
+
+Check response headers to know exactly when you can retry:
+
+```http
+X-Rate-Limit-Limit: 1000
+X-Rate-Limit-Remaining: 0
+X-Rate-Limit-Reset: 1745232000
+```
+
+`X-Rate-Limit-Reset` is a Unix epoch timestamp. Wait until that time before retrying. See [Rate Limits](/rate-limits) for tier details.
+
+## Call failure types
+
+When a voice call fails, the `call.failed` webhook and the call detail record include a `call_result` field explaining why:
+
+| call_result | Cause | Recommended action |
+|-------------|-------|--------------------|
+| `FAILED` | Technical failure during the call (media, connectivity) | Retry after a delay of at least 5 minutes |
+| `FAILED_VALIDATION` | Pre-call validation rejected the call | Inspect the agent and prospect configuration - do not retry without fixing |
+| `FAILED_SIP` | SIP/trunk connection error at the carrier level | Check your SIP trunk configuration in the Dashboard; contact support if persistent |
+| `NO_ANSWER` | Prospect did not pick up | Retry at a different time of day; respect local calling hours |
+| `BUSY` | Prospect's line was busy | Retry after a short delay (15-60 minutes) |
+| `CANCELLED` | Call was cancelled before connecting | Investigate what triggered the cancellation |
+| `ANALYSIS_FAILED` | Post-call analysis (evaluations, summary) failed | Call audio and transcript are still available; analysis can be retriggered |
+
+## Retry strategy
+
+### Which errors to retry
+
+| Error class | Retry? | Strategy |
+|-------------|--------|----------|
+| `400 Bad Request` | No | Fix the request |
+| `401 Unauthorized` | No | Fix the API key |
+| `403 Forbidden` | No | Check permissions |
+| `404 Not Found` | No | Check resource ID |
+| `429 Too Many Requests` | Yes | Wait for `X-Rate-Limit-Reset` |
+| `500 Internal Server Error` | Yes | Exponential backoff |
+| `502 Bad Gateway` | Yes | Exponential backoff |
+| `503 Service Unavailable` | Yes | Exponential backoff with longer delays |
+| Network timeout / connection error | Yes | Exponential backoff |
+
+### Exponential backoff with jitter
+
+Jitter prevents thundering herd - when many clients all hit a rate limit simultaneously, random jitter spreads their retries across time.
+
+<CodeGroup>
+
+```python Python
+import time
+import random
+import requests
+
+def make_request_with_retry(
+    method: str,
+    url: str,
+    headers: dict,
+    json: dict = None,
+    max_retries: int = 5,
+    base_delay: float = 1.0,
+    max_delay: float = 60.0,
+):
+    for attempt in range(max_retries):
+        try:
+            response = requests.request(method, url, headers=headers, json=json, timeout=30)
+        except requests.ConnectionError as e:
+            if attempt == max_retries - 1:
+                raise
+            delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+            print(f"Connection error, retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+            time.sleep(delay)
+            continue
+
+        if response.status_code == 429:
+            reset_time = int(response.headers.get("X-Rate-Limit-Reset", 0))
+            delay = max(reset_time - time.time(), base_delay * (2 ** attempt))
+            delay += random.uniform(0, delay * 0.1)  # 10% jitter
+            print(f"Rate limited. Waiting {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+            time.sleep(delay)
+            continue
+
+        if response.status_code >= 500:
+            if attempt == max_retries - 1:
+                response.raise_for_status()
+            delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+            print(f"Server error {response.status_code}. Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+            time.sleep(delay)
+            continue
+
+        # 4xx errors are not retried - raise immediately
+        response.raise_for_status()
+        return response
+
+    raise Exception(f"Max retries ({max_retries}) exceeded for {url}")
+```
+
+```typescript TypeScript
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 5,
+  baseDelayMs = 1000,
+  maxDelayMs = 60_000
+): Promise<Response> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    let response: Response;
+
+    try {
+      response = await fetch(url, options);
+    } catch (err) {
+      // Network error - retry with backoff
+      if (attempt === maxRetries - 1) throw err;
+      const delay = Math.min(baseDelayMs * 2 ** attempt + Math.random() * 1000, maxDelayMs);
+      console.warn(`Network error, retrying in ${delay.toFixed(0)}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await sleep(delay);
+      continue;
+    }
+
+    if (response.status === 429) {
+      const resetTime = parseInt(response.headers.get("X-Rate-Limit-Reset") ?? "0");
+      const waitFromReset = Math.max((resetTime - Date.now() / 1000) * 1000, 0);
+      const backoff = baseDelayMs * 2 ** attempt;
+      const jitter = Math.random() * backoff * 0.1;
+      const delay = Math.max(waitFromReset, backoff) + jitter;
+      console.warn(`Rate limited. Waiting ${delay.toFixed(0)}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await sleep(delay);
+      continue;
+    }
+
+    if (response.status >= 500) {
+      if (attempt === maxRetries - 1) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(`API error ${response.status}: ${body.message ?? "server error"}`);
+      }
+      const delay = Math.min(baseDelayMs * 2 ** attempt + Math.random() * 1000, maxDelayMs);
+      console.warn(`Server error ${response.status}. Retrying in ${delay.toFixed(0)}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await sleep(delay);
+      continue;
+    }
+
+    if (!response.ok) {
+      // 4xx - do not retry
+      const body = await response.json().catch(() => ({}));
+      throw new Error(`API error ${response.status}: ${body.message ?? "client error"}`);
+    }
+
+    return response;
+  }
+
+  throw new Error(`Max retries (${maxRetries}) exceeded for ${url}`);
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+```
+
+```go Go
+package nova
+
+import (
+    "bytes"
+    "context"
+    "encoding/json"
+    "fmt"
+    "math"
+    "math/rand"
+    "net/http"
+    "strconv"
+    "time"
+)
+
+type RetryConfig struct {
+    MaxRetries int
+    BaseDelay  time.Duration
+    MaxDelay   time.Duration
+}
+
+func DefaultRetryConfig() RetryConfig {
+    return RetryConfig{
+        MaxRetries: 5,
+        BaseDelay:  time.Second,
+        MaxDelay:   60 * time.Second,
+    }
+}
+
+func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cfg RetryConfig) (*http.Response, error) {
+    var body []byte
+    if req.Body != nil {
+        var err error
+        body, err = io.ReadAll(req.Body)
+        if err != nil {
+            return nil, fmt.Errorf("reading request body: %w", err)
+        }
+        req.Body.Close()
+    }
+
+    for attempt := 0; attempt < cfg.MaxRetries; attempt++ {
+        // Rebuild body on each attempt
+        if body != nil {
+            req.Body = io.NopCloser(bytes.NewReader(body))
+        }
+
+        resp, err := client.Do(req.WithContext(ctx))
+        if err != nil {
+            if attempt == cfg.MaxRetries-1 {
+                return nil, fmt.Errorf("request failed after %d attempts: %w", cfg.MaxRetries, err)
+            }
+            delay := backoffWithJitter(cfg.BaseDelay, cfg.MaxDelay, attempt)
+            fmt.Printf("Network error, retrying in %s (attempt %d/%d)\n", delay, attempt+1, cfg.MaxRetries)
+            time.Sleep(delay)
+            continue
+        }
+
+        if resp.StatusCode == http.StatusTooManyRequests {
+            resetStr := resp.Header.Get("X-Rate-Limit-Reset")
+            resetUnix, _ := strconv.ParseInt(resetStr, 10, 64)
+            waitFromReset := time.Until(time.Unix(resetUnix, 0))
+            backoff := backoffWithJitter(cfg.BaseDelay, cfg.MaxDelay, attempt)
+            delay := waitFromReset
+            if backoff > delay {
+                delay = backoff
+            }
+            resp.Body.Close()
+            fmt.Printf("Rate limited. Waiting %s (attempt %d/%d)\n", delay, attempt+1, cfg.MaxRetries)
+            time.Sleep(delay)
+            continue
+        }
+
+        if resp.StatusCode >= 500 {
+            resp.Body.Close()
+            if attempt == cfg.MaxRetries-1 {
+                return nil, fmt.Errorf("server error %d after %d attempts", resp.StatusCode, cfg.MaxRetries)
+            }
+            delay := backoffWithJitter(cfg.BaseDelay, cfg.MaxDelay, attempt)
+            fmt.Printf("Server error %d. Retrying in %s (attempt %d/%d)\n", resp.StatusCode, delay, attempt+1, cfg.MaxRetries)
+            time.Sleep(delay)
+            continue
+        }
+
+        return resp, nil
+    }
+
+    return nil, fmt.Errorf("max retries (%d) exceeded", cfg.MaxRetries)
+}
+
+func backoffWithJitter(base, max time.Duration, attempt int) time.Duration {
+    exp := time.Duration(float64(base) * math.Pow(2, float64(attempt)))
+    jitter := time.Duration(rand.Float64() * float64(exp) * 0.1)
+    delay := exp + jitter
+    if delay > max {
+        delay = max
+    }
+    return delay
+}
+```
+
+```bash cURL
+#!/bin/bash
+# Retry wrapper for cURL with exponential backoff
+
+function curl_with_retry() {
+  local max_retries=5
+  local base_delay=1
+  local attempt=0
+
+  while [ $attempt -lt $max_retries ]; do
+    response=$(curl -s -w "\n%{http_code}" "$@")
+    http_code=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | head -n-1)
+
+    if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+      echo "$body"
+      return 0
+    fi
+
+    if [ "$http_code" -ge 400 ] && [ "$http_code" -lt 500 ] && [ "$http_code" -ne 429 ]; then
+      echo "Client error $http_code - not retrying" >&2
+      echo "$body"
+      return 1
+    fi
+
+    attempt=$((attempt + 1))
+    delay=$(echo "$base_delay * (2 ^ ($attempt - 1))" | bc)
+    echo "Error $http_code. Retrying in ${delay}s (attempt $attempt/$max_retries)" >&2
+    sleep "$delay"
+  done
+
+  echo "Max retries exceeded" >&2
+  return 1
+}
+
+# Usage
+curl_with_retry -X POST https://v2-nova-api.prod.czmx.in/api/org/ORG_ID/workflow-runs \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "wf_abc123", "prospect": {"phone": "+19175551234"}}'
+```
+
+</CodeGroup>
+
+## Circuit breaker pattern
+
+A circuit breaker prevents cascading failures. When a downstream service is failing consistently, stop sending requests to it for a period rather than flooding it with retries. This protects both your application and the API.
+
+The circuit has three states:
+- **Closed** - normal operation; requests go through
+- **Open** - too many failures detected; requests are rejected immediately without hitting the API
+- **Half-open** - cooldown period elapsed; a probe request is sent to test recovery
+
+<CodeGroup>
+
+```python Python
+import time
+import threading
+from enum import Enum
+
+class CircuitState(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, recovery_timeout=60, success_threshold=2):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.success_threshold = success_threshold
+        self._state = CircuitState.CLOSED
+        self._failure_count = 0
+        self._success_count = 0
+        self._last_failure_time = None
+        self._lock = threading.Lock()
+
+    @property
+    def state(self):
+        with self._lock:
+            if self._state == CircuitState.OPEN:
+                if time.time() - self._last_failure_time >= self.recovery_timeout:
+                    self._state = CircuitState.HALF_OPEN
+                    self._success_count = 0
+            return self._state
+
+    def call(self, func, *args, **kwargs):
+        state = self.state
+        if state == CircuitState.OPEN:
+            raise Exception("Circuit breaker is OPEN - Nova API requests suspended")
+
+        try:
+            result = func(*args, **kwargs)
+            self._on_success()
+            return result
+        except Exception as e:
+            self._on_failure()
+            raise
+
+    def _on_success(self):
+        with self._lock:
+            self._failure_count = 0
+            if self._state == CircuitState.HALF_OPEN:
+                self._success_count += 1
+                if self._success_count >= self.success_threshold:
+                    self._state = CircuitState.CLOSED
+
+    def _on_failure(self):
+        with self._lock:
+            self._failure_count += 1
+            self._last_failure_time = time.time()
+            if self._failure_count >= self.failure_threshold:
+                self._state = CircuitState.OPEN
+
+# Usage
+import requests
+
+nova_circuit = CircuitBreaker(failure_threshold=5, recovery_timeout=60)
+
+def create_workflow_run(org_id, payload):
+    def _request():
+        r = requests.post(
+            f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs",
+            headers={"X-API-Key": "YOUR_API_KEY"},
+            json=payload,
+            timeout=30,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    return nova_circuit.call(_request)
+```
+
+```typescript TypeScript
+enum CircuitState {
+  Closed = "closed",
+  Open = "open",
+  HalfOpen = "half_open",
+}
+
+class CircuitBreaker {
+  private state = CircuitState.Closed;
+  private failureCount = 0;
+  private successCount = 0;
+  private lastFailureTime = 0;
+
+  constructor(
+    private readonly failureThreshold = 5,
+    private readonly recoveryTimeoutMs = 60_000,
+    private readonly successThreshold = 2
+  ) {}
+
+  private get currentState(): CircuitState {
+    if (
+      this.state === CircuitState.Open &&
+      Date.now() - this.lastFailureTime >= this.recoveryTimeoutMs
+    ) {
+      this.state = CircuitState.HalfOpen;
+      this.successCount = 0;
+    }
+    return this.state;
+  }
+
+  async call<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.currentState === CircuitState.Open) {
+      throw new Error("Circuit breaker is OPEN - Nova API requests suspended");
+    }
+
+    try {
+      const result = await fn();
+      this.onSuccess();
+      return result;
+    } catch (err) {
+      this.onFailure();
+      throw err;
+    }
+  }
+
+  private onSuccess(): void {
+    this.failureCount = 0;
+    if (this.state === CircuitState.HalfOpen) {
+      this.successCount++;
+      if (this.successCount >= this.successThreshold) {
+        this.state = CircuitState.Closed;
+      }
+    }
+  }
+
+  private onFailure(): void {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+    if (this.failureCount >= this.failureThreshold) {
+      this.state = CircuitState.Open;
+    }
+  }
+}
+
+// Usage
+const novaCircuit = new CircuitBreaker(5, 60_000);
+
+async function createWorkflowRun(orgId: string, payload: object) {
+  return novaCircuit.call(async () => {
+    const res = await fetch(
+      `https://v2-nova-api.prod.czmx.in/api/org/${orgId}/workflow-runs`,
+      {
+        method: "POST",
+        headers: {
+          "X-API-Key": process.env.NOVA_API_KEY!,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Nova API ${res.status}: ${err.message}`);
+    }
+    return res.json();
+  });
+}
+```
+
+```go Go
+package nova
+
+import (
+    "errors"
+    "sync"
+    "time"
+)
+
+type CBState int
+
+const (
+    CBClosed   CBState = iota
+    CBOpen
+    CBHalfOpen
+)
+
+var ErrCircuitOpen = errors.New("circuit breaker is OPEN - Nova API requests suspended")
+
+type CircuitBreaker struct {
+    mu               sync.Mutex
+    state            CBState
+    failureCount     int
+    successCount     int
+    lastFailureTime  time.Time
+    failureThreshold int
+    recoveryTimeout  time.Duration
+    successThreshold int
+}
+
+func NewCircuitBreaker(failureThreshold int, recoveryTimeout time.Duration, successThreshold int) *CircuitBreaker {
+    return &CircuitBreaker{
+        failureThreshold: failureThreshold,
+        recoveryTimeout:  recoveryTimeout,
+        successThreshold: successThreshold,
+    }
+}
+
+func (cb *CircuitBreaker) Call(fn func() (interface{}, error)) (interface{}, error) {
+    cb.mu.Lock()
+    if cb.state == CBOpen {
+        if time.Since(cb.lastFailureTime) >= cb.recoveryTimeout {
+            cb.state = CBHalfOpen
+            cb.successCount = 0
+        } else {
+            cb.mu.Unlock()
+            return nil, ErrCircuitOpen
+        }
+    }
+    cb.mu.Unlock()
+
+    result, err := fn()
+    if err != nil {
+        cb.mu.Lock()
+        cb.failureCount++
+        cb.lastFailureTime = time.Now()
+        if cb.failureCount >= cb.failureThreshold {
+            cb.state = CBOpen
+        }
+        cb.mu.Unlock()
+        return nil, err
+    }
+
+    cb.mu.Lock()
+    cb.failureCount = 0
+    if cb.state == CBHalfOpen {
+        cb.successCount++
+        if cb.successCount >= cb.successThreshold {
+            cb.state = CBClosed
+        }
+    }
+    cb.mu.Unlock()
+
+    return result, nil
+}
+```
+
+</CodeGroup>
+
+## Idempotent session starts
+
+Generate the UUID before making the request. If the request fails mid-flight - you sent the request but never received the response - retrying with the same UUID will not create a duplicate session.
+
+<CodeGroup>
+
+```python Python
+import uuid
+import requests
+
+def start_session_idempotent(org_id: str, agent_id: str, prospect_id: str, instruction: str):
+    # Generate once - reuse on every retry
+    session_id = str(uuid.uuid4())
+
+    url = f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/agent-sessions/{session_id}/start"
+    headers = {"X-API-Key": "YOUR_API_KEY", "Content-Type": "application/json"}
+    payload = {
+        "agentId": agent_id,
+        "instruction": instruction,
+        "prospectId": prospect_id,
+        "title": f"Session {session_id[:8]}",
+        "source": "api",
+    }
+
+    for attempt in range(3):
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            if response.status_code == 409:
+                # Session already exists with this ID - idempotent success
+                print(f"Session {session_id} already exists - returning existing")
+                return {"sessionId": session_id}
+
+            response.raise_for_status()
+            return response.json()
+
+        except requests.HTTPError as e:
+            if e.response.status_code < 500:
+                raise  # Do not retry 4xx errors
+            if attempt == 2:
+                raise
+            time.sleep(2 ** attempt)
+
+    raise Exception("Failed to start session after 3 attempts")
+```
+
+```typescript TypeScript
+import crypto from "crypto";
+
+async function startSessionIdempotent(
+  orgId: string,
+  agentId: string,
+  prospectId: string,
+  instruction: string
+): Promise<{ sessionId: string }> {
+  // Generate once before the loop - same UUID on every retry
+  const sessionId = crypto.randomUUID();
+  const url = `https://v2-nova-api.prod.czmx.in/api/org/${orgId}/agent-sessions/${sessionId}/start`;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "X-API-Key": process.env.NOVA_API_KEY!,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        agentId,
+        instruction,
+        prospectId,
+        title: `Session ${sessionId.slice(0, 8)}`,
+        source: "api",
+      }),
+    });
+
+    if (res.status === 409) {
+      // Already exists - idempotent success
+      return { sessionId };
+    }
+
+    if (res.status >= 400 && res.status < 500) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Nova API ${res.status}: ${err.message}`);
+    }
+
+    if (res.ok) {
+      return res.json();
+    }
+
+    // 5xx - retry
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+    }
+  }
+
+  throw new Error("Failed to start session after 3 attempts");
+}
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "time"
+
+    "github.com/google/uuid"
+)
+
+func StartSessionIdempotent(orgID, agentID, prospectID, instruction string) (string, error) {
+    // Generate once before the loop
+    sessionID := uuid.New().String()
+    url := fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/agent-sessions/%s/start", orgID, sessionID)
+
+    payload := map[string]string{
+        "agentId":     agentID,
+        "instruction": instruction,
+        "prospectId":  prospectID,
+        "title":       "Session " + sessionID[:8],
+        "source":      "api",
+    }
+
+    body, _ := json.Marshal(payload)
+    client := &http.Client{Timeout: 30 * time.Second}
+
+    for attempt := 0; attempt < 3; attempt++ {
+        req, _ := http.NewRequest("POST", url, bytes.NewReader(body))
+        req.Header.Set("X-API-Key", "YOUR_API_KEY")
+        req.Header.Set("Content-Type", "application/json")
+
+        resp, err := client.Do(req)
+        if err != nil {
+            if attempt == 2 {
+                return "", fmt.Errorf("request failed: %w", err)
+            }
+            time.Sleep(time.Duration(1<<attempt) * time.Second)
+            continue
+        }
+        defer resp.Body.Close()
+
+        if resp.StatusCode == http.StatusConflict {
+            // Session already exists - idempotent success
+            return sessionID, nil
+        }
+
+        if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+            return "", fmt.Errorf("client error %d - not retrying", resp.StatusCode)
+        }
+
+        if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+            return sessionID, nil
+        }
+
+        // 5xx - retry
+        if attempt < 2 {
+            time.Sleep(time.Duration(1<<attempt) * time.Second)
+        }
+    }
+
+    return "", fmt.Errorf("failed after 3 attempts")
+}
+```
+
+</CodeGroup>
+
+## Webhook error handling
+
+When Nova cannot deliver a webhook to your endpoint (your server returns a non-2xx status or times out), Nova retries delivery using an exponential backoff schedule. Your endpoint has up to 10 seconds to respond.
+
+**Retry schedule:** Nova attempts delivery at 0s, 30s, 2m, 10m, 1h, and 6h after the initial failure. If all retries are exhausted, the event is dropped.
+
+**Best practices for your webhook endpoint:**
+
+- Return `200 OK` immediately after receiving the payload, before doing any processing
+- Enqueue the event for async processing in a queue (Redis, SQS, etc.)
+- Make your handler idempotent - the same event may arrive multiple times
+- Verify the event has not already been processed using the `call_id` as a deduplication key
+
+```python Python (FastAPI)
+from fastapi import FastAPI, BackgroundTasks, Request
+import asyncio
+
+app = FastAPI()
+processed_events = set()  # Use Redis or a DB in production
+
+@app.post("/webhook/cozmo")
+async def receive_webhook(request: Request, background_tasks: BackgroundTasks):
+    payload = await request.json()
+    call_id = payload.get("data", {}).get("call_id")
+
+    # Deduplicate
+    if call_id in processed_events:
+        return {"ok": True, "duplicate": True}
+
+    processed_events.add(call_id)
+
+    # Enqueue for background processing - return 200 immediately
+    background_tasks.add_task(process_call_event, payload)
+    return {"ok": True}
+
+async def process_call_event(payload: dict):
+    event = payload["event"]
+    data = payload["data"]
+
+    if event == "call.completed":
+        await handle_completed_call(data)
+    elif event == "call.failed":
+        await handle_failed_call(data)
+
+async def handle_failed_call(data: dict):
+    call_result = data.get("call_result")
+    if call_result == "NO_ANSWER":
+        # Schedule a retry for later
+        pass
+    elif call_result == "FAILED_VALIDATION":
+        # Alert - configuration issue needs fixing
+        pass
+```
+
+## DNC (Do Not Call) handling
+
+When a prospect asks to be removed from your call list during a call, the `call.completed` webhook includes `dnc_requested: true`.
+
+<Warning>
+  Respecting DNC requests is a legal requirement in many jurisdictions (TCPA in the US, PECR in the UK, etc.). Implement DNC handling before going to production.
+</Warning>
+
+```python Python
+@app.route("/webhook/cozmo", methods=["POST"])
+def handle_webhook():
+    data = request.json["data"]
+
+    if data.get("dnc_requested"):
+        prospect_id = data["prospect"]["ID"]
+        external_id = data["prospect"]["ExternalId"]
+
+        # 1. Mark in your database immediately
+        db.execute(
+            "INSERT INTO dnc_list (prospect_id, external_id, requested_at) VALUES (?, ?, NOW())",
+            [prospect_id, external_id]
+        )
+
+        # 2. Update your CRM
+        crm.add_to_dnc(external_id)
+
+        # 3. Log for compliance audit trail
+        logger.info("dnc_requested", extra={
+            "prospect_id": prospect_id,
+            "external_id": external_id,
+            "call_id": data["call_id"],
+        })
+
+        return jsonify({"ok": True})
+```
+
+## Error logging best practices
+
+### Never swallow errors
+
+```python Python - Bad
+try:
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+except Exception:
+    pass  # NEVER do this - you lose all error context
+```
+
+```python Python - Good
+import logging
+import structlog  # pip install structlog
+
+log = structlog.get_logger()
+
+try:
+    response = requests.post(url, headers=headers, json=payload, timeout=30)
+    response.raise_for_status()
+except requests.HTTPError as e:
+    log.error(
+        "nova_api_error",
+        status_code=e.response.status_code,
+        error=e.response.json().get("error"),
+        message=e.response.json().get("message"),
+        url=url,
+        attempt=attempt,
+    )
+    raise
+except requests.Timeout:
+    log.error("nova_api_timeout", url=url, timeout_seconds=30)
+    raise
+except requests.ConnectionError as e:
+    log.error("nova_api_connection_error", url=url, error=str(e))
+    raise
+```
+
+### Structured logging pattern
+
+Emit structured JSON logs so they are queryable in your observability platform (Datadog, Grafana, CloudWatch, etc.):
+
+```python Python
+import structlog
+import logging
+
+logging.basicConfig(format="%(message)s", level=logging.INFO)
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ]
+)
+log = structlog.get_logger()
+
+def create_workflow_run(org_id: str, workflow_id: str, prospect: dict):
+    log.info("workflow_run.starting", org_id=org_id, workflow_id=workflow_id,
+             prospect_phone=prospect.get("phone"))
+    try:
+        response = requests.post(
+            f"https://v2-nova-api.prod.czmx.in/api/org/{org_id}/workflow-runs",
+            headers={"X-API-Key": "YOUR_API_KEY"},
+            json={"workflow_id": workflow_id, "prospect": prospect},
+            timeout=30,
+        )
+        response.raise_for_status()
+        run = response.json()
+        log.info("workflow_run.created", run_id=run["workflow_run_id"],
+                 org_id=org_id, workflow_id=workflow_id)
+        return run
+    except requests.HTTPError as e:
+        body = e.response.json() if e.response.content else {}
+        log.error("workflow_run.failed", status_code=e.response.status_code,
+                  error=body.get("error"), message=body.get("message"),
+                  org_id=org_id, workflow_id=workflow_id)
+        raise
+```
+
+### Go error handling patterns
+
+In Go, always wrap errors with context so stack traces are meaningful:
+
+```go Go
+package nova
+
+import (
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+)
+
+// NovaError represents a Nova API error response
+type NovaError struct {
+    StatusCode int
+    Error      string `json:"error"`
+    Message    string `json:"message"`
+}
+
+func (e *NovaError) Error() string {
+    return fmt.Sprintf("nova API %d: %s - %s", e.StatusCode, e.Error, e.Message)
+}
+
+func parseNovaError(resp *http.Response) error {
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return fmt.Errorf("nova API %d: (could not read body)", resp.StatusCode)
+    }
+
+    var novaErr NovaError
+    if err := json.Unmarshal(body, &novaErr); err != nil {
+        return fmt.Errorf("nova API %d: %s", resp.StatusCode, string(body))
+    }
+
+    novaErr.StatusCode = resp.StatusCode
+    return &novaErr
+}
+
+func CreateWorkflowRun(orgID, workflowID string, prospect map[string]interface{}) error {
+    resp, err := httpClient.Post(
+        fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/workflow-runs", orgID),
+        "application/json",
+        encodeJSON(map[string]interface{}{
+            "workflow_id": workflowID,
+            "prospect":    prospect,
+        }),
+    )
+    if err != nil {
+        return fmt.Errorf("creating workflow run: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode >= 400 {
+        return fmt.Errorf("creating workflow run: %w", parseNovaError(resp))
+    }
+
+    return nil
+}
+```
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Never swallow errors" icon="triangle-exclamation">
+    Always log the full error response body. The `message` field is actionable and specific. Silently catching exceptions causes hours of debugging later.
+  </Card>
+  <Card title="Retry 5xx, not 4xx" icon="rotate-right">
+    Server errors (5xx) are transient and safe to retry. Client errors (4xx) indicate a bug in your request - fix the request, don't retry it.
+  </Card>
+  <Card title="Use idempotency keys" icon="key">
+    Pre-generate session UUIDs before the first attempt. Retries with the same UUID will never create duplicates - even if the network dropped the original response.
+  </Card>
+  <Card title="Monitor rate limit headers" icon="gauge">
+    Proactively check `X-Rate-Limit-Remaining` and throttle before hitting the limit. At 80% of your limit, slow down your request rate.
+  </Card>
+  <Card title="Add jitter to backoff" icon="shuffle">
+    Pure exponential backoff causes thundering herd. Add random jitter (10-20% of the computed delay) to spread retries across time.
+  </Card>
+  <Card title="Use circuit breakers" icon="bolt">
+    Wrap all Nova API calls in a circuit breaker. When the API is degraded, fail fast rather than piling up timeouts - and recover automatically when the API comes back.
+  </Card>
+  <Card title="Handle DNC immediately" icon="ban">
+    Process `dnc_requested: true` synchronously in your webhook handler before returning 200. DNC compliance is a legal requirement - do not defer it to a background job.
+  </Card>
+  <Card title="Structured logs" icon="list">
+    Emit structured JSON logs for every API error with `status_code`, `error`, `message`, `url`, and relevant IDs. This makes errors queryable in your observability platform.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Rate Limits" icon="gauge" href="/rate-limits">
+    Understand rate limit tiers and how to handle 429 responses.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    React to call failures with the call.failed event and handle retries from Cozmo.
+  </Card>
+  <Card title="Making Your First Call" icon="phone" href="/guides/making-your-first-call">
+    End-to-end guide with error handling integrated at every step.
+  </Card>
+  <Card title="Sessions" icon="messages" href="/concepts/sessions">
+    Idempotent session starts in depth.
+  </Card>
+</CardGroup>

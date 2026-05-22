@@ -1,0 +1,140 @@
+---
+title: "February 2026"
+description: "Python SDK, TypeScript SDK, OpenAPI specification, and automated SDK generation pipeline"
+---
+
+## February 21, 2026
+
+### Python SDK
+
+<Badge>New</Badge>
+
+The official Python SDK is now available on PyPI.
+
+```bash
+pip install cozmoai
+```
+
+The SDK is generated from the Nova API OpenAPI specification using [Stainless](https://stainless.com) and kept in sync with every API update automatically.
+
+**What you get:**
+- Full type hints and Pydantic response models on every endpoint
+- Synchronous client (`CozmoAI`) and async client (`AsyncCozmoAI`) — same interface, your choice
+- Automatic retries with exponential backoff on `5xx` errors
+- Pagination helpers for list endpoints
+- `COZMO_API_KEY` and `COZMO_ORG_ID` read from environment by default
+
+```python
+from cozmoai import CozmoAI
+
+client = CozmoAI()
+
+# List agents
+agents = client.agents.list(org_id="YOUR_ORG_ID")
+for agent in agents.data:
+    print(agent.id, agent.name)
+
+# Get call details
+call = client.calls.get(org_id="YOUR_ORG_ID", call_id="CALL_UUID")
+print(call.transcript)
+```
+
+**Async usage:**
+
+```python
+from cozmoai import AsyncCozmoAI
+import asyncio
+
+async def main():
+    client = AsyncCozmoAI()
+    agents = await client.agents.list(org_id="YOUR_ORG_ID")
+    print(agents.data)
+
+asyncio.run(main())
+```
+
+Resources available: `agents`, `agentSessions`, `calls`, `voices`, `workflows`, `workflowRuns`
+
+[Python SDK reference](/sdk/python)
+
+### TypeScript SDK
+
+<Badge>New</Badge>
+
+The official TypeScript SDK is now available on npm.
+
+```bash
+npm install cozmoai
+```
+
+Works with Node 18+, Bun 1.0+, and Deno. Ships as both ESM and CJS so it works in any build setup.
+
+**What you get:**
+- Full TypeScript types for every request and response — no `any` leaking through
+- Promise-based with full `async/await` support
+- Automatic retries with exponential backoff
+- Pagination helpers for list endpoints
+- `COZMO_API_KEY` read from environment by default
+
+```typescript
+import CozmoAI from "cozmoai";
+
+const client = new CozmoAI();
+
+// List agents
+const agents = await client.agents.list({ orgId: "YOUR_ORG_ID" });
+agents.data.forEach((agent) => console.log(agent.id, agent.name));
+
+// Get call details
+const call = await client.calls.get({
+  orgId: "YOUR_ORG_ID",
+  callId: "CALL_UUID",
+});
+console.log(call.transcript);
+```
+
+Resources available: `agents`, `agentSessions`, `calls`, `voices`, `workflows`, `workflowRuns`
+
+[TypeScript SDK reference](/sdk/typescript)
+
+## February 20, 2026
+
+### OpenAPI specification published
+
+<Badge>New</Badge>
+
+The Nova API OpenAPI 3.0 specification is now public. It is the single source of truth for all API endpoints, request shapes, response schemas, and authentication requirements.
+
+The spec drives three things at once:
+- **SDK generation** — Python and TypeScript SDKs are generated directly from the spec via Stainless. When the API changes, the SDKs update automatically.
+- **API Reference** — the interactive API Reference tab is rendered from the spec, keeping docs and the actual API in sync.
+- **Type models** — every request and response schema is defined in the spec, giving you a machine-readable contract for your integration.
+
+Coverage includes all org-scoped endpoints: agents, sessions, calls, voices, workflows, workflow runs, prospects, webhooks, evaluations, members, quality rules, email templates, FAQs, files, analytics, and E2E testing.
+
+### Automated SDK generation pipeline
+
+<Badge>New</Badge>
+
+SDK builds are now fully automated via GitHub Actions. Every push to the API spec triggers a Stainless build that publishes updated packages to PyPI (Python) and npm (TypeScript) without any manual release steps. SDK versions stay in lockstep with the API.
+
+### Organization-scoped authentication
+
+<Badge>New</Badge>
+
+All Nova API endpoints are scoped to an organization. Every request path follows the pattern:
+
+```
+/api/org/{org_id}/{resource}
+```
+
+Authentication uses the `X-API-Key` header. Keys are issued per-organization from **Dashboard → Organization Settings**.
+
+```bash
+curl "https://v2-nova-api.prod.czmx.in/api/org/$ORG_ID/agents" \
+  -H "X-API-Key: $COZMOX_API_KEY"
+```
+
+Org scoping is enforced server-side. A key issued to Org A will receive a `403` on any Org B path, and resource IDs from Org B return `404` even when referenced from an Org A path.
+
+[Authentication](/authentication)

@@ -1,0 +1,74 @@
+---
+title: "Go SDK"
+description: "Official Cozmo AI Go SDK - coming soon"
+---
+
+## Coming Soon
+
+The official Cozmo AI Go SDK is currently in development. It will follow the same patterns as the Python and TypeScript SDKs, with idiomatic Go conventions, context support, and full type safety.
+
+## In the meantime
+
+Use the REST API directly with Go's standard `net/http` package. Every endpoint is documented in the [API Reference](/api-reference/introduction) with `curl` examples and full request/response schemas.
+
+```go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "os"
+)
+
+func main() {
+    orgID := os.Getenv("COZMO_ORG_ID")
+    apiKey := os.Getenv("COZMO_API_KEY")
+
+    body, _ := json.Marshal(map[string]interface{}{
+        "workflow_id": "wf_abc123",
+        "prospect": map[string]string{
+            "phone":      "+19175551234",
+            "first_name": "Jane",
+        },
+    })
+
+    req, _ := http.NewRequest(
+        "POST",
+        fmt.Sprintf("https://v2-nova-api.prod.czmx.in/api/org/%s/workflow-runs", orgID),
+        bytes.NewReader(body),
+    )
+    req.Header.Set("X-API-Key", apiKey)
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+
+    var result map[string]interface{}
+    json.NewDecoder(resp.Body).Decode(&result)
+    fmt.Println("Workflow run ID:", result["workflow_run_id"])
+}
+```
+
+## Get notified
+
+Watch the [Cozmo changelog](https://dash.prod.czmx.in) for Go SDK availability announcements.
+
+<CardGroup cols={2}>
+  <Card title="Python SDK" icon="python" href="/sdk/python">
+    Available now - full reference, async client, FastAPI patterns.
+  </Card>
+  <Card title="TypeScript SDK" icon="js" href="/sdk/typescript">
+    Available now - full reference, types, Next.js patterns.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/introduction">
+    Use the REST API directly with any HTTP client.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Set up your API key and org ID.
+  </Card>
+</CardGroup>

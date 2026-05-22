@@ -1,0 +1,152 @@
+---
+title: "MCP Toolsmith"
+description: "Build, review, and extend a secure Cozmo MCP server with org-pinned tools, read/write/destructive gates, and Vapi-style remote MCP deployment"
+---
+
+## Overview
+
+The `cozmox-mcp-toolsmith` skill guides your AI agent through designing and implementing a secure Model Context Protocol server for the Cozmo Nova API. Use it when adding MCP tools, reviewing tool schemas, implementing read/write/destructive gates, configuring org pinning, or setting up a Vapi-style hosted remote MCP endpoint.
+
+## Install
+
+```bash
+npx skills add CozmoXAI/skills --skill cozmox-mcp-toolsmith -a claude-code -y
+```
+
+## Design principles
+
+1. The MCP server owns `COZMOX_ORG_ID`. Never expose `org_id` as a tool argument.
+2. The MCP server owns `COZMOX_API_KEY`. Never require MCP clients or users to pass Cozmo API keys.
+3. Split tools into read, write, and destructive groups.
+4. Enable read tools by default. Gate write tools behind `COZMOX_ENABLE_WRITE_TOOLS=true`. Gate destructive tools behind `COZMOX_ENABLE_DESTRUCTIVE_TOOLS=true`.
+5. For remote MCP, protect `/mcp` with a separate `MCP_BEARER_TOKEN` — this is not the Cozmo API key.
+6. Never share one Streamable HTTP transport across multiple clients — create per-request server/transport state.
+7. Before a write tool references a resource ID, validate that resource with an org-scoped read first.
+8. For `cozmox_start_agent_session`, always call `GET /agents/{agent_id}` under the configured org before calling `POST /agent-sessions/{session_id}/start`.
+
+## Recommended tool inventory
+
+### Read tools (always enabled)
+
+| Tool | Endpoint | Notes |
+|------|----------|-------|
+| `cozmox_context` | none | Returns configured base URL, org ID, enabled gates, and safety policy |
+| `cozmox_health_check` | `GET /agents?page=1&size=1` | Light connectivity test |
+| `cozmox_list_agents` | `GET /agents` | Pagination optional |
+| `cozmox_get_agent` | `GET /agents/{agent_id}` | Validates agent org ownership |
+| `cozmox_list_calls` | `GET /calls` | Pagination and date filters |
+| `cozmox_get_call_details` | `GET /calls/{call_id}` | Summarize PII-heavy fields by default |
+| `cozmox_list_voices` | `GET /voices` | Use for agent voice selection |
+| `cozmox_list_workflows` | `GET /workflows` | Use before workflow run creation |
+| `cozmox_get_workflow` | `GET /workflows/{workflow_id}` | Validates workflow org ownership |
+| `cozmox_get_agent_session` | `GET /agent-sessions/{session_id}` | Read session status |
+
+### Write tools (`COZMOX_ENABLE_WRITE_TOOLS=true`)
+
+| Tool | Endpoint | Preflight required |
+|------|----------|--------------------|
+| `cozmox_create_agent` | `POST /agents` | Validate payload shape, voice IDs, tool policy |
+| `cozmox_update_agent` | `PATCH /agents/{agent_id}` | `GET /agents/{agent_id}` first |
+| `cozmox_create_workflow_run_with_prospect` | `POST /workflow-runs` | `GET /workflows/{workflow_id}` first |
+| `cozmox_start_agent_session` | `POST /agent-sessions/{session_id}/start` | `GET /agents/{agent_id}` first; generate UUID v4 if absent |
+
+### Destructive tools (`COZMOX_ENABLE_DESTRUCTIVE_TOOLS=true`)
+
+| Tool | Endpoint | Gate |
+|------|----------|------|
+| `cozmox_delete_agent` | `DELETE /agents/{agent_id}` | Requires destructive gate plus exact agent ID literal confirmation |
+
+## Tool schema rules
+
+Use tight schemas. Prefer explicit fields over arbitrary JSON unless the public API schema is itself dynamic.
+
+**Good session-start schema:**
+
+```typescript
+const StartAgentSessionInput = z.object({
+  sessionId: z.string().uuid().optional()
+    .describe("Client-generated UUID v4. If omitted, the MCP server generates one."),
+  agentId: z.string().uuid()
+    .describe("Agent ID validated under the configured org before start."),
+  instruction: z.string().min(1).max(12000),
+  title: z.string().max(200).optional(),
+  source: z.string().max(80).default("mcp"),
+  prospectId: z.string().uuid().optional(),
+});
+```
+
+**Bad schema — never do this:**
+
+```typescript
+const Bad = z.object({
+  org_id: z.string(),   // org must never be a tool argument
+  api_key: z.string(),  // API key must never be a tool argument
+  body: z.any(),        // too permissive
+});
+```
+
+## Implementation checklist
+
+When implementing or reviewing the MCP server:
+
+- [ ] Environment loader rejects missing `COZMOX_API_BASE_URL`, `COZMOX_ORG_ID`, or `COZMOX_API_KEY`
+- [ ] API client accepts only paths relative to `/api/org/{org_id}`
+- [ ] API client refuses absolute URLs and paths containing `/api/org/`
+- [ ] Tool definitions do not expose `org_id`
+- [ ] Tool definitions do not expose `api_key`
+- [ ] Write tools are conditionally registered only when write gate is enabled
+- [ ] Destructive tools are conditionally registered only when destructive gate is enabled
+- [ ] Start-session tool validates agent ownership before creating or starting a session
+- [ ] Workflow-run tool validates workflow ownership before creating a run
+- [ ] Delete/update tools fetch the target resource before mutation
+- [ ] Remote MCP uses a separate bearer token and HTTPS termination
+- [ ] Logs redact `X-API-Key`, Authorization, phone, email, transcript, and recording URLs unless debug mode is explicitly enabled in a secure environment
+
+## Standard error handling
+
+MCP tool responses should follow a predictable shape:
+
+```typescript
+type ToolResult<T> =
+  | { ok: true; data: T; warnings?: string[] }
+  | { ok: false; status?: number; error: string; code?: string; details?: unknown };
+```
+
+For a Cozmo HTTP `404`, use wording like:
+
+```
+Resource not found in the configured organization, or the ID is invalid.
+```
+
+Never reveal whether the resource exists in another org.
+
+## Testing matrix
+
+Create tests for these cases:
+
+1. Read tools use the configured org path and include `X-API-Key`.
+2. A user cannot override `org_id` through tool arguments.
+3. Write tools are absent when `COZMOX_ENABLE_WRITE_TOOLS=false`.
+4. Destructive tools are absent when `COZMOX_ENABLE_DESTRUCTIVE_TOOLS=false`.
+5. `cozmox_start_agent_session` rejects or stops if `GET /agents/{agent_id}` fails.
+6. `cozmox_create_workflow_run_with_prospect` rejects or stops if `GET /workflows/{workflow_id}` fails.
+7. API key and bearer token are redacted in all logs.
+8. Remote HTTP sessions do not reuse the same transport/server state across clients.
+
+## Response template
+
+When adding an MCP tool, the agent responds with:
+
+```
+## Tool added
+Name, endpoint, and read/write/destructive class.
+
+## Safety behavior
+How org pinning, auth, preflight checks, and gates are handled.
+
+## Files changed
+List of files and tests changed.
+
+## How to try it
+Exact command and a safe example invocation.
+```

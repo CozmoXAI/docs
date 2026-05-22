@@ -1,0 +1,206 @@
+---
+title: "Cursor"
+description: "Add the Cozmo MCP server to Cursor so your AI assistant can list agents, inspect calls, and trigger workflow runs without leaving the IDE"
+icon: "arrow-pointer"
+---
+
+## Prerequisites
+
+- [Cursor](https://cursor.sh) installed
+- Node.js **20.11** or later
+- A Cozmo API key and Org ID from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
+
+## Step 1 - Clone and build the MCP server
+
+```bash
+git clone https://github.com/CozmoXAI/mcp-server.git ~/cozmox-mcp-server
+cd ~/cozmox-mcp-server
+npm install
+npm run build
+```
+
+Verify the build:
+
+```bash
+node ~/cozmox-mcp-server/dist/stdio.js --version 2>&1 || echo "Build OK"
+```
+
+## Step 2 - Configure Cursor
+
+Create a `.cursor/mcp.json` file at the root of your project:
+
+```bash
+mkdir -p .cursor
+```
+
+```json .cursor/mcp.json
+{
+  "mcpServers": {
+    "cozmox": {
+      "command": "node",
+      "args": ["/absolute/path/to/cozmox-mcp-server/dist/stdio.js"],
+      "env": {
+        "COZMOX_API_BASE_URL": "https://v2-nova-api.prod.czmx.in",
+        "COZMOX_ORG_ID": "YOUR_ORG_ID",
+        "COZMOX_API_KEY": "YOUR_API_KEY",
+        "COZMOX_ENABLE_WRITE_TOOLS": "false",
+        "COZMOX_ENABLE_DESTRUCTIVE_TOOLS": "false"
+      }
+    }
+  }
+}
+```
+
+Replace `/absolute/path/to/cozmox-mcp-server` with the actual path where you cloned the repo (e.g. `/Users/you/cozmox-mcp-server`).
+
+<Warning>
+  Do not commit your API key to version control. For team setups, omit the `env` block and have each developer set `COZMOX_API_KEY` and `COZMOX_ORG_ID` in their shell profile.
+</Warning>
+
+**Team-safe version** (no secrets in the file):
+
+```json .cursor/mcp.json
+{
+  "mcpServers": {
+    "cozmox": {
+      "command": "node",
+      "args": ["/absolute/path/to/cozmox-mcp-server/dist/stdio.js"]
+    }
+  }
+}
+```
+
+Each developer exports in their shell:
+
+```bash
+# ~/.zshrc or ~/.bashrc
+export COZMOX_API_KEY="your_api_key"
+export COZMOX_ORG_ID="your_org_id"
+```
+
+## Step 3 - Restart Cursor
+
+Close and reopen Cursor, or run **Cursor: Reload Window** from the command palette. The MCP server starts automatically when Cursor loads.
+
+## Step 4 - Verify the connection
+
+Open Cursor's AI panel and ask:
+
+> *"Use cozmox_health_check to verify my Cozmo connection"*
+
+A successful response returns `{ "ok": true, "org_id": "..." }`.
+
+## Available tools
+
+### Read tools (always on)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_context` | Show server config — org ID and which tiers are enabled |
+| `cozmox_health_check` | Verify API key and org connectivity |
+| `cozmox_list_agents` | Paginated agent list; filter by `type` or `search` |
+| `cozmox_get_agent` | Full details for one agent by UUID |
+| `cozmox_list_calls` | Calls list with 12 filters (status, direction, agent, prospect, date range…) |
+| `cozmox_get_call_details` | Full call record — transcript, evaluations, recording metadata, tool logs |
+| `cozmox_list_voices` | Available voices by provider |
+| `cozmox_list_workflows` | Paginated workflow list |
+| `cozmox_get_workflow` | Single workflow with its latest definition |
+| `cozmox_get_agent_session` | Agent session details by UUID |
+
+### Write tools (`COZMOX_ENABLE_WRITE_TOOLS=true`)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_create_agent` | Create a new voice, chat, or video agent |
+| `cozmox_update_agent` | Partial update of an existing agent |
+| `cozmox_create_workflow_run_with_prospect` | Trigger a workflow run with a new or existing prospect |
+| `cozmox_start_agent_session` | Start an agent session with an initial instruction |
+
+### Destructive tools (`COZMOX_ENABLE_DESTRUCTIVE_TOOLS=true`)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_delete_agent` | Permanently delete an agent (requires literal confirmation) |
+
+## What you can now ask Cursor
+
+<AccordionGroup>
+  <Accordion title="Listing and inspecting agents">
+    > *"List all my Cozmo agents and filter by voice type"*
+
+    Cursor calls `cozmox_list_agents` with `{ "type": "voice" }` and returns a paginated list using the correct org-scoped endpoint.
+  </Accordion>
+
+  <Accordion title="Inspecting call records">
+    > *"Get the details for call [call_id] and show me the evaluations and transcript"*
+
+    Cursor calls `cozmox_get_call_details` and returns the full call object including `evaluations[]`, `transcript_text`, `recording_url`, and `summary`.
+  </Accordion>
+
+  <Accordion title="Starting sessions (write tools on)">
+    > *"Start a session for agent [agent_id] with the instruction: follow up on the prospect's demo request"*
+
+    Cursor calls `cozmox_start_agent_session`, which first validates the agent belongs to your org, then creates the session with an auto-generated UUID if you don't supply one.
+  </Accordion>
+
+  <Accordion title="Triggering workflow runs (write tools on)">
+    > *"Create a workflow run for workflow [workflow_id] with prospect phone +19175551234, name Jane Smith"*
+
+    Cursor calls `cozmox_create_workflow_run_with_prospect`, which validates workflow visibility then posts to `POST /workflow-runs`.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="MCP server not responding">
+    Verify the build output exists:
+
+    ```bash
+    ls ~/cozmox-mcp-server/dist/stdio.js
+    ```
+
+    If missing, rebuild:
+
+    ```bash
+    cd ~/cozmox-mcp-server && npm run build
+    ```
+
+    Then reload Cursor.
+  </Accordion>
+
+  <Accordion title="Permission errors">
+    Ensure Node.js 20.11+ is active:
+
+    ```bash
+    node --version   # must be v20.11.0 or later
+    ```
+
+    If using nvm:
+
+    ```bash
+    nvm use 20
+    ```
+  </Accordion>
+
+  <Accordion title="AI still producing wrong API calls">
+    Make sure `.cursor/mcp.json` is in the **root of the workspace you have open**, not a parent directory. Cursor loads MCP config per workspace.
+
+    Reload the window after any config changes.
+  </Accordion>
+
+  <Accordion title="Sharing config across the team">
+    Commit `.cursor/mcp.json` without the `env` block. Each developer exports `COZMOX_API_KEY` and `COZMOX_ORG_ID` in their shell profile and rebuilds the MCP server locally.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Overview" icon="server" href="/mcp/overview">
+    Full tool reference, HTTP mode, and Docker.
+  </Card>
+  <Card title="Making your first call" icon="phone" href="/guides/making-your-first-call">
+    End-to-end guide to placing an AI voice call.
+  </Card>
+</CardGroup>

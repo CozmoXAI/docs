@@ -1,0 +1,155 @@
+---
+title: "Workflow Builder"
+description: "Discover, validate, and prepare Cozmo workflows for API triggering — produces workflow_id for the Workflow Runner skill and bridges agent creation to run execution"
+---
+
+## Overview
+
+The `cozmox-workflow-builder` skill makes your AI coding assistant expert at finding and validating the right workflow before triggering runs. Use it to list active API-triggered workflows, confirm a workflow is ready to accept runs, and hand off the validated `workflow_id` to [`cozmox-workflow-runner`](/skills/cozmox-workflow-runner).
+
+Workflows are created and configured in the Cozmo Dashboard — not via the API. This skill covers everything you can do with workflows through the API: discover, inspect, and validate.
+
+## Install
+
+```bash
+npx skills add CozmoXAI/skills --skill cozmox-workflow-builder -a claude-code -y
+```
+
+## Compose with the API Operator and Workflow Runner
+
+```
+cozmox-api-operator  →  agent_id
+                                ↓  (attach agent to workflow in Dashboard)
+          cozmox-workflow-builder  →  workflow_id
+                                ↓
+            cozmox-workflow-runner  →  workflow_run_id
+```
+
+`agent_id` is attached to a workflow in the Dashboard. This skill validates that workflow is configured and ready before handing `workflow_id` to the runner.
+
+## Workflow endpoints
+
+```http
+GET /api/org/{org_id}/workflows
+GET /api/org/{org_id}/workflows/{workflow_id}
+```
+
+## Workflow fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique workflow identifier |
+| `name` | string | Human-readable name |
+| `description` | string | What the workflow does and which prospects it targets |
+| `is_active` | boolean | Whether the workflow accepts new runs. Always filter by `is_active=true` in production |
+| `trigger_type` | string | How the workflow is initiated: `api`, `schedule`, or `inbound` |
+| `version` | integer | Increments each time the workflow definition is updated in the Dashboard |
+| `published_at` | string | ISO 8601 timestamp of the current version publish |
+| `created_at` | string | ISO 8601 timestamp of first creation |
+| `updated_at` | string | ISO 8601 timestamp of last update |
+
+## Trigger types
+
+| Trigger type | How it starts | Can be API-triggered |
+|-------------|---------------|----------------------|
+| `api` | POST to `/workflow-runs` | Yes |
+| `schedule` | Cron schedule in Dashboard | No — runs automatically |
+| `inbound` | Inbound call received | No — runs automatically |
+
+Only `trigger_type: api` workflows accept runs from the API. Never attempt to trigger a `schedule` or `inbound` workflow via the API.
+
+## Step 1 — list active API-triggered workflows
+
+```bash
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflows?is_active=true&trigger_type=api" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "wf_abc123",
+      "name": "Q2 Outbound Sales",
+      "description": "Multi-touch outbound campaign for Q2 enterprise prospects",
+      "is_active": true,
+      "trigger_type": "api",
+      "version": 3,
+      "published_at": "2026-04-01T09:00:00Z"
+    }
+  ],
+  "meta": { "page": 1, "size": 20, "total": 2, "total_pages": 1 }
+}
+```
+
+## Step 2 — validate a specific workflow
+
+```bash
+curl --request GET \
+  --url "$COZMOX_API_BASE_URL/api/org/$COZMOX_ORG_ID/workflows/$WORKFLOW_ID" \
+  --header "X-API-Key: $COZMOX_API_KEY"
+```
+
+Check the response before proceeding:
+
+| Check | Required value | Action if failed |
+|-------|----------------|-----------------|
+| `is_active` | `true` | Stop — workflow is inactive |
+| `trigger_type` | `api` | Stop — workflow cannot be API-triggered |
+| HTTP status | `200` | Stop — workflow not found in this org |
+
+## Safety contract
+
+Before generating or executing any workflow command:
+
+1. Use `COZMOX_ORG_ID` from environment — never ask the user to supply an org ID.
+2. Never print a live `COZMOX_API_KEY`.
+3. Always validate `is_active: true` and `trigger_type: api` before handing off `workflow_id`.
+4. If either check fails, stop and report — do not proceed to the Workflow Runner.
+5. Only read operations are performed by this skill. No writes.
+
+## Query parameters for listing
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | integer | Page number (default: `1`) |
+| `size` | integer | Page size (default: `20`, max: `100`) |
+| `is_active` | boolean | Filter to active workflows only |
+| `trigger_type` | string | Filter by trigger type: `api`, `schedule`, `inbound` |
+| `search` | string | Search within name and description |
+
+## Dashboard: attach an agent to a workflow
+
+Workflows are configured in the [Cozmo Dashboard](https://dash.prod.czmx.in). Before this skill can validate a workflow for API triggering, the workflow must have an agent assigned in the Dashboard.
+
+Steps:
+1. Open the workflow in the Dashboard.
+2. Assign the agent created by `cozmox-api-operator` (use the `agent_id` it returned).
+3. Set `trigger_type` to `api`.
+4. Publish the workflow.
+5. Return here to validate with `GET /workflows/{workflow_id}`.
+
+## Result template
+
+```
+## Workflow validated
+workflow_id: <workflow_id>
+Name: <name>
+trigger_type: api
+is_active: true
+Version: <version>
+Published: <published_at>
+Org: <first 8 chars>…<last 4 chars>
+
+## Validations performed
+- Workflow ownership confirmed under configured COZMOX_ORG_ID.
+- trigger_type confirmed as api.
+- is_active confirmed as true.
+- API key not printed.
+
+## Next step
+Pass this workflow_id to cozmox-workflow-runner to trigger runs with prospect data.
+```

@@ -1,0 +1,673 @@
+---
+title: "Calls"
+description: "Calls represent voice interactions placed or received by agents - inspect transcripts, recordings, evaluations, tool usage, and cost breakdowns"
+---
+
+## What is a call?
+
+A call is a voice interaction that occurs within an agent session. When a workflow run triggers a voice session, Nova dials the prospect's phone number (outbound) or routes an incoming call to the configured agent (inbound). The resulting call record captures everything that happened: the full transcript, AI-generated summary, post-call evaluations, tool invocations, and cost data.
+
+<Info>
+  Calls are created automatically when a voice agent session places or receives a call. You cannot create calls directly via the API.
+</Info>
+
+Calls are linked to sessions via `session_id` and to workflow runs via `workflow_run_id`. Most post-call processing - CRM updates, scheduling follow-ups, alerting - is driven by the call record and its evaluations.
+
+## Call directions
+
+| Direction | Description |
+|-----------|-------------|
+| `outbound` | Agent places a call to the prospect's phone number |
+| `inbound` | Prospect calls in and the agent handles the call |
+
+## Call lifecycle
+
+Calls move through a linear lifecycle from the moment Nova dials to final analysis:
+
+```
+Dialing -> Connected -> In Progress -> Ended -> Analyzed (FINISHED)
+                                              -> Analysis failed (ANALYSIS_FAILED)
+        -> Not answered (NO_ANSWER)
+        -> Busy (BUSY)
+        -> Failed (FAILED / FAILED_SIP / FAILED_VALIDATION)
+        -> Cancelled (CANCELLED)
+```
+
+| Status | Description |
+|--------|-------------|
+| `FINISHED` | Call completed and post-call analysis succeeded |
+| `FAILED` | Technical failure during the call (media, WebRTC, connectivity) |
+| `FAILED_VALIDATION` | Call failed a pre-call validation check - check agent and prospect config |
+| `FAILED_SIP` | SIP/trunk-level connection error at the carrier |
+| `ANALYSIS_FAILED` | Call completed but post-call analysis (summary, evaluations) failed - audio and transcript are still available |
+| `NO_ANSWER` | Prospect did not answer |
+| `BUSY` | Prospect's line was busy |
+| `CANCELLED` | Call was cancelled before connecting |
+
+## Listing calls
+
+Retrieve a paginated list of all calls in your organization. Use query parameters to filter by status, workflow, date range, or evaluation outcome.
+
+<CodeGroup>
+
+```bash cURL
+# Basic list - most recent first
+curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/calls?page=1&size=20" \
+  -H "X-API-Key: YOUR_API_KEY"
+
+# Filter by status
+curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/calls?status=FINISHED&page=1&size=50" \
+  -H "X-API-Key: YOUR_API_KEY"
+
+# Filter by date range
+curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/calls?started_after=2026-04-01T00:00:00Z&started_before=2026-04-30T23:59:59Z" \
+  -H "X-API-Key: YOUR_API_KEY"
+
+# Filter by workflow run
+curl "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/calls?workflow_run_id=run_xyz789" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+```python Python
+import requests
+
+ORG_ID = "your-org-id"
+API_KEY = "YOUR_API_KEY"
+
+# Basic paginated list
+response = requests.get(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/calls",
+    headers={"X-API-Key": API_KEY},
+    params={"page": 1, "size": 20},
+)
+data = response.json()
+for call in data["data"]:
+    print(call["id"], call["status"], call["duration_seconds"])
+
+# Filter by status and date range
+response = requests.get(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/calls",
+    headers={"X-API-Key": API_KEY},
+    params={
+        "status": "FINISHED",
+        "started_after": "2026-04-01T00:00:00Z",
+        "started_before": "2026-04-30T23:59:59Z",
+        "page": 1,
+        "size": 50,
+    },
+)
+finished_calls = response.json()["data"]
+print(f"Found {len(finished_calls)} finished calls in April")
+
+# Iterate all calls (pagination)
+def get_all_calls(status=None):
+    page = 1
+    while True:
+        params = {"page": page, "size": 100}
+        if status:
+            params["status"] = status
+        resp = requests.get(
+            f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/calls",
+            headers={"X-API-Key": API_KEY},
+            params=params,
+        )
+        data = resp.json()
+        yield from data["data"]
+        if page >= data["meta"]["total_pages"]:
+            break
+        page += 1
+
+for call in get_all_calls(status="FINISHED"):
+    print(call["id"])
+```
+
+```typescript TypeScript
+const ORG_ID = "your-org-id";
+const API_KEY = process.env.NOVA_API_KEY!;
+const BASE = `https://v2-nova-api.prod.czmx.in/api/org/${ORG_ID}`;
+
+// Basic list
+const res = await fetch(`${BASE}/calls?page=1&size=20`, {
+  headers: { "X-API-Key": API_KEY },
+});
+const data = await res.json();
+
+// Filter by status
+const finished = await fetch(
+  `${BASE}/calls?status=FINISHED&started_after=2026-04-01T00:00:00Z`,
+  { headers: { "X-API-Key": API_KEY } }
+).then((r) => r.json());
+
+// Paginate through all calls
+async function* getAllCalls(params: Record<string, string> = {}) {
+  let page = 1;
+  while (true) {
+    const query = new URLSearchParams({ page: String(page), size: "100", ...params });
+    const resp = await fetch(`${BASE}/calls?${query}`, {
+      headers: { "X-API-Key": API_KEY },
+    });
+    const body = await resp.json();
+    for (const call of body.data) yield call;
+    if (page >= body.meta.total_pages) break;
+    page++;
+  }
+}
+
+for await (const call of getAllCalls({ status: "FINISHED" })) {
+  console.log(call.id, call.duration_seconds);
+}
+```
+
+```go Go
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "strconv"
+)
+
+const (
+    orgID  = "your-org-id"
+    apiKey = "YOUR_API_KEY"
+    base   = "https://v2-nova-api.prod.czmx.in/api"
+)
+
+type CallList struct {
+    Data []map[string]interface{} `json:"data"`
+    Meta struct {
+        Page       int `json:"page"`
+        TotalPages int `json:"total_pages"`
+    } `json:"meta"`
+}
+
+func ListCalls(status string, page int) (*CallList, error) {
+    url := fmt.Sprintf("%s/org/%s/calls?page=%d&size=50", base, orgID, page)
+    if status != "" {
+        url += "&status=" + status
+    }
+
+    req, _ := http.NewRequest("GET", url, nil)
+    req.Header.Set("X-API-Key", apiKey)
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    var result CallList
+    json.NewDecoder(resp.Body).Decode(&result)
+    return &result, nil
+}
+
+func GetAllCalls(status string) ([]map[string]interface{}, error) {
+    var all []map[string]interface{}
+    page := 1
+    for {
+        data, err := ListCalls(status, page)
+        if err != nil {
+            return nil, err
+        }
+        all = append(all, data.Data...)
+        if page >= data.Meta.TotalPages {
+            break
+        }
+        page++
+    }
+    return all, nil
+}
+```
+
+</CodeGroup>
+
+### Filter parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | integer | Page number (default: `1`) |
+| `size` | integer | Page size (default: `20`, max: `100`) |
+| `status` | string | Filter by call status (`FINISHED`, `NO_ANSWER`, etc.) |
+| `direction` | string | Filter by direction: `outbound` or `inbound` |
+| `workflow_run_id` | string | Filter calls for a specific workflow run |
+| `session_id` | string | Filter calls for a specific session |
+| `agent_id` | string | Filter calls for a specific agent |
+| `started_after` | string | ISO 8601 - return calls started after this time |
+| `started_before` | string | ISO 8601 - return calls started before this time |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "call_17546d2d",
+      "agent_name": "Sales Agent",
+      "call_type": "workflow",
+      "direction": "outbound",
+      "status": "FINISHED",
+      "duration_seconds": 187,
+      "from_number": "+19175550001",
+      "to_number": "+19175551234",
+      "prospect_id": "prospect_uuid",
+      "prospect_first_name": "Jane",
+      "prospect_last_name": "Doe",
+      "cost_usd": "0.042",
+      "started_at": "2026-04-21T10:00:00Z",
+      "ended_at": "2026-04-21T10:03:07Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "size": 20,
+    "total": 142,
+    "total_pages": 8
+  }
+}
+```
+
+### Filtering by evaluation outcome
+
+To find all calls where a specific evaluation outcome was `true` (for example, all calls where the prospect was interested), fetch calls and filter client-side using the evaluation key:
+
+```python Python
+def find_calls_with_evaluation(evaluation_key: str, result: bool = True):
+    """Return all calls where evaluation_key matches the expected result."""
+    matches = []
+    for call in get_all_calls(status="FINISHED"):
+        # Fetch full call detail to get evaluations
+        detail = requests.get(
+            f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/calls/{call['id']}",
+            headers={"X-API-Key": API_KEY},
+        ).json()
+        for ev in detail.get("evaluations", []):
+            if ev["outcome_key"] == evaluation_key and ev["result_boolean"] == result:
+                matches.append(detail)
+                break
+    return matches
+
+# Find all calls where INTERESTED = true
+interested_calls = find_calls_with_evaluation("INTERESTED", True)
+print(f"Found {len(interested_calls)} interested prospects")
+```
+
+## Getting call details
+
+Fetch the full record for a single call - includes transcript, evaluations, tool logs, and cost breakdown:
+
+<CodeGroup>
+
+```bash cURL
+curl https://v2-nova-api.prod.czmx.in/api/org/{org_id}/calls/{call_id} \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+```python Python
+response = requests.get(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/calls/{call_id}",
+    headers={"X-API-Key": API_KEY},
+)
+call = response.json()
+
+# Access key fields
+print("Summary:", call["summary"])
+print("Recording:", call["recording_url"])
+print("Cost:", call["cost_usd"], "USD")
+
+# Print all evaluations
+for ev in call.get("evaluations", []):
+    print(f"  {ev['outcome_key']}: {ev['result_boolean']} ({ev['reasoning']})")
+
+# Print tool invocations
+for tool in call.get("tool_logs", []):
+    print(f"  Tool: {tool['tool_name']} - {tool['status']}")
+```
+
+```typescript TypeScript
+const res = await fetch(
+  `https://v2-nova-api.prod.czmx.in/api/org/${ORG_ID}/calls/${callId}`,
+  { headers: { "X-API-Key": API_KEY } }
+);
+const call = await res.json();
+
+console.log("Summary:", call.summary);
+console.log("Recording:", call.recording_url);
+console.log("Cost:", call.cost_usd, "USD");
+
+call.evaluations?.forEach((ev: any) => {
+  console.log(`${ev.outcome_key}: ${ev.result_boolean} - ${ev.reasoning}`);
+});
+```
+
+```go Go
+req, _ := http.NewRequest("GET",
+    fmt.Sprintf("%s/org/%s/calls/%s", base, orgID, callID),
+    nil,
+)
+req.Header.Set("X-API-Key", apiKey)
+
+resp, _ := http.DefaultClient.Do(req)
+defer resp.Body.Close()
+
+var call map[string]interface{}
+json.NewDecoder(resp.Body).Decode(&call)
+fmt.Println("Summary:", call["summary"])
+fmt.Println("Recording:", call["recording_url"])
+```
+
+</CodeGroup>
+
+**Full response:**
+
+```json
+{
+  "id": "call_17546d2d",
+  "agent_name": "Sales Agent",
+  "direction": "outbound",
+  "status": "FINISHED",
+  "call_type": "workflow",
+  "duration_seconds": 187,
+  "from_number": "+19175550001",
+  "to_number": "+19175551234",
+  "prospect_id": "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
+  "prospect_first_name": "Jane",
+  "prospect_last_name": "Doe",
+  "prospect_phone": "+19175551234",
+  "summary": "The agent called Jane to follow up on her demo request. Jane confirmed interest and agreed to a follow-up meeting on Friday.",
+  "transcript_text": "Agent: Hi, is this Jane Doe?\nProspect: Yes, speaking.\nAgent: Hi Jane, this is Alex from Acme...",
+  "recording_url": "https://storage.czmx.in/recordings/call_17546d2d.mp3",
+  "evaluations": [
+    {
+      "outcome_key": "INTERESTED",
+      "extracted_value": "yes",
+      "reasoning": "Prospect agreed to a follow-up meeting.",
+      "result_boolean": true
+    },
+    {
+      "outcome_key": "CALLBACK_REQUESTED",
+      "extracted_value": "",
+      "reasoning": "No callback explicitly requested.",
+      "result_boolean": false
+    },
+    {
+      "outcome_key": "SENTIMENT",
+      "extracted_value": "positive",
+      "reasoning": "Prospect was enthusiastic and engaged throughout.",
+      "result_boolean": true
+    }
+  ],
+  "tool_logs": [
+    {
+      "tool_name": "schedule_meeting",
+      "status": "success",
+      "arguments": {"date": "2026-04-25", "prospect_id": "5abb08f3"},
+      "result": {"meeting_id": "mtg_abc", "calendar_url": "https://cal.example.com/mtg_abc"},
+      "created_at": "2026-04-21T10:02:30Z"
+    }
+  ],
+  "tokens_input": 1240,
+  "tokens_output": 380,
+  "tts_characters": 820,
+  "stt_duration_seconds": 95,
+  "cost_usd": "0.042",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "workflow_run_id": "run_xyz789",
+  "started_at": "2026-04-21T10:00:00Z",
+  "ended_at": "2026-04-21T10:03:07Z"
+}
+```
+
+## Response field reference
+
+<ResponseField name="id" type="string">
+  Unique call identifier (e.g. `call_17546d2d`).
+</ResponseField>
+
+<ResponseField name="direction" type="string">
+  `outbound` or `inbound`.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Terminal call status. See [Call lifecycle](#call-lifecycle) above.
+</ResponseField>
+
+<ResponseField name="call_type" type="string">
+  How the call was initiated: `workflow` (via a workflow run) or `direct` (via a session start).
+</ResponseField>
+
+<ResponseField name="duration_seconds" type="integer">
+  Total connected call duration in seconds (from answer to hangup). `0` for unanswered calls.
+</ResponseField>
+
+<ResponseField name="from_number" type="string">
+  The E.164 phone number the call was placed from (your provisioned number).
+</ResponseField>
+
+<ResponseField name="to_number" type="string">
+  The E.164 phone number that was dialed (the prospect's number).
+</ResponseField>
+
+<ResponseField name="summary" type="string">
+  AI-generated summary of the call conversation. `null` if analysis has not yet completed.
+</ResponseField>
+
+<ResponseField name="transcript_text" type="string">
+  Full plain-text transcript of the call, with speaker labels (e.g. `Agent:`, `Prospect:`). `null` if transcription is not yet available.
+</ResponseField>
+
+<ResponseField name="recording_url" type="string">
+  Presigned URL to the call recording audio file (MP3). Available a few seconds after the call ends. URLs expire after 24 hours - store recordings in your own storage if you need long-term access.
+</ResponseField>
+
+<ResponseField name="evaluations" type="array">
+  Post-call evaluation results. Each entry corresponds to an outcome definition configured on your workflow.
+  <Expandable title="Evaluation object fields">
+    <ResponseField name="outcome_key" type="string">
+      The evaluation key matching your outcome definition (e.g. `INTERESTED`, `CALLBACK_REQUESTED`, `SENTIMENT`, `SUMMARY`).
+    </ResponseField>
+    <ResponseField name="extracted_value" type="string">
+      The raw value extracted from the call for this evaluation (e.g. `"positive"`, `"yes"`, `"2026-04-25"`).
+    </ResponseField>
+    <ResponseField name="reasoning" type="string">
+      AI-generated explanation for the evaluation result. Use this to understand why a particular outcome was determined.
+    </ResponseField>
+    <ResponseField name="result_boolean" type="boolean">
+      Boolean outcome of the evaluation. For most evaluations: `true` means the outcome occurred, `false` means it did not.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="tool_logs" type="array">
+  Ordered log of every tool the agent invoked during the call.
+  <Expandable title="Tool log object fields">
+    <ResponseField name="tool_name" type="string">
+      Name of the tool that was called (matches the tool definition in your agent config).
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      `success` or `error`.
+    </ResponseField>
+    <ResponseField name="arguments" type="object">
+      The arguments passed to the tool by the agent.
+    </ResponseField>
+    <ResponseField name="result" type="object">
+      The response returned by the tool endpoint. `null` on error.
+    </ResponseField>
+    <ResponseField name="error_message" type="string">
+      Error message if the tool call failed. `null` on success.
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      ISO 8601 timestamp of when the tool was invoked during the call.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="cost_usd" type="string">
+  Total cost of the call in USD as a decimal string (e.g. `"0.042"`). This is the sum of LLM token costs, STT processing, and TTS synthesis.
+</ResponseField>
+
+<ResponseField name="tokens_input" type="integer">
+  Total LLM input tokens consumed during the call (includes system prompt, conversation history, and tool results).
+</ResponseField>
+
+<ResponseField name="tokens_output" type="integer">
+  Total LLM output tokens generated during the call (the agent's responses).
+</ResponseField>
+
+<ResponseField name="tts_characters" type="integer">
+  Number of characters synthesized by the text-to-speech provider. Used to calculate TTS cost.
+</ResponseField>
+
+<ResponseField name="stt_duration_seconds" type="integer">
+  Total audio duration processed by the speech-to-text provider in seconds. Used to calculate STT cost.
+</ResponseField>
+
+<ResponseField name="session_id" type="string">
+  UUID of the session this call belongs to.
+</ResponseField>
+
+<ResponseField name="workflow_run_id" type="string">
+  ID of the workflow run that triggered this call. `null` for calls started directly via session API.
+</ResponseField>
+
+<ResponseField name="started_at" type="string">
+  ISO 8601 timestamp of when the call connected.
+</ResponseField>
+
+<ResponseField name="ended_at" type="string">
+  ISO 8601 timestamp of when the call ended.
+</ResponseField>
+
+## Call cost breakdown
+
+Every call has a cost composed of three components:
+
+| Component | Field | Driver |
+|-----------|-------|--------|
+| LLM (input) | `tokens_input` | Prompt size, conversation length, tool results |
+| LLM (output) | `tokens_output` | Agent response length |
+| Speech-to-text | `stt_duration_seconds` | Audio duration of prospect speech |
+| Text-to-speech | `tts_characters` | Character count of agent responses |
+
+The `cost_usd` field reflects the sum of all components using your plan's per-unit rates. Use the detailed fields (`tokens_input`, `tokens_output`, `tts_characters`, `stt_duration_seconds`) to identify cost drivers and optimize your prompt templates or agent configuration.
+
+**Tips to reduce cost:**
+
+- Shorten your system prompt - `tokens_input` is charged per turn
+- Lower `max_tokens` in your LLM config to limit response verbosity
+- Use a faster STT model for shorter `endpointing_ms` (reduces STT duration slightly)
+- Switch to a lower-cost LLM for simpler use cases (e.g. `gpt-4o-mini`)
+
+## Getting the recording URL
+
+The `recording_url` field is a presigned URL available a few seconds after the call ends. It expires after 24 hours.
+
+```python Python
+call = requests.get(
+    f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/calls/{call_id}",
+    headers={"X-API-Key": API_KEY},
+).json()
+
+recording_url = call.get("recording_url")
+if recording_url:
+    # Download and store in your own storage
+    audio = requests.get(recording_url).content
+    with open(f"{call_id}.mp3", "wb") as f:
+        f.write(audio)
+```
+
+<Warning>
+  Recording URLs expire after 24 hours. If you need long-term access to recordings, download them to your own storage (S3, GCS, etc.) immediately after the `call.completed` webhook fires.
+</Warning>
+
+## Pagination patterns
+
+To process all calls for a date range or status, paginate using `page` and `size`:
+
+```python Python
+def iter_calls(status=None, started_after=None, started_before=None):
+    """Generator that yields all calls matching the given filters."""
+    page = 1
+    while True:
+        params = {"page": page, "size": 100}
+        if status:
+            params["status"] = status
+        if started_after:
+            params["started_after"] = started_after
+        if started_before:
+            params["started_before"] = started_before
+
+        resp = requests.get(
+            f"https://v2-nova-api.prod.czmx.in/api/org/{ORG_ID}/calls",
+            headers={"X-API-Key": API_KEY},
+            params=params,
+        ).json()
+
+        yield from resp["data"]
+        meta = resp["meta"]
+        if meta["page"] >= meta["total_pages"]:
+            break
+        page += 1
+
+# Export all April calls to CSV
+import csv, io
+
+buf = io.StringIO()
+writer = csv.DictWriter(buf, fieldnames=["id", "status", "duration_seconds", "cost_usd", "started_at"])
+writer.writeheader()
+for call in iter_calls(started_after="2026-04-01T00:00:00Z", started_before="2026-04-30T23:59:59Z"):
+    writer.writerow({k: call.get(k) for k in writer.fieldnames})
+
+print(buf.getvalue())
+```
+
+## Webhook vs polling
+
+| Approach | Best for | Tradeoffs |
+|----------|----------|-----------|
+| **Webhooks** | Production use, real-time processing | Requires a public HTTPS endpoint; handle retries and deduplication |
+| **Polling** | Development, batch processing, ad-hoc scripts | Simple to implement; latency proportional to poll interval; wastes API quota |
+
+For production integrations, use webhooks. Configure your endpoint in [Dashboard - Webhook Settings](https://dash.prod.czmx.in) and refer to the [Webhooks](/webhooks) reference for payload details.
+
+For local development, use the [Cozmo CLI](/cli/webhook) to forward webhook events to your local machine.
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Use webhooks, not polling" icon="webhook">
+    React to call.completed events in real time. Polling the calls list wastes API quota and adds latency.
+  </Card>
+  <Card title="Store recording URLs quickly" icon="download">
+    Presigned recording URLs expire after 24 hours. Download to your own storage immediately after call.completed fires.
+  </Card>
+  <Card title="Read evaluations for automation" icon="robot">
+    Use the evaluations array to drive downstream actions - CRM updates, scheduling callbacks, flagging for human review - rather than parsing the transcript yourself.
+  </Card>
+  <Card title="Always store call_id and workflow_run_id" icon="bookmark">
+    Persist these IDs alongside your CRM records. They are your audit trail and the key for troubleshooting any call.
+  </Card>
+  <Card title="Check cost fields" icon="chart-line">
+    Monitor tokens_input, tokens_output, tts_characters, and stt_duration_seconds to identify expensive calls and optimize your prompt and agent config.
+  </Card>
+  <Card title="Handle ANALYSIS_FAILED gracefully" icon="triangle-exclamation">
+    If a call has status ANALYSIS_FAILED, the audio and transcript are still available but evaluations may be missing. Re-trigger analysis from the Dashboard or fall back to manual review.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhooks" icon="webhook" href="/webhooks">
+    React to call.completed and call.failed events with the full payload.
+  </Card>
+  <Card title="Sessions" icon="messages" href="/concepts/sessions">
+    Understand how sessions contain and relate to calls.
+  </Card>
+  <Card title="Workflows" icon="sitemap" href="/concepts/workflows">
+    Configure workflows that trigger calls and define evaluation outcomes.
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle call failures, DNC requests, and retries in production.
+  </Card>
+</CardGroup>

@@ -1,0 +1,217 @@
+---
+title: "Claude Code & Claude Desktop"
+description: "Add the Cozmo MCP server to Claude Code (CLI) or Claude Desktop so you can list agents, inspect calls, and trigger workflow runs"
+icon: "asterisk"
+---
+
+## Prerequisites
+
+- Node.js **20.11** or later
+- A Cozmo API key and Org ID from [Dashboard → Organization Settings](https://dash.prod.czmx.in)
+- [Claude Code](https://claude.ai/code) CLI (`npm install -g @anthropic-ai/claude-code`) **or** [Claude Desktop](https://claude.ai/download)
+
+## Step 1 - Clone and build the MCP server
+
+```bash
+git clone https://github.com/CozmoXAI/mcp-server.git ~/cozmox-mcp-server
+cd ~/cozmox-mcp-server
+npm install
+npm run build
+```
+
+---
+
+## Claude Code (CLI)
+
+### Add to Claude Code
+
+Register the server globally:
+
+```bash
+claude mcp add cozmox node /absolute/path/to/cozmox-mcp-server/dist/stdio.js \
+  --env COZMOX_API_BASE_URL=https://v2-nova-api.prod.czmx.in \
+  --env COZMOX_ORG_ID=YOUR_ORG_ID \
+  --env COZMOX_API_KEY=YOUR_API_KEY \
+  --env COZMOX_ENABLE_WRITE_TOOLS=false \
+  --env COZMOX_ENABLE_DESTRUCTIVE_TOOLS=false
+```
+
+To scope it to a specific project instead:
+
+```bash
+claude mcp add cozmox node /absolute/path/to/cozmox-mcp-server/dist/stdio.js --scope project
+```
+
+This creates `.claude/settings.json` in your project root — safe to commit if the `env` block contains no secrets.
+
+### Verify
+
+Start a Claude Code session:
+
+```bash
+claude
+```
+
+Then ask:
+
+> *"Use cozmox_health_check to verify my Cozmo connection"*
+
+A successful response returns `{ "ok": true, "org_id": "..." }`.
+
+### Remove the server
+
+```bash
+claude mcp remove cozmox
+```
+
+---
+
+## Claude Desktop
+
+### Configure
+
+Edit `claude_desktop_config.json`:
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json claude_desktop_config.json
+{
+  "mcpServers": {
+    "cozmox": {
+      "command": "node",
+      "args": ["/absolute/path/to/cozmox-mcp-server/dist/stdio.js"],
+      "env": {
+        "COZMOX_API_BASE_URL": "https://v2-nova-api.prod.czmx.in",
+        "COZMOX_ORG_ID": "YOUR_ORG_ID",
+        "COZMOX_API_KEY": "YOUR_API_KEY",
+        "COZMOX_ENABLE_WRITE_TOOLS": "false",
+        "COZMOX_ENABLE_DESTRUCTIVE_TOOLS": "false"
+      }
+    }
+  }
+}
+```
+
+Replace `/absolute/path/to/cozmox-mcp-server` with the actual path (e.g. `/Users/you/cozmox-mcp-server`).
+
+Restart Claude Desktop after editing the config.
+
+<Warning>
+  Do not share or commit `claude_desktop_config.json` if it contains your API key. Set `COZMOX_API_KEY` in your shell profile and omit the `env` block in the config file instead.
+</Warning>
+
+---
+
+## Available tools
+
+### Read tools (always on)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_context` | Show server config — org ID and which tiers are enabled |
+| `cozmox_health_check` | Verify API key and org connectivity |
+| `cozmox_list_agents` | Paginated agent list; filter by `type` or `search` |
+| `cozmox_get_agent` | Full details for one agent by UUID |
+| `cozmox_list_calls` | Calls list with 12 filters (status, direction, agent, prospect, date range…) |
+| `cozmox_get_call_details` | Full call record — transcript, evaluations, recording metadata, tool logs |
+| `cozmox_list_voices` | Available voices by provider |
+| `cozmox_list_workflows` | Paginated workflow list |
+| `cozmox_get_workflow` | Single workflow with its latest definition |
+| `cozmox_get_agent_session` | Agent session details by UUID |
+
+### Write tools (`COZMOX_ENABLE_WRITE_TOOLS=true`)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_create_agent` | Create a new voice, chat, or video agent |
+| `cozmox_update_agent` | Partial update of an existing agent |
+| `cozmox_create_workflow_run_with_prospect` | Trigger a workflow run with a new or existing prospect |
+| `cozmox_start_agent_session` | Start an agent session with an initial instruction |
+
+### Destructive tools (`COZMOX_ENABLE_DESTRUCTIVE_TOOLS=true`)
+
+| Tool | What it does |
+|------|-------------|
+| `cozmox_delete_agent` | Permanently delete an agent (requires literal confirmation) |
+
+---
+
+## CLAUDE.md for Cozmo projects
+
+Add a `CLAUDE.md` to your project root to give Claude persistent context about your integration:
+
+```markdown CLAUDE.md
+# Cozmo / Nova API Integration
+
+## Project context
+- Integrates with the Nova API: https://v2-nova-api.prod.czmx.in/api
+- Auth: X-API-Key header — value from COZMOX_API_KEY env var
+- All endpoints are scoped to /api/org/{org_id}/ — org ID from COZMOX_ORG_ID env var
+- MCP server is registered as "cozmox" in Claude Code
+
+## Key patterns
+- Session IDs must be client-generated UUID v4 — never server-generated
+- Phone numbers must be E.164 format: +[country_code][number] (e.g. +19175551234)
+- Retry 429 responses: wait until X-Rate-Limit-Reset timestamp, use exponential backoff
+- Retry 5xx responses with backoff; never retry 4xx
+
+## SDKs
+- TypeScript/Node: cozmoai (npm)
+- Python: cozmoai (pip)
+```
+
+## Example session
+
+In Claude Code:
+
+> *"Use the cozmox MCP server to list all my voice agents, then get the full details for the first one"*
+
+Claude Code calls `cozmox_list_agents` with `{ "type": "voice" }`, then `cozmox_get_agent` with the returned UUID — all against your pinned org.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="MCP server not found">
+    Confirm it is registered:
+
+    ```bash
+    claude mcp list
+    ```
+
+    If missing, re-add it with the full path to `dist/stdio.js`.
+  </Accordion>
+
+  <Accordion title="node: command not found">
+    Ensure Node.js 20.11+ is on PATH and visible to Claude Code. If using nvm:
+
+    ```bash
+    nvm use 20
+    ```
+
+    Then re-register using the full path to the node binary:
+
+    ```bash
+    which node   # e.g. /Users/you/.nvm/versions/node/v20.11.0/bin/node
+    ```
+  </Accordion>
+
+  <Accordion title="Claude ignores the MCP server">
+    Prefix your prompt explicitly:
+
+    > *"Using the cozmox MCP server, ..."*
+
+    This forces the tool lookup before the response is generated.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Overview" icon="server" href="/mcp/overview">
+    Full tool reference, HTTP mode, and Docker.
+  </Card>
+  <Card title="Error handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Implement retry logic and handle API errors correctly.
+  </Card>
+</CardGroup>

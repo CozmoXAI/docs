@@ -1,119 +1,306 @@
 ---
 title: "Webhook Events"
-description: "Receive real-time notifications for call and session events"
+description: "Receive real-time notifications for call and session events via signed HTTP callbacks"
 ---
 
 ## Overview
 
-Webhooks allow you to receive real-time notifications when events occur in your Cozmo AI account. Configure your webhook endpoint in your dashboard to start receiving events.
+Webhooks let you receive real-time notifications when events occur in your Cozmo AI account. Instead of polling the API, Cozmo pushes a signed HTTP `POST` request to your endpoint the moment an event fires.
 
-## Events
+Nova sends four event types:
 
-| Event               | Description                                                   |
-| ------------------- | ------------------------------------------------------------- |
-| `call.completed`    | Fired when a call finishes successfully or is analyzed        |
-| `call.failed`       | Fired when a call fails due to technical or validation issues |
-| `session.completed` | Fired when a session reaches `COMPLETED` or `STOPPED` status  |
-| `session.failed`    | Fired when a session reaches `FAILED` or `CANCELLED` status   |
+<CardGroup cols={2}>
+  <Card title="call.completed" icon="phone-check">
+    A voice call finished - includes transcript, recording URL, evaluations, and prospect data.
+  </Card>
+  <Card title="call.failed" icon="phone-xmark">
+    A call failed due to a technical error, SIP issue, no answer, busy line, or validation failure.
+  </Card>
+  <Card title="session.completed" icon="circle-check">
+    An agent session reached `COMPLETED` or `STOPPED` status.
+  </Card>
+  <Card title="session.failed" icon="circle-xmark">
+    An agent session reached `FAILED` or `CANCELLED` status.
+  </Card>
+</CardGroup>
 
-## Call Result Types
+## Webhook setup
 
-| Result              | Description                 |
-| ------------------- | --------------------------- |
-| `FINISHED`          | Successfully completed call |
-| `FAILED`            | Technical failure           |
-| `FAILED_VALIDATION` | Validation error            |
-| `FAILED_SIP`        | SIP/trunk error             |
-| `ANALYSIS_FAILED`   | Post-call analysis failed   |
-| `NO_ANSWER`         | No pickup                   |
-| `BUSY`              | Line was busy               |
-| `CANCELLED`         | Cancelled                   |
+<Steps>
+  <Step title="Open Dashboard settings">
+    Go to [Dashboard](https://dash.prod.czmx.in) and navigate to **Organization Settings** then **Webhooks**.
+  </Step>
+  <Step title="Add your endpoint URL">
+    Enter the full HTTPS URL where Nova should deliver events, for example `https://api.yourapp.com/webhooks/cozmo`. Nova requires HTTPS in production.
+  </Step>
+  <Step title="Copy your signing secret">
+    After saving, copy the generated **Signing Secret**. You will use it to verify the `X-Cozmo-Signature` header on incoming requests.
+  </Step>
+  <Step title="Select events">
+    Choose which events to receive. You can subscribe to all four or only the ones relevant to your integration.
+  </Step>
+</Steps>
 
-## Payload Structure
+<Info>
+  Nova delivers each event as an HTTP `POST` with `Content-Type: application/json`. Your endpoint must respond with a `2xx` status within **10 seconds**.
+</Info>
+
+---
+
+## Manage webhooks via API
+
+If you want to provision webhook endpoints programmatically instead of using the Dashboard, use the global webhook endpoints in the API reference.
+
+Typical workflow:
+
+- `GET /org/{org_id}/global-webhooks` to list configured endpoints
+- `POST /org/{org_id}/global-webhooks` to create a new endpoint
+- `PATCH /org/{org_id}/global-webhooks/{webhook_id}` to rotate URLs or subscribed events
+- `DELETE /org/{org_id}/global-webhooks/{webhook_id}` to remove an endpoint
+
+Example create request:
+
+```bash
+curl -X POST "https://v2-nova-api.prod.czmx.in/api/org/{org_id}/global-webhooks" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://api.yourapp.com/webhooks/cozmo",
+    "events": ["call.completed", "call.failed", "session.completed", "session.failed"],
+    "is_active": true
+  }'
+```
+
+<Tip>
+  The payload schema for webhook management lives in the API Reference under the `Webhooks` tag. Use that reference as the source of truth for available fields and event names.
+</Tip>
+
+---
+
+## Signature verification
+
+Every webhook request includes an `X-Cozmo-Signature` header. This is an HMAC-SHA256 hex digest of the raw request body, signed with your webhook signing secret.
+
+**Always verify signatures before processing a payload.** This confirms the request came from Cozmo and the body has not been tampered with.
+
+<Warning>
+  Compute the signature over the **raw bytes** of the request body before any JSON parsing. Parsing the JSON and re-serializing it can change whitespace or key ordering, causing the signature check to fail.
+</Warning>
+
+<CodeGroup>
+
+```javascript Node.js
+import crypto from "crypto";
+
+function verifyCozmoSignature(
+  rawBody: Buffer | string,
+  signatureHeader: string,
+  signingSecret: string
+): boolean {
+  const expected = crypto
+    .createHmac("sha256", signingSecret)
+    .update(rawBody)
+    .digest("hex");
+
+  // Use timingSafeEqual to prevent timing attacks
+  const expectedBuf = Buffer.from(expected, "hex");
+  const receivedBuf = Buffer.from(signatureHeader, "hex");
+
+  if (expectedBuf.length !== receivedBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, receivedBuf);
+}
+
+// Express example - use express.raw() to capture raw body
+import express from "express";
+const app = express();
+
+app.post(
+  "/webhooks/cozmo",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    const signature = req.headers["x-cozmo-signature"] as string;
+
+    if (!verifyCozmoSignature(req.body, signature, process.env.COZMO_WEBHOOK_SECRET!)) {
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    const payload = JSON.parse(req.body.toString());
+    // process payload...
+    res.json({ ok: true });
+  }
+);
+```
+
+```python Python
+import hashlib
+import hmac
+import os
+from fastapi import FastAPI, Request, HTTPException
+
+app = FastAPI()
+
+def verify_cozmo_signature(raw_body: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(
+        secret.encode("utf-8"),
+        raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+@app.post("/webhooks/cozmo")
+async def cozmo_webhook(request: Request):
+    raw_body = await request.body()
+    signature = request.headers.get("x-cozmo-signature", "")
+    secret = os.environ["COZMO_WEBHOOK_SECRET"]
+
+    if not verify_cozmo_signature(raw_body, signature, secret):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    payload = await request.json()
+    # process payload...
+    return {"ok": True}
+```
+
+```go Go
+package main
+
+import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+    "encoding/json"
+    "io"
+    "net/http"
+    "os"
+)
+
+func verifyCozmoSignature(rawBody []byte, signature, secret string) bool {
+    mac := hmac.New(sha256.New, []byte(secret))
+    mac.Write(rawBody)
+    expected := hex.EncodeToString(mac.Sum(nil))
+    return hmac.Equal([]byte(expected), []byte(signature))
+}
+
+func webhookHandler(w http.ResponseWriter, r *http.Request) {
+    rawBody, err := io.ReadAll(r.Body)
+    if err != nil {
+        http.Error(w, "failed to read body", http.StatusBadRequest)
+        return
+    }
+
+    signature := r.Header.Get("X-Cozmo-Signature")
+    secret := os.Getenv("COZMO_WEBHOOK_SECRET")
+
+    if !verifyCozmoSignature(rawBody, signature, secret) {
+        http.Error(w, "invalid signature", http.StatusUnauthorized)
+        return
+    }
+
+    var payload map[string]json.RawMessage
+    if err := json.Unmarshal(rawBody, &payload); err != nil {
+        http.Error(w, "invalid json", http.StatusBadRequest)
+        return
+    }
+
+    // process payload...
+    w.Header().Set("Content-Type", "application/json")
+    w.Write([]byte(`{"ok":true}`))
+}
+```
+
+</CodeGroup>
+
+---
+
+## Event: call.completed
+
+Fired when a voice call finishes and post-call analysis (transcript, evaluations, summary) is ready.
+
+### Payload schema
 
 <ResponseField name="event" type="string" required>
-  The event type. One of `call.completed` or `call.failed`.
+  Always `"call.completed"`.
 </ResponseField>
 
 <ResponseField name="data" type="object" required>
-  <Expandable title="data properties">
+  <Expandable title="data fields" defaultOpen>
     <ResponseField name="call_id" type="string">
-      Unique identifier for the call.
+      UUID of the call. Use this as your idempotency key for deduplication.
     </ResponseField>
     <ResponseField name="call_result" type="string">
-      The result of the call. See [Call Result Types](#call-result-types) above.
+      Outcome of the call. See [Call result types](#call-result-types) below.
     </ResponseField>
-    <ResponseField name="campaign_count" type="integer">
-      Number of campaign attempts.
+    <ResponseField name="transcript" type="string">
+      Full text transcript of the conversation, with speaker labels.
+    </ResponseField>
+    <ResponseField name="recording_url" type="string">
+      Signed URL to the call recording MP3. Available for a limited time after the call ends.
+    </ResponseField>
+    <ResponseField name="summary" type="string">
+      AI-generated plain-text summary of the call.
+    </ResponseField>
+    <ResponseField name="sentiment" type="string">
+      Overall sentiment extracted from the call. Common values: `positive`, `neutral`, `negative`.
     </ResponseField>
     <ResponseField name="dnc_requested" type="boolean">
-      Whether the prospect requested to be added to the Do Not Call list.
+      `true` if the prospect asked to be placed on the Do Not Call list during the call.
+    </ResponseField>
+    <ResponseField name="campaign_count" type="integer">
+      Number of times this prospect has been contacted under the current campaign.
     </ResponseField>
     <ResponseField name="evaluations" type="array">
-      Post-call evaluation results.
+      Post-call evaluation results based on your configured outcome definitions.
       <Expandable title="evaluation object">
         <ResponseField name="key" type="string">
-          Evaluation key (e.g., `SENTIMENT`, `SUMMARY`, `CALLBACK_REQUESTED`).
+          Evaluation key (e.g. `SENTIMENT`, `SUMMARY`, `INTERESTED`, `CALLBACK_REQUESTED`).
         </ResponseField>
         <ResponseField name="extracted_value" type="string">
-          The extracted value from the evaluation.
+          The value extracted from the call for this evaluation.
         </ResponseField>
         <ResponseField name="reasoning" type="string">
-          Reasoning behind the evaluation result.
+          AI-generated explanation for how the value was determined.
         </ResponseField>
         <ResponseField name="result_boolean" type="boolean">
-          Boolean result of the evaluation.
+          Boolean interpretation of the extracted value.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="prospect" type="object">
+      Full prospect record associated with the call.
+      <Expandable title="prospect fields">
+        <ResponseField name="ID" type="string">
+          Cozmo-internal UUID for the prospect.
+        </ResponseField>
+        <ResponseField name="ExternalId" type="string">
+          Your system's ID for this contact. Use this to look up the record in your CRM.
+        </ResponseField>
+        <ResponseField name="FullName" type="string">
+          Prospect's full name.
+        </ResponseField>
+        <ResponseField name="Email" type="string">
+          Prospect's email address.
+        </ResponseField>
+        <ResponseField name="Phone" type="string">
+          Prospect's phone number in E.164 format.
+        </ResponseField>
+        <ResponseField name="Status" type="string">
+          Current prospect status in your system (e.g. `new`, `contacted`, `converted`).
+        </ResponseField>
+        <ResponseField name="ExtraMetadata" type="object">
+          Arbitrary key-value metadata attached to the prospect.
+        </ResponseField>
+        <ResponseField name="CreatedAt" type="string">
+          ISO 8601 timestamp of when the prospect record was created.
         </ResponseField>
       </Expandable>
     </ResponseField>
     <ResponseField name="extras" type="object | null">
-      Additional metadata.
-    </ResponseField>
-    <ResponseField name="prospect" type="object">
-      Prospect information.
-      <Expandable title="prospect properties">
-        <ResponseField name="ID" type="string">
-          Unique identifier for the prospect.
-        </ResponseField>
-        <ResponseField name="ExternalId" type="string">
-          External identifier for integration purposes.
-        </ResponseField>
-        <ResponseField name="FullName" type="string">
-          Full name of the prospect.
-        </ResponseField>
-        <ResponseField name="Email" type="string">
-          Email address of the prospect.
-        </ResponseField>
-        <ResponseField name="Phone" type="string">
-          Phone number of the prospect.
-        </ResponseField>
-        <ResponseField name="Status" type="string">
-          Current status of the prospect.
-        </ResponseField>
-        <ResponseField name="ExtraMetadata" type="object">
-          Custom metadata fields.
-        </ResponseField>
-        <ResponseField name="CreatedAt" type="string">
-          ISO 8601 timestamp of prospect creation.
-        </ResponseField>
-      </Expandable>
-    </ResponseField>
-    <ResponseField name="recording_url" type="string">
-      URL to the call recording (if available).
-    </ResponseField>
-    <ResponseField name="sentiment" type="string">
-      Overall sentiment of the call (e.g., `positive`, `neutral`, `negative`).
-    </ResponseField>
-    <ResponseField name="summary" type="string">
-      AI-generated summary of the call.
-    </ResponseField>
-    <ResponseField name="transcript" type="string">
-      Full transcript of the call.
+      Additional metadata. Shape varies by workflow configuration.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
-## Example Payload
+### Example payload
 
 ```json
 {
@@ -121,89 +308,176 @@ Webhooks allow you to receive real-time notifications when events occur in your 
   "data": {
     "call_id": "17546d2d-4939-4a86-b822-e497c70d5819",
     "call_result": "FINISHED",
-    "campaign_count": 1,
+    "transcript": "Agent: Hello, is this Jane Doe?\nProspect: Yes, speaking.\nAgent: Hi Jane, this is Alex from Acme Corp...",
+    "recording_url": "https://storage.czmx.in/recordings/17546d2d-4939-4a86-b822-e497c70d5819.mp3",
+    "summary": "The agent called Jane to follow up on her demo request. Jane confirmed interest and agreed to a follow-up meeting on Friday.",
+    "sentiment": "positive",
     "dnc_requested": false,
+    "campaign_count": 1,
     "evaluations": [
       {
         "key": "SENTIMENT",
-        "extracted_value": "neutral",
-        "reasoning": "The prospect maintained a neutral tone throughout the conversation.",
+        "extracted_value": "positive",
+        "reasoning": "The prospect expressed enthusiasm and agreed to a follow-up.",
         "result_boolean": true
       },
       {
-        "key": "SUMMARY",
-        "extracted_value": "The call covered product pricing and availability.",
-        "reasoning": "The conversation focused on product information.",
+        "key": "INTERESTED",
+        "extracted_value": "yes",
+        "reasoning": "Prospect explicitly confirmed interest in the product.",
         "result_boolean": true
       },
       {
         "key": "CALLBACK_REQUESTED",
         "extracted_value": "",
-        "reasoning": "The prospect did not request a callback.",
+        "reasoning": "No callback was explicitly requested during the call.",
         "result_boolean": false
+      },
+      {
+        "key": "SUMMARY",
+        "extracted_value": "Jane is interested and wants a follow-up meeting on Friday.",
+        "reasoning": "Key outcome from the conversation.",
+        "result_boolean": true
       }
     ],
-    "extras": null,
     "prospect": {
       "ID": "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
-      "ExternalId": "ext-123",
-      "FullName": "Test User",
-      "Email": "test.user@test.test",
-      "Phone": "+971555555555",
-      "Status": "new",
+      "ExternalId": "crm_789",
+      "FullName": "Jane Doe",
+      "Email": "jane.doe@example.com",
+      "Phone": "+19175551234",
+      "Status": "contacted",
       "ExtraMetadata": {
-        "nickname": "testttt"
+        "deal_stage": "proposal",
+        "contract_value": 45000
       },
-      "CreatedAt": "2026-01-20T11:33:36.907871Z"
+      "CreatedAt": "2026-04-01T09:00:00Z"
     },
-    "recording_url": "https://storage.example.com/recordings/17546d2d.mp3",
-    "sentiment": "neutral",
-    "summary": "The call discussed product pricing and the prospect showed interest.",
-    "transcript": "Agent: Hello, this is Cozmo AI calling...\nProspect: Hi, yes I was expecting your call..."
+    "extras": null
   }
 }
 ```
 
 ---
 
-## Session Events
+## Event: call.failed
 
-Session webhooks fire when an agent session reaches a terminal state.
+Fired when a call cannot be completed - including no answer, busy lines, SIP errors, and validation failures.
 
-### Session Payload Structure
+### Payload schema
 
 <ResponseField name="event" type="string" required>
-  The event type. One of `session.completed` or `session.failed`.
+  Always `"call.failed"`.
 </ResponseField>
 
 <ResponseField name="data" type="object" required>
-  <Expandable title="data properties">
+  <Expandable title="data fields" defaultOpen>
+    <ResponseField name="call_id" type="string">
+      UUID of the failed call.
+    </ResponseField>
+    <ResponseField name="call_result" type="string">
+      Failure reason. See [Call result types](#call-result-types) below.
+    </ResponseField>
+    <ResponseField name="campaign_count" type="integer">
+      Number of attempts made for this prospect in the current campaign.
+    </ResponseField>
+    <ResponseField name="dnc_requested" type="boolean">
+      Whether a DNC request was detected before the failure.
+    </ResponseField>
+    <ResponseField name="prospect" type="object">
+      Prospect associated with the failed call. Same schema as `call.completed`.
+    </ResponseField>
+    <ResponseField name="evaluations" type="array">
+      Typically empty for failed calls, but may contain partial results.
+    </ResponseField>
+    <ResponseField name="transcript" type="string | null">
+      Partial transcript if the call connected briefly before failing.
+    </ResponseField>
+    <ResponseField name="recording_url" type="string | null">
+      Recording URL if audio was captured before the failure.
+    </ResponseField>
+    <ResponseField name="summary" type="string | null">
+      AI summary if enough audio was captured.
+    </ResponseField>
+    <ResponseField name="sentiment" type="string | null">
+      Sentiment if analyzable.
+    </ResponseField>
+    <ResponseField name="extras" type="object | null">
+      Additional metadata.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example payload
+
+```json
+{
+  "event": "call.failed",
+  "data": {
+    "call_id": "a1b2c3d4-0000-0000-0000-000000000001",
+    "call_result": "NO_ANSWER",
+    "campaign_count": 2,
+    "dnc_requested": false,
+    "prospect": {
+      "ID": "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
+      "ExternalId": "crm_789",
+      "FullName": "Jane Doe",
+      "Email": "jane.doe@example.com",
+      "Phone": "+19175551234",
+      "Status": "contacted",
+      "ExtraMetadata": {},
+      "CreatedAt": "2026-04-01T09:00:00Z"
+    },
+    "evaluations": [],
+    "transcript": null,
+    "recording_url": null,
+    "summary": null,
+    "sentiment": null,
+    "extras": null
+  }
+}
+```
+
+---
+
+## Event: session.completed
+
+Fired when an agent session reaches `COMPLETED` or `STOPPED` status.
+
+### Payload schema
+
+<ResponseField name="event" type="string" required>
+  Always `"session.completed"`.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="data fields" defaultOpen>
     <ResponseField name="session_id" type="string">
-      Unique identifier for the session.
+      UUID of the session. Use this as your idempotency key.
     </ResponseField>
     <ResponseField name="organization_id" type="string">
-      Unique identifier for the organization.
+      UUID of your organization.
     </ResponseField>
     <ResponseField name="status" type="string">
-      Terminal status of the session. One of `COMPLETED`, `STOPPED`, `FAILED`, or `CANCELLED`.
+      Terminal status. Either `COMPLETED` or `STOPPED`.
     </ResponseField>
     <ResponseField name="root_agent_id" type="string | null">
-      Identifier of the root agent that ran the session.
+      ID of the agent that ran the session.
     </ResponseField>
     <ResponseField name="prospect_id" type="string | null">
-      Identifier of the prospect associated with the session.
+      ID of the prospect associated with the session.
     </ResponseField>
     <ResponseField name="call_id" type="string | null">
-      Identifier of the call associated with the session, if any.
+      ID of the associated voice call, if any.
     </ResponseField>
     <ResponseField name="channel" type="string | null">
-      Communication channel (e.g. `telegram`, `whatsapp`, `slack`).
+      Communication channel (e.g. `voice`, `telegram`, `whatsapp`, `slack`, `chat`).
     </ResponseField>
     <ResponseField name="entrypoint" type="string | null">
-      Entry point that triggered the session.
+      The entrypoint that triggered the session, if applicable.
     </ResponseField>
     <ResponseField name="title" type="string | null">
-      Title of the session.
+      Human-readable title for the session.
     </ResponseField>
     <ResponseField name="started_at" type="string">
       ISO 8601 timestamp of when the session started.
@@ -212,37 +486,631 @@ Session webhooks fire when an agent session reaches a terminal state.
       ISO 8601 timestamp of when the session ended.
     </ResponseField>
     <ResponseField name="duration_seconds" type="integer">
-      Total duration of the session in seconds.
+      Total session duration in seconds.
     </ResponseField>
     <ResponseField name="last_event_sequence" type="integer">
-      Sequence number of the last event in the session.
+      Sequence number of the last event processed. Use this to order out-of-order deliveries.
     </ResponseField>
     <ResponseField name="metadata" type="object">
-      Additional metadata associated with the session.
+      Arbitrary metadata attached when the session was created.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
-### Session Example Payload
+### Example payload
 
 ```json
 {
   "event": "session.completed",
   "data": {
     "session_id": "a3f2c1d4-5e6b-7890-abcd-ef1234567890",
-    "organization_id": "org-uuid-here",
+    "organization_id": "d1e2f3a4-b5c6-7890-1234-567890abcdef",
     "status": "COMPLETED",
-    "root_agent_id": "agent-uuid-here",
-    "prospect_id": "prospect-uuid-here",
-    "call_id": null,
-    "channel": "telegram",
+    "root_agent_id": "agt-01j9xyz-abc123",
+    "prospect_id": "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
+    "call_id": "17546d2d-4939-4a86-b822-e497c70d5819",
+    "channel": "voice",
     "entrypoint": null,
-    "title": "Support Session",
-    "started_at": "2026-04-17T10:00:00Z",
-    "ended_at": "2026-04-17T10:05:30Z",
+    "title": "Sales follow-up - Jane Doe",
+    "started_at": "2026-04-21T10:00:00Z",
+    "ended_at": "2026-04-21T10:05:30Z",
     "duration_seconds": 330,
     "last_event_sequence": 42,
+    "metadata": {
+      "campaign": "q2-outreach",
+      "source": "api"
+    }
+  }
+}
+```
+
+---
+
+## Event: session.failed
+
+Fired when an agent session reaches `FAILED` or `CANCELLED` status.
+
+### Payload schema
+
+<ResponseField name="event" type="string" required>
+  Always `"session.failed"`.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  Same schema as `session.completed`, with `status` set to `FAILED` or `CANCELLED`.
+  <Expandable title="data fields">
+    <ResponseField name="session_id" type="string">
+      UUID of the failed session.
+    </ResponseField>
+    <ResponseField name="organization_id" type="string">
+      UUID of your organization.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      `FAILED` or `CANCELLED`.
+    </ResponseField>
+    <ResponseField name="root_agent_id" type="string | null">
+      ID of the agent.
+    </ResponseField>
+    <ResponseField name="prospect_id" type="string | null">
+      ID of the associated prospect.
+    </ResponseField>
+    <ResponseField name="call_id" type="string | null">
+      ID of the associated call, if any.
+    </ResponseField>
+    <ResponseField name="channel" type="string | null">
+      Communication channel.
+    </ResponseField>
+    <ResponseField name="started_at" type="string">
+      ISO 8601 timestamp of when the session started.
+    </ResponseField>
+    <ResponseField name="ended_at" type="string | null">
+      ISO 8601 timestamp of when the session failed.
+    </ResponseField>
+    <ResponseField name="duration_seconds" type="integer">
+      Duration before failure, in seconds.
+    </ResponseField>
+    <ResponseField name="last_event_sequence" type="integer">
+      Sequence number of the last processed event.
+    </ResponseField>
+    <ResponseField name="metadata" type="object">
+      Metadata attached at session creation.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example payload
+
+```json
+{
+  "event": "session.failed",
+  "data": {
+    "session_id": "b4c3d2e1-f0a1-2345-bcde-f01234567890",
+    "organization_id": "d1e2f3a4-b5c6-7890-1234-567890abcdef",
+    "status": "FAILED",
+    "root_agent_id": "agt-01j9xyz-abc123",
+    "prospect_id": "5abb08f3-c2d7-44c1-9fb0-8bb7bb4aa66e",
+    "call_id": null,
+    "channel": "voice",
+    "entrypoint": null,
+    "title": "Demo follow-up",
+    "started_at": "2026-04-21T11:00:00Z",
+    "ended_at": "2026-04-21T11:00:05Z",
+    "duration_seconds": 5,
+    "last_event_sequence": 3,
     "metadata": {}
   }
 }
 ```
+
+---
+
+## Call result types
+
+| Result | Description |
+|--------|-------------|
+| `FINISHED` | Call connected and completed normally |
+| `FAILED` | Technical failure during the call |
+| `FAILED_VALIDATION` | Pre-call validation check failed (e.g. invalid number format) |
+| `FAILED_SIP` | SIP/trunk-level connection error |
+| `ANALYSIS_FAILED` | Call connected but post-call analysis could not complete |
+| `NO_ANSWER` | Prospect did not pick up |
+| `BUSY` | Prospect's line was busy |
+| `CANCELLED` | Call was cancelled before connecting |
+
+---
+
+## Retry and delivery behavior
+
+When your endpoint does not respond with a `2xx` status within 10 seconds, Nova retries the event with exponential backoff:
+
+| Attempt | Delay |
+|---------|-------|
+| 1 (initial) | Immediate |
+| 2 | 30 seconds |
+| 3 | 5 minutes |
+| 4 (final) | 30 minutes |
+
+After 4 failed attempts, the event is marked as failed and will not be retried. You can view delivery failures in [Dashboard - Webhook Logs](https://dash.prod.czmx.in).
+
+<Info>
+  `4xx` responses (except `429 Too Many Requests`) are treated as permanent rejections and are **not** retried. Return a `5xx` if you want Nova to retry.
+</Info>
+
+---
+
+## Deduplication
+
+Events can arrive more than once due to retries. Always implement idempotent processing using the event's primary identifier as a key:
+
+- **Call events**: deduplicate on `data.call_id`
+- **Session events**: deduplicate on `data.session_id`
+
+Additionally, events are not guaranteed to arrive in order. Use `last_event_sequence` on session events to detect out-of-order delivery.
+
+```javascript Node.js
+const processedEvents = new Set(); // use Redis or a database in production
+
+app.post("/webhooks/cozmo", express.raw({ type: "application/json" }), (req, res) => {
+  const payload = JSON.parse(req.body.toString());
+  const { event, data } = payload;
+
+  // Idempotency key depends on event type
+  const key = data.call_id ?? data.session_id;
+  const dedupKey = `${event}:${key}`;
+
+  if (processedEvents.has(dedupKey)) {
+    return res.json({ ok: true, skipped: true });
+  }
+  processedEvents.add(dedupKey);
+
+  // Process the event...
+  res.json({ ok: true });
+});
+```
+
+---
+
+## Async processing pattern
+
+Never do slow work (database writes, external API calls, sending emails) synchronously in your webhook handler. Acknowledge the event immediately and process in the background.
+
+<CodeGroup>
+
+```javascript Node.js / Express
+import express from "express";
+import crypto from "crypto";
+
+const app = express();
+
+app.post(
+  "/webhooks/cozmo",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    const signature = req.headers["x-cozmo-signature"] as string;
+    if (!verifyCozmoSignature(req.body, signature, process.env.COZMO_WEBHOOK_SECRET!)) {
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    // Acknowledge immediately - Cozmo expects a response within 10 seconds
+    res.json({ ok: true });
+
+    // Process asynchronously after responding
+    const payload = JSON.parse(req.body.toString());
+    processWebhookAsync(payload).catch((err) => {
+      console.error("Webhook processing error:", err);
+    });
+  }
+);
+
+async function processWebhookAsync(payload: { event: string; data: any }) {
+  const { event, data } = payload;
+
+  switch (event) {
+    case "call.completed": {
+      const { call_id, call_result, prospect, evaluations, summary, transcript } = data;
+
+      // Index evaluations by key for easy lookup
+      const evals = Object.fromEntries(
+        (evaluations ?? []).map((e: any) => [e.key, e])
+      );
+
+      console.log(`Call ${call_id} finished: ${call_result}`);
+
+      if (call_result === "FINISHED") {
+        // Update CRM with outcome
+        if (evals.INTERESTED?.result_boolean) {
+          await updateCRM(prospect.ExternalId, {
+            status: "interested",
+            notes: summary,
+          });
+        }
+        // Store transcript
+        await saveTranscript(call_id, transcript);
+      } else {
+        // Handle non-answer, busy, etc.
+        await scheduleRetry(prospect.ExternalId, call_result);
+      }
+      break;
+    }
+
+    case "call.failed": {
+      const { call_id, call_result, prospect } = data;
+      console.warn(`Call ${call_id} failed: ${call_result}`);
+      await logCallFailure(call_id, call_result, prospect?.ExternalId);
+      break;
+    }
+
+    case "session.completed": {
+      const { session_id, duration_seconds, channel, metadata } = data;
+      console.log(`Session ${session_id} completed in ${duration_seconds}s on ${channel}`);
+      await updateSessionMetrics(session_id, duration_seconds, metadata);
+      break;
+    }
+
+    case "session.failed": {
+      const { session_id, status } = data;
+      console.warn(`Session ${session_id} failed with status: ${status}`);
+      await alertOpsTeam(session_id, status);
+      break;
+    }
+  }
+}
+
+app.listen(3000, () => console.log("Webhook server running on :3000"));
+```
+
+```python Python / FastAPI
+import asyncio
+import hashlib
+import hmac
+import os
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+
+app = FastAPI()
+
+def verify_signature(raw_body: bytes, signature: str) -> bool:
+    secret = os.environ["COZMO_WEBHOOK_SECRET"]
+    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+async def process_event(event: str, data: dict):
+    """Background task - runs after 200 is returned."""
+    if event == "call.completed":
+        call_id = data["call_id"]
+        call_result = data["call_result"]
+        prospect = data.get("prospect", {})
+        evaluations = {e["key"]: e for e in data.get("evaluations", [])}
+
+        print(f"Call {call_id} finished: {call_result}")
+
+        if call_result == "FINISHED":
+            if evaluations.get("INTERESTED", {}).get("result_boolean"):
+                await update_crm(
+                    external_id=prospect.get("ExternalId"),
+                    status="interested",
+                    notes=data.get("summary"),
+                )
+            await save_transcript(call_id, data.get("transcript"))
+        else:
+            await schedule_retry(prospect.get("ExternalId"), call_result)
+
+    elif event == "call.failed":
+        print(f"Call {data['call_id']} failed: {data['call_result']}")
+        await log_failure(data["call_id"], data["call_result"])
+
+    elif event == "session.completed":
+        print(f"Session {data['session_id']} completed in {data['duration_seconds']}s")
+        await update_metrics(data["session_id"], data["duration_seconds"])
+
+    elif event == "session.failed":
+        print(f"Session {data['session_id']} failed: {data['status']}")
+        await alert_ops(data["session_id"], data["status"])
+
+@app.post("/webhooks/cozmo")
+async def cozmo_webhook(request: Request, background_tasks: BackgroundTasks):
+    raw_body = await request.body()
+    signature = request.headers.get("x-cozmo-signature", "")
+
+    if not verify_signature(raw_body, signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    payload = await request.json()
+    event = payload.get("event")
+    data = payload.get("data", {})
+
+    # Queue background processing - response is sent before this runs
+    background_tasks.add_task(process_event, event, data)
+
+    # Acknowledge immediately
+    return {"ok": True}
+```
+
+```go Go / net/http
+package main
+
+import (
+    "context"
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+    "encoding/json"
+    "fmt"
+    "io"
+    "log"
+    "net/http"
+    "os"
+)
+
+type WebhookPayload struct {
+    Event string          `json:"event"`
+    Data  json.RawMessage `json:"data"`
+}
+
+type CallData struct {
+    CallID       string          `json:"call_id"`
+    CallResult   string          `json:"call_result"`
+    Transcript   string          `json:"transcript"`
+    RecordingURL string          `json:"recording_url"`
+    Summary      string          `json:"summary"`
+    Sentiment    string          `json:"sentiment"`
+    DNCRequested bool            `json:"dnc_requested"`
+    CampaignCount int            `json:"campaign_count"`
+    Evaluations  []Evaluation    `json:"evaluations"`
+    Prospect     Prospect        `json:"prospect"`
+}
+
+type Evaluation struct {
+    Key            string `json:"key"`
+    ExtractedValue string `json:"extracted_value"`
+    Reasoning      string `json:"reasoning"`
+    ResultBoolean  bool   `json:"result_boolean"`
+}
+
+type Prospect struct {
+    ID            string                 `json:"ID"`
+    ExternalId    string                 `json:"ExternalId"`
+    FullName      string                 `json:"FullName"`
+    Email         string                 `json:"Email"`
+    Phone         string                 `json:"Phone"`
+    Status        string                 `json:"Status"`
+    ExtraMetadata map[string]interface{} `json:"ExtraMetadata"`
+    CreatedAt     string                 `json:"CreatedAt"`
+}
+
+type SessionData struct {
+    SessionID         string                 `json:"session_id"`
+    OrganizationID    string                 `json:"organization_id"`
+    Status            string                 `json:"status"`
+    RootAgentID       string                 `json:"root_agent_id"`
+    ProspectID        string                 `json:"prospect_id"`
+    CallID            string                 `json:"call_id"`
+    Channel           string                 `json:"channel"`
+    Title             string                 `json:"title"`
+    StartedAt         string                 `json:"started_at"`
+    EndedAt           string                 `json:"ended_at"`
+    DurationSeconds   int                    `json:"duration_seconds"`
+    LastEventSequence int                    `json:"last_event_sequence"`
+    Metadata          map[string]interface{} `json:"metadata"`
+}
+
+func verifySignature(rawBody []byte, signature, secret string) bool {
+    mac := hmac.New(sha256.New, []byte(secret))
+    mac.Write(rawBody)
+    expected := hex.EncodeToString(mac.Sum(nil))
+    return hmac.Equal([]byte(expected), []byte(signature))
+}
+
+func processEvent(ctx context.Context, event string, rawData json.RawMessage) {
+    switch event {
+    case "call.completed":
+        var d CallData
+        if err := json.Unmarshal(rawData, &d); err != nil {
+            log.Printf("error parsing call data: %v", err)
+            return
+        }
+        log.Printf("Call %s finished: %s", d.CallID, d.CallResult)
+
+        // Build evaluation map
+        evals := make(map[string]Evaluation)
+        for _, e := range d.Evaluations {
+            evals[e.Key] = e
+        }
+
+        if interested, ok := evals["INTERESTED"]; ok && interested.ResultBoolean {
+            // updateCRM(d.Prospect.ExternalId, "interested")
+            log.Printf("Prospect %s is interested", d.Prospect.ExternalId)
+        }
+
+    case "call.failed":
+        var d CallData
+        json.Unmarshal(rawData, &d)
+        log.Printf("Call %s failed: %s", d.CallID, d.CallResult)
+
+    case "session.completed":
+        var d SessionData
+        json.Unmarshal(rawData, &d)
+        log.Printf("Session %s completed in %ds on %s", d.SessionID, d.DurationSeconds, d.Channel)
+
+    case "session.failed":
+        var d SessionData
+        json.Unmarshal(rawData, &d)
+        log.Printf("Session %s failed: %s", d.SessionID, d.Status)
+    }
+}
+
+func webhookHandler(w http.ResponseWriter, r *http.Request) {
+    rawBody, err := io.ReadAll(r.Body)
+    if err != nil {
+        http.Error(w, "failed to read body", http.StatusBadRequest)
+        return
+    }
+
+    signature := r.Header.Get("X-Cozmo-Signature")
+    secret := os.Getenv("COZMO_WEBHOOK_SECRET")
+
+    if !verifySignature(rawBody, signature, secret) {
+        http.Error(w, "invalid signature", http.StatusUnauthorized)
+        return
+    }
+
+    var payload WebhookPayload
+    if err := json.Unmarshal(rawBody, &payload); err != nil {
+        http.Error(w, "invalid json", http.StatusBadRequest)
+        return
+    }
+
+    // Respond immediately, then process in background goroutine
+    w.Header().Set("Content-Type", "application/json")
+    w.Write([]byte(`{"ok":true}`))
+
+    go processEvent(r.Context(), payload.Event, payload.Data)
+}
+
+func main() {
+    http.HandleFunc("/webhooks/cozmo", webhookHandler)
+    fmt.Println("Webhook server listening on :3000")
+    log.Fatal(http.ListenAndServe(":3000", nil))
+}
+```
+
+</CodeGroup>
+
+---
+
+## Testing webhooks locally
+
+Use the Cozmo CLI to forward live events to your local development server without deploying.
+
+<Steps>
+  <Step title="Start your local server">
+    ```bash
+    npm run dev          # Node.js
+    uvicorn main:app --reload  # Python / FastAPI
+    go run main.go       # Go
+    ```
+  </Step>
+  <Step title="Open a tunnel">
+    Expose port 4242 (where `cozmo listen` runs) to the internet:
+
+    ```bash
+    ngrok http 4242
+    ```
+
+    Copy the `https://` URL from ngrok output.
+  </Step>
+  <Step title="Start cozmo listen">
+    Forward events from Cozmo to your local server:
+
+    ```bash
+    cozmo listen --forward-to localhost:3000/webhooks/cozmo
+    ```
+  </Step>
+  <Step title="Register the tunnel URL">
+    In [Dashboard - Webhook Settings](https://dash.prod.czmx.in), set your webhook URL to the ngrok URL. Cozmo will deliver events to ngrok, which forwards to `cozmo listen`, which forwards to your local server.
+  </Step>
+  <Step title="Trigger an event">
+    Start a session or run a workflow. Watch the `cozmo listen` terminal for live delivery logs:
+
+    ```
+    2026-04-21 10:01:42  ->  call.completed   17546d2d...   200 OK  (48ms)
+    2026-04-21 10:02:10  ->  session.completed  a3f2c1d4...  200 OK  (31ms)
+    ```
+  </Step>
+</Steps>
+
+See [CLI - Webhook Testing](/cli/webhook) for the full command reference and tunneling options.
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Signature verification failing">
+    The most common cause is parsing the JSON body before computing the HMAC. You must compute the signature over the **raw bytes** of the request body. In Express, use `express.raw({ type: 'application/json' })` instead of `express.json()`. In FastAPI, use `await request.body()` before `await request.json()`.
+  </Accordion>
+
+  <Accordion title="Events not arriving">
+    Check that:
+    - Your webhook URL is HTTPS and publicly reachable
+    - Your server returns `2xx` within 10 seconds
+    - The correct events are enabled in Dashboard - Webhook Settings
+    - Your endpoint is not returning `4xx` (which stops retries)
+
+    View delivery history in [Dashboard - Webhook Logs](https://dash.prod.czmx.in) to see exact response codes and error messages.
+  </Accordion>
+
+  <Accordion title="Duplicate events being processed">
+    Cozmo retries on non-2xx responses, so your handler may receive the same event multiple times. Store processed `call_id` or `session_id` values in Redis or your database and skip events you have already handled.
+  </Accordion>
+
+  <Accordion title="Timeout errors in Dashboard logs">
+    Your handler is taking more than 10 seconds. Move all slow operations (DB writes, external API calls, sending emails) to a background queue or goroutine. Respond `200` first, then process.
+  </Accordion>
+
+  <Accordion title="Events arriving out of order">
+    This can happen when retries cause a later event delivery to overtake an earlier one. For session events, use `last_event_sequence` to detect ordering. For call events, use the `call_result` field as the authoritative outcome rather than relying on delivery order.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Best practices
+
+### Security
+
+- Always verify the `X-Cozmo-Signature` header before processing any payload.
+- Use `crypto.timingSafeEqual` (Node.js), `hmac.compare_digest` (Python), or `hmac.Equal` (Go) to prevent timing attacks.
+- Store your signing secret in an environment variable or secrets manager, never in source code.
+- Only accept requests over HTTPS.
+
+### Reliability
+
+- Respond `200` immediately and process in the background. This is the single most important reliability pattern.
+- Implement idempotent handlers using `call_id` or `session_id` as the deduplication key.
+- Store event IDs in a database (not in-process memory) so restarts do not cause reprocessing.
+- Return `5xx` (not `4xx`) when you want Cozmo to retry. Return `2xx` once you have durably queued the work.
+
+### CRM integration patterns
+
+Use `prospect.ExternalId` (set when creating the prospect or running a workflow) to look up the record in your CRM:
+
+```javascript
+case "call.completed": {
+  const { prospect, evaluations, summary } = data;
+
+  // Map evaluations to outcome flags
+  const evals = Object.fromEntries(
+    evaluations.map((e) => [e.key, e.result_boolean])
+  );
+
+  await crm.updateContact(prospect.ExternalId, {
+    lastCallResult: data.call_result,
+    interested: evals.INTERESTED ?? false,
+    dnc: data.dnc_requested,
+    callNotes: summary,
+    lastContactedAt: new Date().toISOString(),
+  });
+  break;
+}
+```
+
+Set `external_id` consistently when creating prospects via the workflow-runs API so the `ExternalId` field in webhook payloads always maps directly to your CRM records.
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="CLI - Webhook Testing" icon="terminal" href="/cli/webhook">
+    Forward live events to your local server with cozmo listen.
+  </Card>
+  <Card title="Sessions" icon="messages" href="/concepts/sessions">
+    Understand session lifecycle and status transitions.
+  </Card>
+  <Card title="Calls" icon="phone" href="/concepts/calls">
+    Retrieve transcripts, evaluations, and recordings via the Calls API.
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle failures and implement retry logic in your integration.
+  </Card>
+</CardGroup>

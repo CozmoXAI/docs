@@ -1,0 +1,92 @@
+---
+title: "March 2026"
+description: "Workflow Runs in Python and TypeScript SDKs, API URL migration, and authentication hardening"
+---
+
+## March 16, 2026
+
+### Workflow Runs in Python and TypeScript SDKs
+
+<Badge>New</Badge>
+
+`workflowRuns.create()` is now available in both SDKs. Trigger an outbound call workflow with a prospect record in a single SDK call, with full type coverage on the request and response.
+
+<CodeGroup>
+
+```python Python
+from cozmoai import CozmoAI
+
+client = CozmoAI()
+
+run = client.workflow_runs.create(
+    org_id="YOUR_ORG_ID",
+    workflow_id="WORKFLOW_UUID",
+    scheduled_at="2026-03-20T09:00:00Z",
+    prospect={
+        "phone": "+15551234567",
+        "country": "US",
+        "first_name": "Ada",
+        "last_name": "Lovelace",
+        "email": "ada@example.com",
+        "external_id": "crm-123",
+        "timezone": "America/New_York",
+    },
+)
+print(run.id)
+```
+
+```typescript TypeScript
+import CozmoAI from "cozmoai";
+
+const client = new CozmoAI();
+
+const run = await client.workflowRuns.create({
+  orgId: "YOUR_ORG_ID",
+  workflowId: "WORKFLOW_UUID",
+  scheduledAt: "2026-03-20T09:00:00Z",
+  prospect: {
+    phone: "+15551234567",
+    country: "US",
+    firstName: "Ada",
+    lastName: "Lovelace",
+    email: "ada@example.com",
+    externalId: "crm-123",
+    timezone: "America/New_York",
+  },
+});
+console.log(run.id);
+```
+
+</CodeGroup>
+
+The `prospect` object is embedded in the workflow run request. No need to create a prospect record first — the API creates and associates the prospect automatically.
+
+[Python SDK](/sdk/python) · [TypeScript SDK](/sdk/typescript) · [Workflow Runs API](/api-reference/introduction)
+
+### Authentication hardening
+
+<Badge>Improved</Badge>
+
+Authentication is now consistently enforced across all org-scoped routes. Every request to `/api/org/{org_id}/...` must include a valid `X-API-Key` header. Missing or invalid keys return `401 Unauthorized` with a structured error body.
+
+API keys are scoped to your organization. A key issued to one org cannot read or write another org's resources. Rotate keys at any time from **Dashboard → Organization Settings → API Keys**.
+
+## March 7, 2026
+
+### API base URL migration
+
+<Badge>Improved</Badge>
+
+The Nova API base URL has migrated to `https://v2-nova-api.prod.czmx.in`. Update any hardcoded values in your integration:
+
+```bash
+# Before
+https://nova-api.prod.czmx.in
+
+# After
+https://v2-nova-api.prod.czmx.in
+```
+
+Both Python and TypeScript SDKs read the base URL from the `COZMOX_API_BASE_URL` environment variable. If you are using the variable, update it. If you are not setting it, upgrade to the latest SDK version — the new default is already updated.
+
+The old URL will continue to respond during the transition period, but all new integrations should target the v2 URL.

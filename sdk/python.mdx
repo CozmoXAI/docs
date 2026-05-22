@@ -850,28 +850,6 @@ print(call.cost_usd)            # str
 print(call.evaluations)         # list
 ```
 
-<Warning>
-  **Known SDK v0.9.1 type bug — `AgentResponse` nested config fields**
-
-  The nested config fields on `AgentResponse` (`llm_config`, `voice_config`, `transcriber_config`, `greeting_config`, `goodbye_config`, `extra_config`, `vad_config`, `background_sound`, `plugins`, `precall_webhook`, `room_duration_config`) are incorrectly typed as `Optional[List[int]]` in `cozmoxai/types/agent_response.py`.
-
-  At **runtime** Pydantic returns a `dict` for these fields, so subscript access works. Use dict-style access until the SDK is regenerated:
-
-  ```python
-  agent = client.agents.retrieve(agent_id="00000000-0000-0000-0000-000000000001")
-
-  # Correct — dict access works at runtime
-  if agent.llm_config:
-      print(agent.llm_config["provider"])
-      print(agent.llm_config["model"])
-
-  # Wrong — attribute access will fail (typed as List[int])
-  # print(agent.llm_config.provider)   # mypy/pyright will reject this
-  ```
-
-  This is a Stainless regen bug where the OpenAPI response schemas degraded into byte-arrays. The fix requires regenerating the SDK from a corrected OpenAPI spec.
-</Warning>
-
 ---
 
 ## Next steps

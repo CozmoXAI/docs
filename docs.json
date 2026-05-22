@@ -157,6 +157,6 @@
   },
   "theme": "mint",
   "appearance": {
-    "default": "dark"
+    "default": "light"
   }
 }

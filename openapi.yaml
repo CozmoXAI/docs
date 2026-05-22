@@ -112,7 +112,6 @@ paths:
       summary: Get agent session
       tags:
         - Agent Sessions
-      x-hidden: true
   /org/{org_id}/agent-sessions/{session_id}/start:
     post:
       description: >
@@ -175,7 +174,6 @@ paths:
       summary: Start agent session
       tags:
         - Agent Sessions
-      x-hidden: true
   /org/{org_id}/agents:
     get:
       description: Get a paginated list of agents for the organization
@@ -871,6 +869,7 @@ paths:
       summary: Get call export count
       tags:
         - Calls
+      x-hidden: true
   /org/{org_id}/voices:
     get:
       description: Get a paginated list of available voices from the specified provider
@@ -1691,6 +1690,7 @@ paths:
       summary: List workflow batches
       tags:
         - Workflow Batches
+      x-hidden: true
     post:
       description: Create a new batch run for a workflow with a set of prospects
       operationId: createWorkflowBatch
@@ -1747,6 +1747,7 @@ paths:
       summary: Create workflow batch
       tags:
         - Workflow Batches
+      x-hidden: true
   /org/{org_id}/workflow/{node_id}/calls:
     get:
       description: List all calls associated with a specific workflow node across prospects.
@@ -1800,6 +1801,7 @@ paths:
       summary: List calls for workflow node
       tags:
         - Calls
+      x-hidden: true
   /org/{org_id}/batches/{batch_id}:
     get:
       description: Get a batch by ID
@@ -1845,6 +1847,7 @@ paths:
       summary: Get batch
       tags:
         - Workflow Batches
+      x-hidden: true
     patch:
       description: Update the status of a batch (pause, cancel, etc.)
       operationId: updateBatchStatus
@@ -1901,6 +1904,7 @@ paths:
       summary: Update batch status
       tags:
         - Workflow Batches
+      x-hidden: true
   /org/{org_id}/batches/{batch_id}/runs:
     get:
       description: Get a paginated list of workflow runs for a batch
@@ -1958,6 +1962,7 @@ paths:
       summary: List batch runs
       tags:
         - Workflow Batches
+      x-hidden: true
   /org/{org_id}/runs:
     get:
       description: Get a paginated list of all workflow runs for the organization
@@ -2818,6 +2823,7 @@ paths:
       summary: GDPR delete prospect list
       tags:
         - Prospect Lists
+      x-hidden: true
   /org/{org_id}/lists/{list_id}/prospects/{prospect_id}:
     delete:
       description: Remove a single prospect from a list without deleting the prospect record.
@@ -2911,6 +2917,7 @@ paths:
       summary: List outcome definitions
       tags:
         - Outcome Definitions
+      x-hidden: true
     post:
       description: Create a new outcome definition to evaluate during calls
       operationId: createOutcomeDefinition
@@ -2955,6 +2962,7 @@ paths:
       summary: Create outcome definition
       tags:
         - Outcome Definitions
+      x-hidden: true
   /org/{org_id}/outcome-definitions/{definition_id}:
     get:
       description: Get an outcome definition by ID
@@ -3000,6 +3008,7 @@ paths:
       summary: Get outcome definition
       tags:
         - Outcome Definitions
+      x-hidden: true
     patch:
       description: Update an outcome definition (partial update)
       operationId: updateOutcomeDefinition
@@ -3056,6 +3065,7 @@ paths:
       summary: Update outcome definition
       tags:
         - Outcome Definitions
+      x-hidden: true
     delete:
       description: Delete an outcome definition by ID
       operationId: deleteOutcomeDefinition
@@ -3102,6 +3112,7 @@ paths:
       summary: Delete outcome definition
       tags:
         - Outcome Definitions
+      x-hidden: true
   /org/{org_id}/knowledge/libraries:
     get:
       description: Get all knowledge libraries for the organization
@@ -3484,6 +3495,7 @@ paths:
       summary: Batch upload webpages to library
       tags:
         - Knowledge
+      x-hidden: true
   /org/{org_id}/knowledge/libraries/{library_id}/crawl:
     post:
       description: Crawl a website and import pages as documents into the library
@@ -3541,6 +3553,7 @@ paths:
       summary: Crawl website into library
       tags:
         - Knowledge
+      x-hidden: true
   /org/{org_id}/agents/{agent_id}/knowledge:
     post:
       description: Assign a knowledge library to an agent for use during calls
@@ -3598,6 +3611,7 @@ paths:
       summary: Assign knowledge library to agent
       tags:
         - Knowledge
+      x-hidden: true
   /liveness:
     get:
       description: Returns 200 OK when the service is alive. Used by load balancers and orchestrators.
@@ -3901,6 +3915,7 @@ paths:
       summary: List agent SIP trunks
       tags:
         - Agents
+      x-hidden: true
     post:
       description: Attach a SIP trunk to an agent
       operationId: addAgentSipTrunk
@@ -3957,6 +3972,7 @@ paths:
       summary: Add SIP trunk to agent
       tags:
         - Agents
+      x-hidden: true
   /org/{org_id}/agents/{agent_id}/sip-trunks/{trunk_id}:
     delete:
       description: Remove a SIP trunk from an agent
@@ -4010,6 +4026,7 @@ paths:
       summary: Remove SIP trunk from agent
       tags:
         - Agents
+      x-hidden: true
   /org/{org_id}/calls/{call_id}/transcript:
     get:
       description: Get the full transcript and metadata for a specific call
@@ -4147,6 +4164,7 @@ paths:
       summary: Get call history
       tags:
         - Calls
+      x-hidden: true
   /org/{org_id}/calls/{call_id}/recording:
     get:
       description: Get the recording URL and duration for a specific call
@@ -4192,6 +4210,7 @@ paths:
       summary: Get call recording
       tags:
         - Calls
+      x-hidden: true
   /org/{org_id}/calls/{call_id}/tool-logs:
     get:
       description: Get tool invocation logs for a call, including request and response payloads recorded during execution.
@@ -4239,6 +4258,7 @@ paths:
       summary: Get call tool logs
       tags:
         - Calls
+      x-hidden: true
   /org/{org_id}/prospects:
     get:
       description: Get a paginated list of prospects for the organization
@@ -4614,6 +4634,7 @@ paths:
       summary: GDPR delete prospect
       tags:
         - Prospects
+      x-hidden: true
   /org/{org_id}/prospects/{prospect_id}/tags:
     post:
       description: Add one or more tags to a prospect.
@@ -5257,6 +5278,7 @@ paths:
       summary: Search tools
       tags:
         - Tools
+      x-hidden: true
   /org/{org_id}/global-webhooks:
     get:
       description: Get a paginated list of global webhooks for the organization
@@ -5528,6 +5550,7 @@ paths:
       summary: List API keys
       tags:
         - API Keys
+      x-hidden: true
     post:
       description: Create a new API key for the organization. The full key value is only returned once.
       operationId: createAPIKey
@@ -5572,6 +5595,7 @@ paths:
       summary: Create API key
       tags:
         - API Keys
+      x-hidden: true
   /org/{org_id}/api-keys/{key_id}:
     delete:
       description: Revoke and delete an API key by ID
@@ -5619,6 +5643,7 @@ paths:
       summary: Delete API key
       tags:
         - API Keys
+      x-hidden: true
   /org/{org_id}/api-keys/{key_id}/scopes:
     patch:
       description: Update the scopes of an existing API key
@@ -5676,6 +5701,7 @@ paths:
       summary: Update API key scopes
       tags:
         - API Keys
+      x-hidden: true
   /org/{org_id}/sip-trunks:
     get:
       description: Get a paginated list of SIP trunks for the organization
@@ -5968,6 +5994,7 @@ paths:
       summary: List phone numbers
       tags:
         - Telephony
+      x-hidden: true
     post:
       description: Add a new phone number to the organization
       operationId: createPhoneNumber
@@ -6012,6 +6039,7 @@ paths:
       summary: Create phone number
       tags:
         - Telephony
+      x-hidden: true
   /org/{org_id}/phone-numbers/{number_id}:
     get:
       description: Get a phone number by ID
@@ -6057,6 +6085,7 @@ paths:
       summary: Get phone number
       tags:
         - Telephony
+      x-hidden: true
     patch:
       description: Update a phone number (partial update)
       operationId: updatePhoneNumber
@@ -6113,6 +6142,7 @@ paths:
       summary: Update phone number
       tags:
         - Telephony
+      x-hidden: true
     delete:
       description: Delete a phone number by ID
       operationId: deletePhoneNumber
@@ -6159,6 +6189,7 @@ paths:
       summary: Delete phone number
       tags:
         - Telephony
+      x-hidden: true
   /org/{org_id}/phone-numbers/bulk:
     post:
       description: Create multiple phone numbers and associate them with a SIP trunk.
@@ -6210,6 +6241,7 @@ paths:
       summary: Bulk create phone numbers
       tags:
         - Telephony
+      x-hidden: true
   /org/{org_id}/analytics/dashboard:
     get:
       description: Get a summary of key metrics for the organization dashboard
@@ -6724,6 +6756,7 @@ paths:
       summary: List audit logs
       tags:
         - Audit Logs
+      x-hidden: true
   /org/{org_id}/billing/balance:
     get:
       description: Get the current credits balance and billing tier for the organization.
@@ -6757,6 +6790,7 @@ paths:
       summary: Get billing balance
       tags:
         - Billing
+      x-hidden: true
   /org/{org_id}/billing/invoices:
     get:
       description: List invoices for the organization with optional status and date filters.
@@ -6827,6 +6861,7 @@ paths:
       summary: List invoices
       tags:
         - Billing
+      x-hidden: true
   /org/{org_id}/billing/invoices/pdf:
     get:
       description: Get a signed PDF URL for a specific invoice.
@@ -6877,6 +6912,7 @@ paths:
       summary: Get invoice PDF URL
       tags:
         - Billing
+      x-hidden: true
   /org/{org_id}/billing/ledger:
     get:
       description: List billing ledger entries with pagination and filters.
@@ -6938,6 +6974,7 @@ paths:
       summary: List ledger entries
       tags:
         - Billing
+      x-hidden: true
   /org/{org_id}/billing/ledger/{entry_id}:
     get:
       description: Get a billing ledger entry with its usage breakdown details.
@@ -6983,6 +7020,7 @@ paths:
       summary: Get ledger entry
       tags:
         - Billing
+      x-hidden: true
   /org/{org_id}/billing/summary:
     get:
       description: Get the organization's billing summary, including balance and monthly totals.
@@ -7016,6 +7054,7 @@ paths:
       summary: Get billing summary
       tags:
         - Billing
+      x-hidden: true
   /org/{org_id}/billing/topup:
     post:
       description: Initiate a credit top-up and receive a redirect URL to the payment provider.
@@ -7055,6 +7094,7 @@ paths:
       summary: Initiate top-up
       tags:
         - Billing
+      x-hidden: true
   /org/{org_id}/billing/usage:
     get:
       description: Get usage summary grouped by product type.
@@ -7098,6 +7138,7 @@ paths:
       summary: Get usage summary
       tags:
         - Billing
+      x-hidden: true
   /org/{org_id}/chat:
     post:
       description: Send a message to the analytics chat assistant and receive a response.
@@ -7143,6 +7184,7 @@ paths:
       summary: Send a chat message
       tags:
         - Chat
+      x-hidden: true
   /org/{org_id}/chat-stream:
     post:
       description: Send a message to the analytics chat assistant and receive a Server-Sent Events stream.
@@ -7188,6 +7230,7 @@ paths:
       summary: Send a chat message with streaming response
       tags:
         - Chat
+      x-hidden: true
   /org/{org_id}/chat/conversations:
     get:
       description: List chat conversations for the current user.
@@ -7242,6 +7285,7 @@ paths:
       summary: List chat conversations
       tags:
         - Chat
+      x-hidden: true
   /org/{org_id}/chat/conversations/{conversation_id}:
     get:
       description: Get a specific chat conversation and all of its messages.
@@ -7287,6 +7331,7 @@ paths:
       summary: Get chat conversation
       tags:
         - Chat
+      x-hidden: true
     delete:
       description: Delete a chat conversation and all of its messages.
       operationId: deleteChatConversation
@@ -7339,6 +7384,7 @@ paths:
       summary: Delete chat conversation
       tags:
         - Chat
+      x-hidden: true
   /org/{org_id}/conversations:
     get:
       description: List all conversations for the organization
@@ -7388,6 +7434,7 @@ paths:
       summary: List conversations
       tags:
         - Conversations
+      x-hidden: true
   /org/{org_id}/conversations/messages:
     post:
       description: Send a message to start or continue a conversation. If conversation_id is omitted, a new conversation is created.
@@ -7439,6 +7486,7 @@ paths:
       summary: Send message
       tags:
         - Conversations
+      x-hidden: true
   /org/{org_id}/conversations/{conversation_id}:
     get:
       description: Get a conversation and its full message history
@@ -7490,6 +7538,7 @@ paths:
       summary: Get conversation
       tags:
         - Conversations
+      x-hidden: true
   /org/{org_id}/evals:
     get:
       description: List all post-call evaluations for the organization
@@ -7544,6 +7593,7 @@ paths:
       summary: List evaluations
       tags:
         - Evaluations
+      x-hidden: true
     post:
       description: Create a new post-call evaluation definition for an agent
       operationId: createEval
@@ -7594,6 +7644,7 @@ paths:
       summary: Create evaluation
       tags:
         - Evaluations
+      x-hidden: true
   /org/{org_id}/evals/{eval_id}:
     get:
       description: Get a post-call evaluation definition by ID
@@ -7645,6 +7696,7 @@ paths:
       summary: Get evaluation
       tags:
         - Evaluations
+      x-hidden: true
     patch:
       description: Update a post-call evaluation definition
       operationId: updateEval
@@ -7707,6 +7759,7 @@ paths:
       summary: Update evaluation
       tags:
         - Evaluations
+      x-hidden: true
     delete:
       description: Delete a post-call evaluation definition
       operationId: deleteEval
@@ -7753,6 +7806,7 @@ paths:
       summary: Delete evaluation
       tags:
         - Evaluations
+      x-hidden: true
   /org/{org_id}/evals/{eval_id}/runs:
     get:
       description: List all run results for a post-call evaluation
@@ -7814,6 +7868,7 @@ paths:
       summary: List evaluation runs
       tags:
         - Evaluations
+      x-hidden: true
   /org/{org_id}/agents/{agent_id}/unit-tests:
     get:
       description: List unit tests for a specific agent
@@ -7875,6 +7930,7 @@ paths:
       summary: List unit tests
       tags:
         - Evaluations
+      x-hidden: true
     post:
       description: Create a new unit test for an agent
       operationId: createUnitTest
@@ -7937,6 +7993,7 @@ paths:
       summary: Create unit test
       tags:
         - Evaluations
+      x-hidden: true
     delete:
       description: Bulk delete unit tests by ID
       operationId: deleteUnitTests
@@ -7989,6 +8046,7 @@ paths:
       summary: Delete unit tests
       tags:
         - Evaluations
+      x-hidden: true
   /org/{org_id}/agents/{agent_id}/unit-tests/generate:
     post:
       description: AI-generate unit tests for an agent
@@ -8052,6 +8110,7 @@ paths:
       summary: Generate unit tests
       tags:
         - Evaluations
+      x-hidden: true
   /org/{org_id}/agents/{agent_id}/unit-tests/run:
     post:
       description: Run specific unit tests for an agent
@@ -8115,6 +8174,7 @@ paths:
       summary: Run unit tests
       tags:
         - Evaluations
+      x-hidden: true
   /org/{org_id}/agents/{agent_id}/unit-tests/runs:
     get:
       description: List all unit test run results for an agent
@@ -8176,6 +8236,7 @@ paths:
       summary: List unit test runs
       tags:
         - Evaluations
+      x-hidden: true
   /org/{org_id}/integrations:
     get:
       description: List all available integration definitions for the organization
@@ -8215,6 +8276,7 @@ paths:
       summary: List available integrations
       tags:
         - Integrations
+      x-hidden: true
   /org/{org_id}/integrations/connected:
     get:
       description: List all integrations connected to the organization
@@ -8254,6 +8316,7 @@ paths:
       summary: List connected integrations
       tags:
         - Integrations
+      x-hidden: true
     post:
       description: Connect a new integration to the organization
       operationId: connectIntegration
@@ -8304,6 +8367,7 @@ paths:
       summary: Connect integration
       tags:
         - Integrations
+      x-hidden: true
   /org/{org_id}/integrations/oauth/{provider}/authorize:
     get:
       description: Redirect the user to an OAuth provider authorization page for integration setup.
@@ -8344,6 +8408,7 @@ paths:
       summary: Initiate OAuth authorization
       tags:
         - Integrations
+      x-hidden: true
   /org/{org_id}/integrations/slug/{slug}:
     get:
       description: Get a connected integration by its slug identifier.
@@ -8389,6 +8454,7 @@ paths:
       summary: Get integration by slug
       tags:
         - Integrations
+      x-hidden: true
   /org/{org_id}/integrations/{integration_id}:
     delete:
       description: Disconnect an integration from the organization
@@ -8436,6 +8502,7 @@ paths:
       summary: Disconnect integration
       tags:
         - Integrations
+      x-hidden: true
   /org/{org_id}/integrations/{integration_id}/settings:
     patch:
       description: Update settings for a connected integration
@@ -8499,6 +8566,7 @@ paths:
       summary: Update integration settings
       tags:
         - Integrations
+      x-hidden: true
   /org/{org_id}/integrations/{integration_id}/toggle:
     patch:
       description: Enable or disable a connected integration
@@ -8562,6 +8630,7 @@ paths:
       summary: Toggle integration
       tags:
         - Integrations
+      x-hidden: true
   /org/{org_id}/invitations:
     get:
       description: List all pending invitations for the organization
@@ -8603,6 +8672,7 @@ paths:
       summary: List invitations
       tags:
         - Organization
+      x-hidden: true
     post:
       description: Invite a user to join the organization by email
       operationId: createInvitation
@@ -8653,6 +8723,7 @@ paths:
       summary: Create invitation
       tags:
         - Organization
+      x-hidden: true
   /org/{org_id}/invitations/{invitation_id}:
     delete:
       description: Cancel and delete a pending invitation
@@ -8700,6 +8771,7 @@ paths:
       summary: Delete invitation
       tags:
         - Organization
+      x-hidden: true
   /org/{org_id}/number-marketplace:
     get:
       description: Search for available phone numbers to purchase
@@ -8761,6 +8833,7 @@ paths:
       summary: Search available numbers
       tags:
         - Telephony
+      x-hidden: true
   /org/{org_id}/number-marketplace/purchase:
     post:
       description: Purchase a phone number from the marketplace
@@ -8812,6 +8885,7 @@ paths:
       summary: Purchase phone number
       tags:
         - Telephony
+      x-hidden: true
   /org/{org_id}/number-marketplace/purchased:
     get:
       description: List all phone numbers purchased through the marketplace
@@ -8861,6 +8935,7 @@ paths:
       summary: List purchased numbers
       tags:
         - Telephony
+      x-hidden: true
   /org/{org_id}/members:
     get:
       description: List all members of the organization
@@ -8900,6 +8975,7 @@ paths:
       summary: List members
       tags:
         - Organization
+      x-hidden: true
   /org/{org_id}/members/{user_id}:
     delete:
       description: Remove a member from the organization
@@ -8947,6 +9023,7 @@ paths:
       summary: Remove member
       tags:
         - Organization
+      x-hidden: true
   /org/{org_id}/members/{user_id}/role:
     patch:
       description: Update the role of an organization member
@@ -9010,6 +9087,7 @@ paths:
       summary: Update member role
       tags:
         - Organization
+      x-hidden: true
   /org/{org_id}/quality-rules:
     get:
       description: List all quality rules for the organization
@@ -9059,6 +9137,7 @@ paths:
       summary: List quality rules
       tags:
         - Quality
+      x-hidden: true
     post:
       description: Create a new quality rule for the organization
       operationId: createQualityRule
@@ -9109,6 +9188,7 @@ paths:
       summary: Create quality rule
       tags:
         - Quality
+      x-hidden: true
   /org/{org_id}/quality-rules/{rule_id}:
     get:
       description: Get a quality rule by ID
@@ -9160,6 +9240,7 @@ paths:
       summary: Get quality rule
       tags:
         - Quality
+      x-hidden: true
     patch:
       description: Update a quality rule
       operationId: updateQualityRule
@@ -9222,6 +9303,7 @@ paths:
       summary: Update quality rule
       tags:
         - Quality
+      x-hidden: true
     delete:
       description: Delete a quality rule
       operationId: deleteQualityRule
@@ -9268,6 +9350,7 @@ paths:
       summary: Delete quality rule
       tags:
         - Quality
+      x-hidden: true
   /org/{org_id}/email-templates:
     get:
       description: List email templates for the organization with pagination and search.
@@ -9550,6 +9633,7 @@ paths:
       summary: List FAQs
       tags:
         - FAQs
+      x-hidden: true
     post:
       description: Create a new FAQ.
       operationId: createFaq
@@ -9594,6 +9678,7 @@ paths:
       summary: Create FAQ
       tags:
         - FAQs
+      x-hidden: true
   /org/{org_id}/faqs/{faq_id}:
     get:
       description: Get an FAQ by ID.
@@ -9645,6 +9730,7 @@ paths:
       summary: Get FAQ
       tags:
         - FAQs
+      x-hidden: true
     patch:
       description: Update an FAQ.
       operationId: updateFaq
@@ -9701,6 +9787,7 @@ paths:
       summary: Update FAQ
       tags:
         - FAQs
+      x-hidden: true
     delete:
       description: Delete an FAQ.
       operationId: deleteFaq
@@ -9747,6 +9834,7 @@ paths:
       summary: Delete FAQ
       tags:
         - FAQs
+      x-hidden: true
   /org/{org_id}/webcall:
     post:
       description: Create a browser-based web call session. Returns a LiveKit token and URL for client-side connection.
@@ -9804,6 +9892,7 @@ paths:
       summary: Create web call
       tags:
         - Calls
+      x-hidden: true
   /users/me:
     get:
       description: Get the currently authenticated user's profile and organization memberships
@@ -9887,6 +9976,7 @@ paths:
       summary: Get file URL
       tags:
         - Files
+      x-hidden: true
   /me/organizations:
     get:
       description: Returns all organizations the authenticated user belongs to
@@ -9972,6 +10062,7 @@ paths:
       summary: Accept invitation
       tags:
         - Organization
+      x-hidden: true
   /org/{org_id}/analytics/batches:
     get:
       description: Returns performance metrics for workflow batches in a date range
@@ -10143,6 +10234,7 @@ paths:
       summary: Get agent scenarios
       tags:
         - E2E Testing
+      x-hidden: true
     post:
       description: Attach one or more E2E testing scenarios to an agent
       operationId: attachAgentScenarios
@@ -10199,6 +10291,7 @@ paths:
       summary: Attach scenarios to agent
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/agents/{agent_id}/scenarios/{scenario_id}:
     delete:
       description: Detach an E2E testing scenario from an agent
@@ -10258,6 +10351,7 @@ paths:
       summary: Detach scenario from agent
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/agents/{agent_id}/unit-tests/{test_id}:
     put:
       description: Update an existing unit test for an agent
@@ -10327,6 +10421,7 @@ paths:
       summary: Update unit test
       tags:
         - Evaluations
+      x-hidden: true
   /org/{org_id}/agents/{agent_id}/run-tests:
     post:
       description: Trigger execution of all unit tests for an agent
@@ -10384,6 +10479,7 @@ paths:
       summary: Run all unit tests
       tags:
         - Evaluations
+      x-hidden: true
   /org/{org_id}/e2e/scenarios:
     get:
       description: Get all E2E testing scenarios for the organization
@@ -10456,6 +10552,7 @@ paths:
       summary: List E2E testing scenarios
       tags:
         - E2E Testing
+      x-hidden: true
     post:
       description: Create a new E2E testing scenario for the organization
       operationId: createE2EScenario
@@ -10506,6 +10603,7 @@ paths:
       summary: Create E2E testing scenario
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/e2e/scenarios/{scenario_id}:
     get:
       description: Get a single E2E testing scenario by ID
@@ -10563,6 +10661,7 @@ paths:
       summary: Get E2E testing scenario
       tags:
         - E2E Testing
+      x-hidden: true
     patch:
       description: Update E2E testing scenario properties
       operationId: updateE2EScenario
@@ -10625,6 +10724,7 @@ paths:
       summary: Update E2E testing scenario
       tags:
         - E2E Testing
+      x-hidden: true
     delete:
       description: Delete an E2E testing scenario and all its runs
       operationId: deleteE2EScenario
@@ -10677,6 +10777,7 @@ paths:
       summary: Delete E2E testing scenario
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/e2e/runs:
     get:
       description: List all E2E testing scenario runs for the organization with optional filters
@@ -10764,6 +10865,7 @@ paths:
       summary: List E2E testing runs
       tags:
         - E2E Testing
+      x-hidden: true
     post:
       description: Create a new E2E testing scenario run for the specified agent
       operationId: createE2ERun
@@ -10820,6 +10922,7 @@ paths:
       summary: Create E2E testing run
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/e2e/runs/agent:
     post:
       description: Run all E2E scenarios attached to a specific agent in a batch
@@ -10877,6 +10980,7 @@ paths:
       summary: Run all scenarios for agent
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/e2e/runs/batch:
     post:
       description: Create scenario runs for a single scenario across multiple agents
@@ -10934,6 +11038,7 @@ paths:
       summary: Create batch E2E runs
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/e2e/runs/status:
     post:
       description: Get the status of E2E runs from Cekura by their IDs
@@ -10985,6 +11090,7 @@ paths:
       summary: Get Cekura run status
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/e2e/runs/sync:
     post:
       description: Poll Cekura for run results and sync them back to scenario runs
@@ -11036,6 +11142,7 @@ paths:
       summary: Sync E2E runs with Cekura
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/e2e/runs/{run_id}:
     get:
       description: Get a single E2E testing scenario run by ID
@@ -11093,6 +11200,7 @@ paths:
       summary: Get E2E testing run
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/e2e/runs/{run_id}/result:
     get:
       description: Get the result and result_json for a specific E2E testing run
@@ -11150,6 +11258,7 @@ paths:
       summary: Get E2E testing run result
       tags:
         - E2E Testing
+      x-hidden: true
   /org/{org_id}/e2e/runs/{run_id}/status:
     patch:
       description: Update the status of an E2E testing scenario run
@@ -11213,6 +11322,7 @@ paths:
       summary: Update E2E testing run status
       tags:
         - E2E Testing
+      x-hidden: true
 components:
   requestBodies:
     tags.BulkTagProspectsRequest:
